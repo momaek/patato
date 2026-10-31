@@ -5,8 +5,8 @@ SQLC := docker run --rm -v $(CURDIR):/src -w /src sqlc/sqlc:1.27.0
 # patato-node 内嵌 sing-box，需要这些构建标签才包含 QUIC（Hysteria2 / TUIC）、Reality 和 ACME
 NODE_TAGS := with_quic,with_utls,with_acme
 
-build:
-	go build -o bin/patato-server ./server/cmd/patato-server
+build: web
+	go build -tags embedweb -o bin/patato-server ./server/cmd/patato-server
 	go build -tags $(NODE_TAGS) -o bin/patato-node ./node/cmd/patato-node
 	go build -o bin/patato ./cli/cmd/patato
 
@@ -15,12 +15,9 @@ install-cli:
 	go install ./cli/cmd/patato
 	ln -sf patato "$$(go env GOPATH)/bin/pat"
 
-# 构建两个前端，产物放到 deploy/web 下由 Caddy 托管
+# 构建两个前端，供 -tags embedweb 的服务端构建嵌入
 web:
 	cd web && pnpm install --frozen-lockfile && pnpm build
-	rm -rf deploy/web && mkdir -p deploy/web
-	cp -r web/admin/dist deploy/web/admin
-	cp -r web/portal/dist deploy/web/portal
 
 # 集成测试需要 PostgreSQL：设置 PATATO_TEST_DATABASE_URL，或本机有 Docker（自动起 testcontainers）
 test:
@@ -32,7 +29,7 @@ generate:
 
 lint:
 	go vet -tags $(NODE_TAGS) ./...
-	test -z "$$(gofmt -l server api node nodeapi cli)"
+	test -z "$$(gofmt -l server api node nodeapi cli web/*.go)"
 
 check-generated: generate
 	git diff --exit-code server/internal/store/db

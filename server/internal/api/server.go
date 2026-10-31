@@ -14,12 +14,14 @@ import (
 	"github.com/momaek/patato/server/internal/auth"
 	"github.com/momaek/patato/server/internal/change"
 	"github.com/momaek/patato/server/internal/config"
+	"github.com/momaek/patato/server/internal/frontend"
 	"github.com/momaek/patato/server/internal/native"
 	"github.com/momaek/patato/server/internal/notify"
 	"github.com/momaek/patato/server/internal/secret"
 	"github.com/momaek/patato/server/internal/store"
 	"github.com/momaek/patato/server/internal/subscribe"
 	"github.com/momaek/patato/server/internal/uniproxy"
+	"github.com/momaek/patato/web"
 )
 
 // TelegramBinder 由 Telegram 通道实现，未配置时为 nil。
@@ -43,9 +45,10 @@ type Deps struct {
 }
 
 type Server struct {
-	d      Deps
-	engine *gin.Engine
-	loc    *time.Location
+	d        Deps
+	engine   *gin.Engine
+	loc      *time.Location
+	frontend *frontend.Handler
 }
 
 func New(d Deps) *Server {
@@ -54,6 +57,8 @@ func New(d Deps) *Server {
 	e.Use(gin.Recovery(), requestLog(d.Log))
 	e.HandleMethodNotAllowed = true
 	s := &Server{d: d, engine: e, loc: d.Cfg.Location()}
+	admin, portal := web.Assets()
+	s.frontend = frontend.New(d.Cfg.AdminURL, d.Cfg.PortalURL, admin, portal)
 
 	e.Use(s.cors)
 	e.GET("/healthz", func(c *gin.Context) { c.String(http.StatusOK, "ok") })
@@ -67,6 +72,9 @@ func New(d Deps) *Server {
 		e.Handle(r.Method, internalPath(r.Path), r.chain(s)...)
 	}
 	e.NoRoute(func(c *gin.Context) {
+		if s.frontend.Serve(c.Writer, c.Request) {
+			return
+		}
 		c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"code": "not_found", "message": "接口不存在",
 			"hint": "用 GET /skill.md 或 GET /api/v1/tools 查看可用接口", "retryable": false}})
 	})

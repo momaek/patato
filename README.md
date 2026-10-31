@@ -15,4 +15,6 @@ Agentic 时代的代理面板：人只负责说话和审批，日常操作交给
 
 服务端说明：[docs/server.md](docs/server.md)
 
+部署：两个前端内嵌在服务端镜像中，无需单独部署静态文件；Docker 构建使用 `server/Dockerfile`，本地完整构建使用 `make build`（需要 Go 和 pnpm）。开发时仍可用 Vite 热更新，见 [docs/web.md](docs/web.md)。
+
 状态：MVP 服务端、patato-node、Admin 与用户侧前端、CLI 已完成（见 [docs/server.md](docs/server.md)、[docs/web.md](docs/web.md)、[docs/cli.md](docs/cli.md)）；真实环境验证、发布流程和迁移演练尚未开始。

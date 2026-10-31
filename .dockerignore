@@ -1,0 +1,11 @@
+.git
+.claude
+**/node_modules
+**/dist
+bin
+deploy/config.yaml
+deploy/pgdata
+deploy/backups
+deploy/caddy-data
+deploy/web
+*.local

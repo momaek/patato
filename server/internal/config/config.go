@@ -4,6 +4,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -34,7 +35,7 @@ type Config struct {
 
 	// PublicURL 是 API 对外地址，节点、CLI、订阅链接都用它。
 	PublicURL string `yaml:"public_url"`
-	// AdminURL 与 PortalURL 是两个前端的地址，用于 CORS、passkey 来源校验和邮件里的链接。
+	// AdminURL 与 PortalURL 用于前端 Host 分发、CORS、passkey 来源校验和邮件里的链接。
 	AdminURL  string `yaml:"admin_url"`
 	PortalURL string `yaml:"portal_url"`
 	// SubscribeURL 是订阅链接的域名，默认等于 PublicURL。
@@ -219,6 +220,23 @@ func (c *Config) Validate() error {
 	}
 	if c.PublicURL == "" {
 		errs = append(errs, errors.New("public_url is required"))
+	}
+	hosts := make(map[string]string)
+	for _, frontend := range []struct{ name, value string }{{"admin_url", c.AdminURL}, {"portal_url", c.PortalURL}} {
+		if frontend.value == "" {
+			continue
+		}
+		u, err := url.Parse(frontend.value)
+		if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") ||
+			(u.Path != "" && u.Path != "/") || u.RawQuery != "" || u.Fragment != "" || u.User != nil {
+			errs = append(errs, fmt.Errorf("%s must be an http(s) origin without a path", frontend.name))
+			continue
+		}
+		host := strings.ToLower(u.Host)
+		if previous := hosts[host]; previous != "" {
+			errs = append(errs, fmt.Errorf("%s and %s must use different hosts or ports", previous, frontend.name))
+		}
+		hosts[host] = frontend.name
 	}
 	if c.Risk.UserThreshold <= 0 || c.Risk.NodeThreshold <= 0 {
 		errs = append(errs, errors.New("risk thresholds must be positive"))
