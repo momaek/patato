@@ -496,7 +496,7 @@ CLI 是 API 的薄封装，命名和交互风格与 tolato 保持一致。命令
 | `patato template list` / `show <名称>` | 查看节点模板 | 只读 |
 | `patato node list` / `show <节点>` | 查看节点、状态及是否已下发到订阅 | 只读 |
 | `patato node provision --host <机器> --template <模板> --plan <套餐>` | 意图级上节点：建节点 + 挂套餐 | 常规（按影响面可升为敏感） |
-| `patato node install-cmd <节点>` | 输出在节点机器上安装并配置 V2bX 的命令 | 只读 |
+| `patato node install-cmd <节点>` | 输出在节点机器上安装并配置 V2bX 的命令；命令含节点密钥，需要可写 token | 只读 |
 | `patato node attach` / `detach <节点> --plan <套餐>` | 挂载或卸载节点 | 常规（按影响面可升为敏感） |
 | `patato node delete <节点>` | 删除节点 | 敏感 |
 | `patato plan list` / `show <套餐>` | 查看套餐 | 只读 |

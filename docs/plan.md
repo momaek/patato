@@ -2,7 +2,9 @@
 
 > 2026-10-31 · 依据 [设计文档](design.md) 与 [界面设计稿](ui/README.md)
 
-MVP 按 1 名工程师加 AI 辅助编码排期，约 8 周：1 周准备，7 周开发与上线。比设计文档最初估的 6 周多出的部分，是两个前端应用（Admin 9 页中的 6 页、用户侧 6 页）和迁移演练。
+MVP 按 1 名工程师加 AI 辅助编码排期，约 8 周：1 周准备，7 周开发与上线。
+
+**进度**：MVP 服务端已完成，说明和已知限制见 [服务端说明](server.md)。CLI 和两个前端尚未开始。比设计文档最初估的 6 周多出的部分，是两个前端应用（Admin 9 页中的 6 页、用户侧 6 页）和迁移演练。
 
 ## 技术选型
 
@@ -14,9 +16,9 @@ MVP 按 1 名工程师加 AI 辅助编码排期，约 8 周：1 周准备，7 �
 | --- | --- | --- |
 | 语言 | Go（与 tolato 同步升级版本） | |
 | HTTP 框架 | Gin | 与 tolato 一致 |
-| API 契约 | OpenAPI 3.1，`oapi-codegen` 生成 Gin 服务端接口和 Go 客户端 | 契约是前后端分离的单一事实来源。风险等级写在契约里（`x-risk`），服务端中间件据此强制执行，`/skill.md` 的工具清单也从契约生成 |
+| API 契约 | OpenAPI 3.1（`api/openapi.yaml`）+ 契约测试 | 契约是前后端分离的单一事实来源，风险等级写在契约里（`x-risk`）。Gin 不支持路径中的冒号，路由改为手写，由测试保证与契约一致，见 [服务端说明](server.md) |
 | 数据库 | PostgreSQL 16 | 与 tolato 一致 |
-| 数据访问 | `pgx/v5` + `sqlc` | **偏离 tolato 的 GORM**：计费、扣减、变更计划都需要显式事务、行锁和可审查的 SQL，ORM 的隐式行为在这里是风险 |
+| 数据访问 | `pgx/v5` + `sqlc`（用 Docker 镜像生成） | **偏离 tolato 的 GORM**：计费、扣减、变更计划都需要显式事务、行锁和可审查的 SQL，ORM 的隐式行为在这里是风险 |
 | 迁移 | `goose`，按版本号管理 | **偏离 tolato 的 AutoMigrate**：AutoMigrate 不能删改字段，生产库结构变更必须可审查、可回滚 |
 | 任务队列 | `river`（基于 PostgreSQL） | 流量聚合、到期停用、审批过期、通知推送等异步任务。MVP 不引入 Redis，少一个要运维和备份的组件 |
 | 鉴权 | `go-webauthn/webauthn`（passkey）、`golang-jwt/jwt/v5`、`golang.org/x/crypto`（bcrypt / argon2） | 运营者会话、终端用户会话、CLI token、节点密钥四类凭证，见设计文档「接口规范」 |

@@ -1,0 +1,17 @@
+# 把下面三个域名换成你自己的。
+
+api.example.com {
+	reverse_proxy server:8080
+}
+
+admin.example.com {
+	root * /srv/admin
+	try_files {path} /index.html
+	file_server
+}
+
+my.example.com {
+	root * /srv/portal
+	try_files {path} /index.html
+	file_server
+}

@@ -1,0 +1,66 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: patato
+      POSTGRES_PASSWORD: patato
+      POSTGRES_DB: patato
+    volumes:
+      - ./pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U patato -d patato"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  server:
+    image: ghcr.io/momaek/patato-server:${PATATO_VERSION:-latest}
+    build:
+      context: ..
+      dockerfile: server/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PATATO_CONFIG: /app/config.yaml
+    volumes:
+      - ./config.yaml:/app/config.yaml:ro
+    expose:
+      - "8080"
+
+  # 反向代理：自动签发证书，托管两个前端的静态文件，把 API 转给服务端
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - server
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./web/admin:/srv/admin:ro
+      - ./web/portal:/srv/portal:ro
+      - ./caddy-data:/data
+
+  # 每天备份一次数据库，保留 14 天。备份目录请再同步到另一台机器。
+  backup:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: patato
+    volumes:
+      - ./backups:/backups
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        while true; do
+          pg_dump -h postgres -U patato -Fc patato > /backups/patato-$$(date +%Y%m%d-%H%M).dump
+          find /backups -name 'patato-*.dump' -mtime +14 -delete
+          sleep 86400
+        done

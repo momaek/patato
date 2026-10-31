@@ -1,0 +1,35 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  server:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: patato
+          POSTGRES_PASSWORD: patato
+          POSTGRES_DB: patato
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U patato" --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      PATATO_TEST_DATABASE_URL: postgres://patato:patato@localhost:5432/patato?sslmode=disable
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Lint
+        run: make lint
+      - name: Generated code is up to date
+        run: make check-generated
+      - name: Test
+        run: go test -race ./...
+      - name: Build
+        run: make build

@@ -1,0 +1,883 @@
+openapi: 3.1.0
+info:
+  title: Patato API
+  version: 0.1.0
+  description: |
+    Patato 的 API 契约。x-risk 是接口声明的风险等级；写接口的实际等级由变更计划按影响面决定。
+    x-access 说明鉴权方式：admin（运营者会话或 CLI / Agent token）、operator（只接受运营者会话）、portal（终端用户会话）、public。
+servers:
+  - url: /
+components:
+  securitySchemes:
+    token:
+      type: http
+      scheme: bearer
+    operatorSession:
+      type: apiKey
+      in: cookie
+      name: patato_admin
+    portalSession:
+      type: apiKey
+      in: cookie
+      name: patato_portal
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema: {type: string}
+      description: 同一个 key 重复提交返回首次结果；换了请求内容返回 422
+    XActor:
+      name: X-Actor
+      in: header
+      required: false
+      schema: {type: string}
+      description: 调用方自报的身份（例如某个 Agent 会话），只写入审计，不参与权限判断
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          required: [code, message, retryable]
+          properties:
+            code: {type: string}
+            message: {type: string}
+            hint: {type: string}
+            retryable: {type: boolean}
+    ChangePlan:
+      type: object
+      properties:
+        change_id: {type: string}
+        kind: {type: string}
+        summary: {type: string}
+        plan: {type: array, items: {type: string}}
+        impact: {type: object, properties: {users: {type: integer}, nodes: {type: integer}}}
+        diff: {type: array, items: {type: object, properties: {field: {type: string}, before: {}, after: {}}}}
+        targets: {type: array, items: {type: object, properties: {type: {type: string}, id: {type: integer}, version: {type: integer}}}}
+        declared_risk: {type: string, enum: [read, normal, sensitive, forbidden]}
+        risk: {type: string, enum: [read, normal, sensitive, forbidden]}
+        risk_reason: {type: string}
+        status: {type: string, enum: [planned, pending_approval, applied, rejected, expired, stale, failed]}
+        expires_at: {type: string, format: date-time}
+        approval_id: {type: string}
+        result: {}
+        error: {type: string}
+paths:
+  /api/v1/tools:
+    get:
+      operationId: get_tools
+      summary: "Agent 工具清单（与 /skill.md 同源）"
+      x-risk: read
+      x-access: public
+      security: []
+      responses:
+        '200': {description: 成功}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /api/v1/openapi.yaml:
+    get:
+      operationId: get_openapi_yaml
+      summary: "API 契约"
+      x-risk: read
+      x-access: public
+      security: []
+      responses:
+        '200': {description: 成功}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /api/v1/auth/passkey/register:begin:
+    post:
+      operationId: post_auth_passkey_register_begin
+      summary: "开始注册 passkey（凭邀请）"
+      x-risk: normal
+      x-access: public
+      security: []
+      responses:
+        '200': {description: 成功}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /api/v1/auth/passkey/register:finish:
+    post:
+      operationId: post_auth_passkey_register_finish
+      summary: "完成注册 passkey"
+      x-risk: normal
+      x-access: public
+      security: []
+      responses:
+        '200': {description: 成功}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /api/v1/auth/passkey/login:begin:
+    post:
+      operationId: post_auth_passkey_login_begin
+      summary: "开始 passkey 登录"
+      x-risk: normal
+      x-access: public
+      security: []
+      responses:
+        '200': {description: 成功}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /api/v1/auth/passkey/login:finish:
+    post:
+      operationId: post_auth_passkey_login_finish
+      summary: "完成 passkey 登录"
+      x-risk: normal
+      x-access: public
+      security: []
+      responses:
+        '200': {description: 成功}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /api/v1/auth/logout:
+    post:
+      operationId: post_auth_logout
+      summary: "退出登录"
+      x-risk: normal
+      x-access: public
+      security: []
+      responses:
+        '200': {description: 成功}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /api/v1/auth/me:
+    get:
+      operationId: get_auth_me
+      summary: "当前调用方"
+      x-risk: read
+      x-access: admin
+      security: [{token: []}, {operatorSession: []}]
+      parameters:
+        - $ref: '#/components/parameters/XActor'
+      responses:
+        '200': {description: 成功}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /api/v1/auth/passkeys:begin:
+    post:
+      operationId: post_auth_passkeys_begin
+      summary: "再添加一把 passkey"
+      x-risk: normal
+      x-access: operator
+      security: [{operatorSession: []}]
+      responses:
+        '200': {description: 成功}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /api/v1/auth/passkeys:finish:
+    post:
+      operationId: post_auth_passkeys_finish
+      summary: "完成添加 passkey"
+      x-risk: normal
+      x-access: operator
+      security: [{operatorSession: []}]
+      responses:
+        '200': {description: 成功}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /api/v1/auth/cli/grants:
+    post:
+      operationId: post_auth_cli_grants
+      summary: "CLI 发起授权"
+      x-risk: normal
+      x-access: public
+      security: []
+      responses:
+        '200': {description: 成功}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /api/v1/auth/cli/grants/{id}:token:
+    post:
+      operationId: post_auth_cli_grants_id_token
+      summary: "CLI 轮询换取 token"
+      x-risk: normal
+      x-access: public
+      security: []
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+      responses:
+        '200': {description: 成功}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /api/v1/auth/cli/grants/{id}:
+    get:
+      operationId: get_auth_cli_grants_id
+      summary: "查看授权请求"
+      x-risk: read
+      x-access: operator
+      security: [{operatorSession: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+      responses:
+        '200': {description: 成功}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /api/v1/auth/cli/grants/{id}:approve:
+    post:
+      operationId: post_auth_cli_grants_id_approve
+      summary: "批准 CLI 授权"
+      x-risk: normal
+      x-access: operator
+      security: [{operatorSession: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+      responses:
+        '200': {description: 成功}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /api/v1/auth/cli/grants/{id}:deny:
+    post:
+      operationId: post_auth_cli_grants_id_deny
+      summary: "拒绝 CLI 授权"
+      x-risk: normal
+      x-access: operator
+      security: [{operatorSession: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+      responses:
+        '200': {description: 成功}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /api/v1/auth/tokens:
+    get:
+      operationId: get_auth_tokens
+      summary: "已签发的 token"
+      x-risk: read
+      x-access: operator
+      security: [{operatorSession: []}]
+      responses:
+        '200': {description: 成功}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /api/v1/auth/tokens/{id}:
+    delete:
+      operationId: delete_auth_tokens_id
+      summary: "吊销 token"
+      x-risk: normal
+      x-access: operator
+      security: [{operatorSession: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+      responses:
+        '200': {description: 成功}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /api/v1/auth/telegram:bind:
+    post:
+      operationId: post_auth_telegram_bind
+      summary: "生成 Telegram 绑定码"
+      x-risk: normal
+      x-access: operator
+      security: [{operatorSession: []}]
+      responses:
+        '200': {description: 成功}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /api/v1/status:
+    get:
+      operationId: get_status
+      summary: "系统总览：需要处理的事、节点、用户、用量"
+      x-risk: read
+      x-access: admin
+      security: [{token: []}, {operatorSession: []}]
+      parameters:
+        - $ref: '#/components/parameters/XActor'
+      responses:
+        '200': {description: 成功}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /api/v1/events:
+    get:
+      operationId: get_events
+      summary: "事件列表；Accept: text/event-stream 时持续推送"
+      x-risk: read
+      x-access: admin
+      security: [{token: []}, {operatorSession: []}]
+      parameters:
+        - $ref: '#/components/parameters/XActor'
+      responses:
+        '200': {description: 成功}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /api/v1/audit:
+    get:
+      operationId: get_audit
+      summary: "审计日志"
+      x-risk: read
+      x-access: admin
+      security: [{token: []}, {operatorSession: []}]
+      parameters:
+        - $ref: '#/components/parameters/XActor'
+      responses:
+        '200': {description: 成功}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /api/v1/stats/usage:
+    get:
+      operationId: get_stats_usage
+      summary: "今日用量"
+      x-risk: read
+      x-access: admin
+      security: [{token: []}, {operatorSession: []}]
+      parameters:
+        - $ref: '#/components/parameters/XActor'
+      responses:
+        '200': {description: 成功}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /api/v1/templates:
+    get:
+      operationId: get_templates
+      summary: "节点模板列表"
+      x-risk: read
+      x-access: admin
+      security: [{token: []}, {operatorSession: []}]
+      parameters:
+        - $ref: '#/components/parameters/XActor'
+      responses:
+        '200': {description: 成功}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+    post:
+      operationId: post_templates
+      summary: "新建节点模板"
+      x-risk: normal
+      x-access: admin
+      x-operation: template.create
+      security: [{token: []}, {operatorSession: []}]
+      parameters:
+        - $ref: '#/components/parameters/XActor'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        content:
+          application/json:
+            schema: {"type": "object", "properties": {"dry_run": {"type": "boolean", "description": "为 true 时只预演，返回变更计划"}, "instruction": {"type": "string", "description": "用户的原始指令，显示在审批卡片上"}, "code": {"type": "string"}, "name": {"type": "string"}, "region": {"type": "string"}, "protocol": {"type": "string", "enum": ["vless", "vmess", "trojan", "shadowsocks", "hysteria", "tuic", "anytls"]}, "port_min": {"type": "integer"}, "port_max": {"type": "integer"}, "settings": {"type": "object", "description": "协议设置，结构与 Xboard 的 protocol_settings 一致"}, "rate": {"type": "number"}}, "required": ["code", "name", "protocol", "port_min", "port_max"]}
+      responses:
+        '200': {description: 预演结果或已执行的变更计划, content: {application/json: {schema: {$ref: '#/components/schemas/ChangePlan'}}}}
+        '202': {description: 敏感操作，已生成审批, content: {application/json: {schema: {$ref: '#/components/schemas/ChangePlan'}}}}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /api/v1/templates/{id}:
+    get:
+      operationId: get_templates_id
+      summary: "节点模板详情"
+      x-risk: read
+      x-access: admin
+      security: [{token: []}, {operatorSession: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+        - $ref: '#/components/parameters/XActor'
+      responses:
+        '200': {description: 成功}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+    patch:
+      operationId: patch_templates_id
+      summary: "修改节点模板"
+      x-risk: normal
+      x-access: admin
+      x-operation: template.update
+      security: [{token: []}, {operatorSession: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+        - $ref: '#/components/parameters/XActor'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        content:
+          application/json:
+            schema: {"type": "object", "properties": {"dry_run": {"type": "boolean", "description": "为 true 时只预演，返回变更计划"}, "instruction": {"type": "string", "description": "用户的原始指令，显示在审批卡片上"}, "name": {"type": "string"}, "region": {"type": "string"}, "port_min": {"type": "integer"}, "port_max": {"type": "integer"}, "settings": {"type": "object"}, "rate": {"type": "number"}}}
+      responses:
+        '200': {description: 预演结果或已执行的变更计划, content: {application/json: {schema: {$ref: '#/components/schemas/ChangePlan'}}}}
+        '202': {description: 敏感操作，已生成审批, content: {application/json: {schema: {$ref: '#/components/schemas/ChangePlan'}}}}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /api/v1/nodes:
+    get:
+      operationId: get_nodes
+      summary: "节点列表"
+      x-risk: read
+      x-access: admin
+      security: [{token: []}, {operatorSession: []}]
+      parameters:
+        - $ref: '#/components/parameters/XActor'
+      responses:
+        '200': {description: 成功}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /api/v1/nodes/{id}:
+    get:
+      operationId: get_nodes_id
+      summary: "节点详情"
+      x-risk: read
+      x-access: admin
+      security: [{token: []}, {operatorSession: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+        - $ref: '#/components/parameters/XActor'
+      responses:
+        '200': {description: 成功}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+    patch:
+      operationId: patch_nodes_id
+      summary: "修改节点"
+      x-risk: normal
+      x-access: admin
+      x-operation: node.update
+      security: [{token: []}, {operatorSession: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+        - $ref: '#/components/parameters/XActor'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        content:
+          application/json:
+            schema: {"type": "object", "properties": {"dry_run": {"type": "boolean", "description": "为 true 时只预演，返回变更计划"}, "instruction": {"type": "string", "description": "用户的原始指令，显示在审批卡片上"}, "name": {"type": "string"}, "address": {"type": "string"}, "port": {"type": "integer"}, "rate": {"type": "number"}, "tags": {"type": "array", "items": {"type": "string"}}, "settings": {"type": "object"}, "sort": {"type": "integer"}}}
+      responses:
+        '200': {description: 预演结果或已执行的变更计划, content: {application/json: {schema: {$ref: '#/components/schemas/ChangePlan'}}}}
+        '202': {description: 敏感操作，已生成审批, content: {application/json: {schema: {$ref: '#/components/schemas/ChangePlan'}}}}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+    delete:
+      operationId: delete_nodes_id
+      summary: "删除节点"
+      x-risk: sensitive
+      x-access: admin
+      x-operation: node.delete
+      security: [{token: []}, {operatorSession: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+        - $ref: '#/components/parameters/XActor'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        content:
+          application/json:
+            schema: {"type": "object", "properties": {"dry_run": {"type": "boolean", "description": "为 true 时只预演，返回变更计划"}, "instruction": {"type": "string", "description": "用户的原始指令，显示在审批卡片上"}}}
+      responses:
+        '200': {description: 预演结果或已执行的变更计划, content: {application/json: {schema: {$ref: '#/components/schemas/ChangePlan'}}}}
+        '202': {description: 敏感操作，已生成审批, content: {application/json: {schema: {$ref: '#/components/schemas/ChangePlan'}}}}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /api/v1/nodes/{id}/install-cmd:
+    get:
+      operationId: get_nodes_id_install_cmd
+      summary: "节点后端安装命令（含节点密钥，需要可写 token）"
+      x-risk: normal
+      x-access: admin
+      security: [{token: []}, {operatorSession: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+        - $ref: '#/components/parameters/XActor'
+      responses:
+        '200': {description: 成功}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /api/v1/nodes:provision:
+    post:
+      operationId: post_nodes_provision
+      summary: "意图级上节点：建节点并挂到套餐"
+      x-risk: normal
+      x-access: admin
+      x-operation: node.provision
+      security: [{token: []}, {operatorSession: []}]
+      parameters:
+        - $ref: '#/components/parameters/XActor'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        content:
+          application/json:
+            schema: {"type": "object", "properties": {"dry_run": {"type": "boolean", "description": "为 true 时只预演，返回变更计划"}, "instruction": {"type": "string", "description": "用户的原始指令，显示在审批卡片上"}, "template": {"type": "string", "description": "ID 或代号"}, "host": {"type": "string", "description": "tolato 中的机器名；与 address 二选一"}, "address": {"type": "string", "description": "客户端连接地址；不传时从 tolato 查询"}, "plans": {"type": "array", "items": {"type": "string", "description": "ID 或代号"}}, "name": {"type": "string"}, "code": {"type": "string"}, "port": {"type": "integer"}, "region": {"type": "string"}}, "required": ["template", "plans"]}
+      responses:
+        '200': {description: 预演结果或已执行的变更计划, content: {application/json: {schema: {$ref: '#/components/schemas/ChangePlan'}}}}
+        '202': {description: 敏感操作，已生成审批, content: {application/json: {schema: {$ref: '#/components/schemas/ChangePlan'}}}}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /api/v1/nodes/{id}:attach:
+    post:
+      operationId: post_nodes_id_attach
+      summary: "把节点挂到套餐"
+      x-risk: normal
+      x-access: admin
+      x-operation: node.attach
+      security: [{token: []}, {operatorSession: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+        - $ref: '#/components/parameters/XActor'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        content:
+          application/json:
+            schema: {"type": "object", "properties": {"dry_run": {"type": "boolean", "description": "为 true 时只预演，返回变更计划"}, "instruction": {"type": "string", "description": "用户的原始指令，显示在审批卡片上"}, "plan": {"type": "string", "description": "ID 或代号"}}, "required": ["plan"]}
+      responses:
+        '200': {description: 预演结果或已执行的变更计划, content: {application/json: {schema: {$ref: '#/components/schemas/ChangePlan'}}}}
+        '202': {description: 敏感操作，已生成审批, content: {application/json: {schema: {$ref: '#/components/schemas/ChangePlan'}}}}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /api/v1/nodes/{id}:detach:
+    post:
+      operationId: post_nodes_id_detach
+      summary: "把节点从套餐卸载"
+      x-risk: normal
+      x-access: admin
+      x-operation: node.detach
+      security: [{token: []}, {operatorSession: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+        - $ref: '#/components/parameters/XActor'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        content:
+          application/json:
+            schema: {"type": "object", "properties": {"dry_run": {"type": "boolean", "description": "为 true 时只预演，返回变更计划"}, "instruction": {"type": "string", "description": "用户的原始指令，显示在审批卡片上"}, "plan": {"type": "string", "description": "ID 或代号"}}, "required": ["plan"]}
+      responses:
+        '200': {description: 预演结果或已执行的变更计划, content: {application/json: {schema: {$ref: '#/components/schemas/ChangePlan'}}}}
+        '202': {description: 敏感操作，已生成审批, content: {application/json: {schema: {$ref: '#/components/schemas/ChangePlan'}}}}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /api/v1/nodes/{id}:rotate-key:
+    post:
+      operationId: post_nodes_id_rotate_key
+      summary: "轮换节点密钥"
+      x-risk: normal
+      x-access: admin
+      x-operation: node.rotate_key
+      security: [{token: []}, {operatorSession: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+        - $ref: '#/components/parameters/XActor'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        content:
+          application/json:
+            schema: {"type": "object", "properties": {"dry_run": {"type": "boolean", "description": "为 true 时只预演，返回变更计划"}, "instruction": {"type": "string", "description": "用户的原始指令，显示在审批卡片上"}}}
+      responses:
+        '200': {description: 预演结果或已执行的变更计划, content: {application/json: {schema: {$ref: '#/components/schemas/ChangePlan'}}}}
+        '202': {description: 敏感操作，已生成审批, content: {application/json: {schema: {$ref: '#/components/schemas/ChangePlan'}}}}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /api/v1/plans:
+    get:
+      operationId: get_plans
+      summary: "套餐列表"
+      x-risk: read
+      x-access: admin
+      security: [{token: []}, {operatorSession: []}]
+      parameters:
+        - $ref: '#/components/parameters/XActor'
+      responses:
+        '200': {description: 成功}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+    post:
+      operationId: post_plans
+      summary: "新建套餐（带价格时为敏感）"
+      x-risk: normal
+      x-access: admin
+      x-operation: plan.create
+      security: [{token: []}, {operatorSession: []}]
+      parameters:
+        - $ref: '#/components/parameters/XActor'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        content:
+          application/json:
+            schema: {"type": "object", "properties": {"dry_run": {"type": "boolean", "description": "为 true 时只预演，返回变更计划"}, "instruction": {"type": "string", "description": "用户的原始指令，显示在审批卡片上"}, "code": {"type": "string"}, "name": {"type": "string"}, "transfer_gb": {"type": "number"}, "reset_method": {"type": "string", "enum": ["purchase_day", "calendar_month", "never"]}, "device_limit": {"type": "integer"}, "speed_limit_mbps": {"type": "integer"}, "prices": {"type": "object", "additionalProperties": {"type": "integer"}, "description": "周期 → 金额（最小货币单位）；带价格时为敏感操作"}, "sellable": {"type": "boolean"}}, "required": ["code", "name", "transfer_gb"]}
+      responses:
+        '200': {description: 预演结果或已执行的变更计划, content: {application/json: {schema: {$ref: '#/components/schemas/ChangePlan'}}}}
+        '202': {description: 敏感操作，已生成审批, content: {application/json: {schema: {$ref: '#/components/schemas/ChangePlan'}}}}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /api/v1/plans/{id}:
+    get:
+      operationId: get_plans_id
+      summary: "套餐详情"
+      x-risk: read
+      x-access: admin
+      security: [{token: []}, {operatorSession: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+        - $ref: '#/components/parameters/XActor'
+      responses:
+        '200': {description: 成功}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+    patch:
+      operationId: patch_plans_id
+      summary: "修改套餐（改价格时为敏感）"
+      x-risk: normal
+      x-access: admin
+      x-operation: plan.update
+      security: [{token: []}, {operatorSession: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+        - $ref: '#/components/parameters/XActor'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        content:
+          application/json:
+            schema: {"type": "object", "properties": {"dry_run": {"type": "boolean", "description": "为 true 时只预演，返回变更计划"}, "instruction": {"type": "string", "description": "用户的原始指令，显示在审批卡片上"}, "name": {"type": "string"}, "transfer_gb": {"type": "number"}, "reset_method": {"type": "string", "enum": ["purchase_day", "calendar_month", "never"]}, "device_limit": {"type": "integer"}, "speed_limit_mbps": {"type": "integer"}, "prices": {"type": "object", "additionalProperties": {"type": "integer"}, "description": "改价格时为敏感操作"}, "sellable": {"type": "boolean"}, "apply_to_users": {"type": "boolean", "description": "把新的流量额度同步给这个套餐下的所有用户"}}}
+      responses:
+        '200': {description: 预演结果或已执行的变更计划, content: {application/json: {schema: {$ref: '#/components/schemas/ChangePlan'}}}}
+        '202': {description: 敏感操作，已生成审批, content: {application/json: {schema: {$ref: '#/components/schemas/ChangePlan'}}}}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+    delete:
+      operationId: delete_plans_id
+      summary: "删除套餐"
+      x-risk: sensitive
+      x-access: admin
+      x-operation: plan.delete
+      security: [{token: []}, {operatorSession: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+        - $ref: '#/components/parameters/XActor'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        content:
+          application/json:
+            schema: {"type": "object", "properties": {"dry_run": {"type": "boolean", "description": "为 true 时只预演，返回变更计划"}, "instruction": {"type": "string", "description": "用户的原始指令，显示在审批卡片上"}}}
+      responses:
+        '200': {description: 预演结果或已执行的变更计划, content: {application/json: {schema: {$ref: '#/components/schemas/ChangePlan'}}}}
+        '202': {description: 敏感操作，已生成审批, content: {application/json: {schema: {$ref: '#/components/schemas/ChangePlan'}}}}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /api/v1/users:
+    get:
+      operationId: get_users
+      summary: "用户列表"
+      x-risk: read
+      x-access: admin
+      security: [{token: []}, {operatorSession: []}]
+      parameters:
+        - $ref: '#/components/parameters/XActor'
+      responses:
+        '200': {description: 成功}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+    post:
+      operationId: post_users
+      summary: "新建用户"
+      x-risk: normal
+      x-access: admin
+      x-operation: user.create
+      security: [{token: []}, {operatorSession: []}]
+      parameters:
+        - $ref: '#/components/parameters/XActor'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        content:
+          application/json:
+            schema: {"type": "object", "properties": {"dry_run": {"type": "boolean", "description": "为 true 时只预演，返回变更计划"}, "instruction": {"type": "string", "description": "用户的原始指令，显示在审批卡片上"}, "email": {"type": "string"}, "password": {"type": "string"}, "plan": {"type": "string", "description": "ID 或代号"}, "expires_at": {"type": "string", "format": "date-time"}, "days": {"type": "integer"}, "transfer_gb": {"type": "number"}, "device_limit": {"type": "integer"}, "speed_limit_mbps": {"type": "integer"}}, "required": ["email", "plan"]}
+      responses:
+        '200': {description: 预演结果或已执行的变更计划, content: {application/json: {schema: {$ref: '#/components/schemas/ChangePlan'}}}}
+        '202': {description: 敏感操作，已生成审批, content: {application/json: {schema: {$ref: '#/components/schemas/ChangePlan'}}}}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /api/v1/users/{id}:
+    get:
+      operationId: get_users_id
+      summary: "用户详情"
+      x-risk: read
+      x-access: admin
+      security: [{token: []}, {operatorSession: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+        - $ref: '#/components/parameters/XActor'
+      responses:
+        '200': {description: 成功}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+    patch:
+      operationId: patch_users_id
+      summary: "修改用户（换套餐、续期、限速、封禁）"
+      x-risk: normal
+      x-access: admin
+      x-operation: user.update
+      security: [{token: []}, {operatorSession: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+        - $ref: '#/components/parameters/XActor'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        content:
+          application/json:
+            schema: {"type": "object", "properties": {"dry_run": {"type": "boolean", "description": "为 true 时只预演，返回变更计划"}, "instruction": {"type": "string", "description": "用户的原始指令，显示在审批卡片上"}, "plan": {"type": "string", "description": "ID 或代号"}, "expires_at": {"type": "string", "format": "date-time"}, "never_expire": {"type": "boolean"}, "extend_days": {"type": "integer", "description": "续期天数，从当前到期日接着算"}, "transfer_gb": {"type": "number"}, "device_limit": {"type": "integer"}, "speed_limit_mbps": {"type": "integer"}, "banned": {"type": "boolean"}}}
+      responses:
+        '200': {description: 预演结果或已执行的变更计划, content: {application/json: {schema: {$ref: '#/components/schemas/ChangePlan'}}}}
+        '202': {description: 敏感操作，已生成审批, content: {application/json: {schema: {$ref: '#/components/schemas/ChangePlan'}}}}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+    delete:
+      operationId: delete_users_id
+      summary: "删除用户"
+      x-risk: sensitive
+      x-access: admin
+      x-operation: user.delete
+      security: [{token: []}, {operatorSession: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+        - $ref: '#/components/parameters/XActor'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        content:
+          application/json:
+            schema: {"type": "object", "properties": {"dry_run": {"type": "boolean", "description": "为 true 时只预演，返回变更计划"}, "instruction": {"type": "string", "description": "用户的原始指令，显示在审批卡片上"}}}
+      responses:
+        '200': {description: 预演结果或已执行的变更计划, content: {application/json: {schema: {$ref: '#/components/schemas/ChangePlan'}}}}
+        '202': {description: 敏感操作，已生成审批, content: {application/json: {schema: {$ref: '#/components/schemas/ChangePlan'}}}}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /api/v1/users/{id}:reset-traffic:
+    post:
+      operationId: post_users_id_reset_traffic
+      summary: "重置用户流量"
+      x-risk: normal
+      x-access: admin
+      x-operation: user.reset_traffic
+      security: [{token: []}, {operatorSession: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+        - $ref: '#/components/parameters/XActor'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        content:
+          application/json:
+            schema: {"type": "object", "properties": {"dry_run": {"type": "boolean", "description": "为 true 时只预演，返回变更计划"}, "instruction": {"type": "string", "description": "用户的原始指令，显示在审批卡片上"}}}
+      responses:
+        '200': {description: 预演结果或已执行的变更计划, content: {application/json: {schema: {$ref: '#/components/schemas/ChangePlan'}}}}
+        '202': {description: 敏感操作，已生成审批, content: {application/json: {schema: {$ref: '#/components/schemas/ChangePlan'}}}}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /api/v1/users/{id}:reset-token:
+    post:
+      operationId: post_users_id_reset_token
+      summary: "重置用户订阅"
+      x-risk: normal
+      x-access: admin
+      x-operation: user.reset_token
+      security: [{token: []}, {operatorSession: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+        - $ref: '#/components/parameters/XActor'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        content:
+          application/json:
+            schema: {"type": "object", "properties": {"dry_run": {"type": "boolean", "description": "为 true 时只预演，返回变更计划"}, "instruction": {"type": "string", "description": "用户的原始指令，显示在审批卡片上"}}}
+      responses:
+        '200': {description: 预演结果或已执行的变更计划, content: {application/json: {schema: {$ref: '#/components/schemas/ChangePlan'}}}}
+        '202': {description: 敏感操作，已生成审批, content: {application/json: {schema: {$ref: '#/components/schemas/ChangePlan'}}}}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /api/v1/changes/{id}:
+    get:
+      operationId: get_changes_id
+      summary: "变更计划详情"
+      x-risk: read
+      x-access: admin
+      security: [{token: []}, {operatorSession: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+        - $ref: '#/components/parameters/XActor'
+      responses:
+        '200': {description: 成功}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /api/v1/changes/{id}:apply:
+    post:
+      operationId: post_changes_id_apply
+      summary: "执行预演好的变更计划（敏感计划转为审批）"
+      x-risk: normal
+      x-access: admin
+      security: [{token: []}, {operatorSession: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+        - $ref: '#/components/parameters/XActor'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200': {description: 预演结果或已执行的变更计划, content: {application/json: {schema: {$ref: '#/components/schemas/ChangePlan'}}}}
+        '202': {description: 敏感操作，已生成审批, content: {application/json: {schema: {$ref: '#/components/schemas/ChangePlan'}}}}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /api/v1/approvals:
+    get:
+      operationId: get_approvals
+      summary: "审批列表"
+      x-risk: read
+      x-access: admin
+      security: [{token: []}, {operatorSession: []}]
+      parameters:
+        - $ref: '#/components/parameters/XActor'
+      responses:
+        '200': {description: 成功}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /api/v1/approvals/{id}:
+    get:
+      operationId: get_approvals_id
+      summary: "审批详情"
+      x-risk: read
+      x-access: admin
+      security: [{token: []}, {operatorSession: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+        - $ref: '#/components/parameters/XActor'
+      responses:
+        '200': {description: 成功}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /api/v1/approvals/{id}:approve-begin:
+    post:
+      operationId: post_approvals_id_approve_begin
+      summary: "开始批准：返回 passkey 验证参数"
+      x-risk: sensitive
+      x-access: operator
+      security: [{operatorSession: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+      responses:
+        '200': {description: 成功}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /api/v1/approvals/{id}:approve:
+    post:
+      operationId: post_approvals_id_approve
+      summary: "批准并执行（请求体带 passkey 断言）"
+      x-risk: sensitive
+      x-access: operator
+      security: [{operatorSession: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+      responses:
+        '200': {description: 成功}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /api/v1/approvals/{id}:reject:
+    post:
+      operationId: post_approvals_id_reject
+      summary: "拒绝"
+      x-risk: normal
+      x-access: operator
+      security: [{operatorSession: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+      responses:
+        '200': {description: 成功}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /api/v1/me/session:
+    post:
+      operationId: post_me_session
+      summary: "终端用户登录"
+      x-risk: normal
+      x-access: public
+      security: []
+      responses:
+        '200': {description: 成功}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+    delete:
+      operationId: delete_me_session
+      summary: "终端用户退出"
+      x-risk: normal
+      x-access: portal
+      security: [{portalSession: []}]
+      responses:
+        '200': {description: 成功}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /api/v1/me/password:forgot:
+    post:
+      operationId: post_me_password_forgot
+      summary: "发送找回密码邮件"
+      x-risk: normal
+      x-access: public
+      security: []
+      responses:
+        '200': {description: 成功}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /api/v1/me/password:reset:
+    post:
+      operationId: post_me_password_reset
+      summary: "凭邮件令牌设置新密码"
+      x-risk: normal
+      x-access: public
+      security: []
+      responses:
+        '200': {description: 成功}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /api/v1/me/password:
+    put:
+      operationId: put_me_password
+      summary: "修改密码"
+      x-risk: normal
+      x-access: portal
+      security: [{portalSession: []}]
+      responses:
+        '200': {description: 成功}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /api/v1/me/subscription:
+    get:
+      operationId: get_me_subscription
+      summary: "我的订阅：套餐、用量、到期、订阅链接"
+      x-risk: read
+      x-access: portal
+      security: [{portalSession: []}]
+      responses:
+        '200': {description: 成功}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /api/v1/me/subscription:reset-token:
+    post:
+      operationId: post_me_subscription_reset_token
+      summary: "重置订阅链接"
+      x-risk: normal
+      x-access: portal
+      security: [{portalSession: []}]
+      responses:
+        '200': {description: 成功}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}

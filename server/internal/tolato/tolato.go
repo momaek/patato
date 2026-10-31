@@ -1,0 +1,131 @@
+// Package tolato 是 tolato 的只读客户端：查询机器信息，以及拉取面板主机的执行记录。
+// Patato 从不通过 tolato 在机器上执行命令。
+package tolato
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"net/http"
+	"net/url"
+	"strings"
+	"time"
+
+	"github.com/momaek/patato/server/internal/apierr"
+	"github.com/momaek/patato/server/internal/ops"
+)
+
+type Client struct {
+	base   string
+	apiKey string
+	http   *http.Client
+}
+
+func New(base, apiKey string) *Client {
+	return &Client{base: strings.TrimRight(base, "/"), apiKey: apiKey, http: &http.Client{Timeout: 10 * time.Second}}
+}
+
+// ErrUnsupported 表示 tolato 还没有提供所需的接口。
+var ErrUnsupported = errors.New("tolato endpoint not available")
+
+type node struct {
+	ID          string  `json:"id"`
+	Name        string  `json:"name"`
+	Alias       *string `json:"alias"`
+	IP          string  `json:"ip"`
+	CountryCode string  `json:"country_code"`
+	City        string  `json:"city"`
+	Status      string  `json:"status"`
+}
+
+func (c *Client) get(ctx context.Context, path string, out any) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.base+path, nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", "Bearer "+c.apiKey)
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return fmt.Errorf("tolato: %w", err)
+	}
+	defer resp.Body.Close()
+	switch {
+	case resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusMethodNotAllowed:
+		return ErrUnsupported
+	case resp.StatusCode >= 300:
+		return fmt.Errorf("tolato: %s %s", path, resp.Status)
+	}
+	return json.NewDecoder(resp.Body).Decode(out)
+}
+
+func (c *Client) listNodes(ctx context.Context) ([]node, error) {
+	var nodes []node
+	if err := c.get(ctx, "/api/v1/nodes", &nodes); err != nil {
+		return nil, err
+	}
+	return nodes, nil
+}
+
+// findNode 按名称、别名或 IP 匹配机器。
+func (c *Client) findNode(ctx context.Context, name string) (*node, error) {
+	nodes, err := c.listNodes(ctx)
+	if err != nil {
+		return nil, apierr.New(http.StatusBadGateway, "tolato_unavailable", "查询 tolato 失败：%v", err).WithHint("稍后重试，或直接传 address")
+	}
+	var matches []node
+	for _, n := range nodes {
+		if strings.EqualFold(n.Name, name) || n.IP == name || (n.Alias != nil && strings.EqualFold(*n.Alias, name)) {
+			matches = append(matches, n)
+		}
+	}
+	switch len(matches) {
+	case 0:
+		return nil, apierr.NotFound("machine_not_found", "tolato 中没有名为 %s 的机器", name).WithHint("用 tolato nodes list 查看机器名")
+	case 1:
+		return &matches[0], nil
+	default:
+		return nil, apierr.Conflict("machine_ambiguous", "tolato 中有 %d 台机器匹配 %s", len(matches), name).WithHint("传 tolato 中唯一的机器名或 IP")
+	}
+}
+
+func (c *Client) LookupMachine(ctx context.Context, name string) (*ops.Machine, error) {
+	n, err := c.findNode(ctx, name)
+	if err != nil {
+		return nil, err
+	}
+	return &ops.Machine{Name: n.Name, IP: n.IP, Country: n.CountryCode, City: n.City}, nil
+}
+
+// Command 是 tolato 在某台机器上执行过的一条命令。
+type Command struct {
+	ID        string    `json:"id"`
+	Command   string    `json:"command"`
+	Source    string    `json:"source"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// CommandsSince 拉取某台机器 since 之后的执行记录。
+//
+// tolato 目前只在网页会话下提供执行记录接口；这里按 /api/v1/nodes/{id}/commands 调用，
+// tolato 侧补上之前返回 ErrUnsupported。
+func (c *Client) CommandsSince(ctx context.Context, machine string, since time.Time) ([]Command, error) {
+	n, err := c.findNode(ctx, machine)
+	if err != nil {
+		return nil, err
+	}
+	var page struct {
+		Data []Command `json:"data"`
+	}
+	path := fmt.Sprintf("/api/v1/nodes/%s/commands?since=%s", url.PathEscape(n.ID), url.QueryEscape(since.UTC().Format(time.RFC3339)))
+	if err := c.get(ctx, path, &page); err != nil {
+		return nil, err
+	}
+	out := page.Data[:0]
+	for _, cmd := range page.Data {
+		if cmd.CreatedAt.After(since) {
+			out = append(out, cmd)
+		}
+	}
+	return out, nil
+}
