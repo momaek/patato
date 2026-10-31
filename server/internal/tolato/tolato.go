@@ -99,30 +99,33 @@ func (c *Client) LookupMachine(ctx context.Context, name string) (*ops.Machine, 
 
 // Command 是 tolato 在某台机器上执行过的一条命令。
 type Command struct {
-	ID        string    `json:"id"`
+	ID        uint64    `json:"id"`
 	Command   string    `json:"command"`
 	Source    string    `json:"source"`
+	Actor     string    `json:"actor"`
 	CreatedAt time.Time `json:"created_at"`
 }
 
 // CommandsSince 拉取某台机器 since 之后的执行记录。
 //
 // tolato 目前只在网页会话下提供执行记录接口；这里按 /api/v1/nodes/{id}/commands 调用，
-// tolato 侧补上之前返回 ErrUnsupported。
+// 响应沿用 tolato 的分页格式（items、数字 id），tolato 侧补上之前返回 ErrUnsupported
+// （https://github.com/momaek/tolato/issues/27）。带 since 时 tolato 按时间升序返回，
+// 一次超过一页的部分留到下一轮，由调用方推进游标取到。
 func (c *Client) CommandsSince(ctx context.Context, machine string, since time.Time) ([]Command, error) {
 	n, err := c.findNode(ctx, machine)
 	if err != nil {
 		return nil, err
 	}
 	var page struct {
-		Data []Command `json:"data"`
+		Items []Command `json:"items"`
 	}
-	path := fmt.Sprintf("/api/v1/nodes/%s/commands?since=%s", url.PathEscape(n.ID), url.QueryEscape(since.UTC().Format(time.RFC3339)))
+	path := fmt.Sprintf("/api/v1/nodes/%s/commands?since=%s&page_size=100", url.PathEscape(n.ID), url.QueryEscape(since.UTC().Format(time.RFC3339)))
 	if err := c.get(ctx, path, &page); err != nil {
 		return nil, err
 	}
-	out := page.Data[:0]
-	for _, cmd := range page.Data {
+	out := page.Items[:0]
+	for _, cmd := range page.Items {
 		if cmd.CreatedAt.After(since) {
 			out = append(out, cmd)
 		}
