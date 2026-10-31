@@ -394,6 +394,8 @@ func checkTargets(ctx context.Context, q *db.Queries, targets []Target) string {
 			v, err = q.UserVersionForUpdate(ctx, t.ID)
 		case "template":
 			v, err = q.TemplateVersionForUpdate(ctx, t.ID)
+		case "machine":
+			v, err = q.MachineVersionForUpdate(ctx, t.ID)
 		default:
 			return fmt.Sprintf("未知的目标类型 %s", t.Type)
 		}

@@ -58,3 +58,15 @@ make lint
 - **Xboard 子节点**：子节点没有自己的节点后端，导入后不会有心跳，只在套餐里没有在线节点时下发；导入报告会逐个列出。只支持 Xboard 2025 年之后的统一节点表。
 - **Telegram 绑定码保存在内存里**：多实例部署时要在同一个实例上生成和使用。
 - **续费**：续费方案还在「待确认」里。MVP 后端已支持管理员手动续期（`PATCH /api/v1/users/{id}` 的 `extend_days`），自助续费与支付属于二期。
+
+## patato-node
+
+节点端代码在 `node/`，协议报文在 `nodeapi/`，服务端实现在 `server/internal/native`。内嵌 sing-box 1.13，构建需要标签 `with_quic,with_utls,with_acme`（`make build` 已带上）。
+
+- 接入：`GET /api/v1/machines/{host}/install-cmd` 给出安装命令（含一小时内有效、只能用一次的注册码），在机器上执行后 `patato-node enroll` 换取机器 token 并装成 systemd 服务。机器接入后，`node.provision` 默认 `backend: native`，新节点通过 WebSocket 推送几秒内启动；节点在内核里跑起来并上报状态后才转为在线。
+- 同步：按 `config_rev` / `users_rev` 只返回有变化的节点，用户能算出增量时只发增量，节点用 `users_rev` 自校验。
+- 上报：先写本地队列再发送，面板按「机器 + 队列 + 序号」去重，同一事务里落库，流量精确入账一次。
+- 限制：流量、限速、设备数由连接追踪器统一处理；移除或封禁用户立即断开现有连接；新增用户时 Shadowsocks 原地更新，其余协议重建 inbound（同一节点 30 秒内合并一次，会断开该节点的 UDP / QUIC 会话）。
+- 独立运行：配置里写 `standalone: <文件>`，从本地文件读节点和用户，上报写到同目录 `reports.jsonl`。
+
+已知限制：经 tolato-agent 的身份证明接入尚未实现（tolato 侧还没有接口），目前用面板生成的一次性注册码；只用 sing-box 内核，不支持 Hysteria v1、VLESS encryption、Shadowsocks 插件；二进制下载地址默认指向 GitHub Release（`node.binary_url`），发布流程还没加；没有在真实 Linux 机器和真实客户端上验证过。

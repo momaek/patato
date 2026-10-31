@@ -23,8 +23,10 @@
 3. `patato template list`：选择匹配地区和套餐的模板；没有合适模板则询问用户。
 4. `patato node provision --host tokyo-01 --template jp-premium --plan premium --dry-run`：拿到 `change_id`，向用户说明将创建的节点和影响范围。
 5. `patato change apply <change_id>`：创建节点，此时节点为 pending，尚未下发到用户订阅。若返回 202（因影响面升为敏感），告诉用户审批已推送，再用 `--wait` 等待结果。
-6. `patato node install-cmd <节点>`，再用 `tolato exec tokyo-01 -- <上一步输出的命令>` 安装并配置节点后端；不自行修改命令。
-7. `patato node show <节点>`：确认 `state` 为 `online`、`in_subscription` 为 true，回报「东京-03 已上线，挂在高级套餐，当前在线」。
+6. 看第 5 步结果里的 `backend`：
+   - `native`（机器已接入 patato-node）：跳过这一步，patato-node 几秒内收到推送并启动节点。
+   - 其余：`patato node install-cmd <节点>`，再用 `tolato exec tokyo-01 -- <上一步输出的命令>` 安装节点后端；不自行修改命令。新机器首次接入 patato-node 也是这样，命令来自 `patato machine install-cmd tokyo-01`。
+7. `patato node show <节点>`：确认 `state` 为 `online`、`in_subscription` 为 true，回报「东京-03 已上线，挂在高级套餐，当前在线」。原生节点没有转为在线时，看 `runtime.error`（例如端口被占用、证书申请失败）。
 
 第 6 步失败时：报告原因并停下。节点保持 pending，不会出现在用户订阅里，由用户决定重试还是删除。
 

@@ -7,6 +7,7 @@ package uniproxy
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha1"
 	"crypto/subtle"
 	"encoding/hex"
@@ -141,18 +142,23 @@ func (h *Handler) tokenOK(n db.Node, token string) bool {
 
 // heartbeat 记录心跳。待接入的节点第一次心跳后转为在线，开始出现在用户订阅里。
 func (h *Handler) heartbeat(c *gin.Context, n db.Node) {
-	prev, err := h.st.TouchNodeHeartbeat(c, n.ID)
+	Heartbeat(c, h.st, h.events, h.log, n)
+}
+
+// Heartbeat 记录节点心跳并在状态变化时发出事件；原生节点协议也用它。
+func Heartbeat(ctx context.Context, st *store.Store, ev *events.Recorder, log *slog.Logger, n db.Node) {
+	prev, err := st.TouchNodeHeartbeat(ctx, n.ID)
 	if err != nil {
-		h.log.Error("node heartbeat", "node", n.ID, "err", err)
+		log.Error("node heartbeat", "node", n.ID, "err", err)
 		return
 	}
 	switch prev {
 	case "offline":
-		h.events.Resolve(c, nil, fmt.Sprintf("%s:%d", events.NodeOffline, n.ID))
-		h.events.Emit(c, nil, events.Event{Kind: events.NodeOnline, Subject: fmt.Sprintf("node:%d", n.ID),
+		ev.Resolve(ctx, nil, fmt.Sprintf("%s:%d", events.NodeOffline, n.ID))
+		ev.Emit(ctx, nil, events.Event{Kind: events.NodeOnline, Subject: fmt.Sprintf("node:%d", n.ID),
 			Message: fmt.Sprintf("%s 已恢复在线", n.Name)})
 	case "pending":
-		h.events.Emit(c, nil, events.Event{Kind: events.NodeOnline, Subject: fmt.Sprintf("node:%d", n.ID),
+		ev.Emit(ctx, nil, events.Event{Kind: events.NodeOnline, Subject: fmt.Sprintf("node:%d", n.ID),
 			Message: fmt.Sprintf("%s 收到首次心跳，已上线并下发到订阅", n.Name)})
 	}
 }

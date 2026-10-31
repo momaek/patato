@@ -104,6 +104,7 @@ type nodeView struct {
 	Host            string          `json:"host"`
 	Address         string          `json:"address"`
 	Protocol        string          `json:"protocol"`
+	Backend         string          `json:"backend"`
 	Port            int32           `json:"port"`
 	State           string          `json:"state"`
 	InSubscription  bool            `json:"in_subscription"`
@@ -115,6 +116,7 @@ type nodeView struct {
 	LastHeartbeatAt *time.Time      `json:"last_heartbeat_at"`
 	LastPushAt      *time.Time      `json:"last_push_at"`
 	Load            json.RawMessage `json:"load,omitempty"`
+	Runtime         json.RawMessage `json:"runtime,omitempty"`
 	Settings        map[string]any  `json:"settings,omitempty"`
 	LegacyToken     bool            `json:"allow_legacy_token"`
 	Version         int64           `json:"version"`
@@ -174,11 +176,11 @@ func (s *Server) nodeViews(c *gin.Context, nodes []db.Node, detail bool) ([]node
 	out := make([]nodeView, 0, len(nodes))
 	for _, n := range nodes {
 		v := nodeView{
-			ID: n.ID, Code: n.Code, Name: n.Name, Region: n.Region, Host: n.Host, Address: n.Address, Protocol: n.Protocol,
+			ID: n.ID, Code: n.Code, Name: n.Name, Region: n.Region, Host: n.Host, Address: n.Address, Protocol: n.Protocol, Backend: n.Backend,
 			Port: n.Port, State: n.State, InSubscription: n.State != "pending", Rate: n.Rate, Tags: n.Tags,
 			Plans: nonNilRefs(plansByNode[n.ID]), OnlineUsers: online[n.ID], TodayBytes: today[n.ID],
 			LastHeartbeatAt: n.LastHeartbeatAt, LastPushAt: n.LastPushAt, LegacyToken: n.AllowLegacyToken,
-			Version: n.Version, CreatedAt: n.CreatedAt,
+			Version: n.Version, CreatedAt: n.CreatedAt, Runtime: n.Runtime,
 		}
 		if detail {
 			v.Load = n.Load
@@ -257,10 +259,20 @@ func (s *Server) nodeGet(c *gin.Context) {
 	ok(c, views[0])
 }
 
-// nodeInstallCmd 生成在节点机器上安装并配置 V2bX 的命令。命令里含节点密钥，所以要求可写权限。
+// nodeInstallCmd 生成在节点机器上安装节点后端的命令：原生节点给出 patato-node 的安装命令，
+// 其余给出 V2bX 的。命令里含节点密钥或注册码，所以要求可写权限。
 func (s *Server) nodeInstallCmd(c *gin.Context) {
 	n, found := s.findNode(c)
 	if !found {
+		return
+	}
+	if n.Backend == "native" {
+		cmd, err := s.patatoNodeInstall(c, n.Host)
+		if err != nil {
+			fail(c, err)
+			return
+		}
+		ok(c, cmd)
 		return
 	}
 	if len(n.KeyCipher) == 0 {

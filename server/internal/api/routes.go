@@ -10,6 +10,7 @@ const (
 	accessAdmin    = "admin"    // 运营者会话或 CLI / Agent token
 	accessOperator = "operator" // 只接受运营者网页会话
 	accessPortal   = "portal"   // 终端用户会话
+	accessMachine  = "machine"  // patato-node 的机器 token
 )
 
 // route 是一条对外接口。Path 与 api/openapi.yaml 一致，Risk 对应契约里的 x-risk：
@@ -39,6 +40,8 @@ func (r route) chain(s *Server) []gin.HandlerFunc {
 		hs = append(hs, s.adminAuth, operatorOnly)
 	case accessPortal:
 		hs = append(hs, s.portalAuth)
+	case accessMachine:
+		hs = append(hs, s.d.Native.Auth)
 	}
 	return append(hs, r.Handler)
 }
@@ -89,6 +92,18 @@ func (s *Server) routes() []route {
 		{"POST", "/api/v1/nodes/{id}:detach", accessAdmin, "normal", "node.detach", "把节点从套餐卸载", s.mutate("node.detach", pathRef("node"))},
 		{"POST", "/api/v1/nodes/{id}:rotate-key", accessAdmin, "normal", "node.rotate_key", "轮换节点密钥", s.mutate("node.rotate_key", pathRef("node"))},
 		{"DELETE", "/api/v1/nodes/{id}", accessAdmin, "sensitive", "node.delete", "删除节点", s.mutate("node.delete", pathRef("node"))},
+
+		// 机器（patato-node）
+		{"GET", "/api/v1/machines", accessAdmin, "read", "", "机器列表：接入状态与承载的节点", s.machineList},
+		{"GET", "/api/v1/machines/{id}", accessAdmin, "read", "", "机器详情", s.machineGet},
+		{"GET", "/api/v1/machines/{id}/install-cmd", accessAdmin, "normal", "", "patato-node 安装命令（含一次性注册码，需要可写 token）", s.machineInstallCmd},
+		{"POST", "/api/v1/machines/{id}:revoke", accessAdmin, "normal", "machine.revoke", "吊销机器的 patato-node 凭证", s.mutate("machine.revoke", pathRef("machine"))},
+
+		// 原生节点协议（patato-node 调用）
+		{"POST", "/api/v1/node/enroll", accessPublic, "normal", "", "patato-node 凭注册码换取机器 token", s.nativeHandler("enroll")},
+		{"POST", "/api/v1/node/sync", accessMachine, "normal", "", "patato-node 同步节点配置与用户", s.nativeHandler("sync")},
+		{"POST", "/api/v1/node/report", accessMachine, "normal", "", "patato-node 上报流量、在线 IP 与运行状态", s.nativeHandler("report")},
+		{"GET", "/api/v1/node/ws", accessMachine, "read", "", "patato-node 的推送通道（WebSocket）", s.nativeHandler("ws")},
 
 		// 套餐
 		{"GET", "/api/v1/plans", accessAdmin, "read", "", "套餐列表", s.planList},

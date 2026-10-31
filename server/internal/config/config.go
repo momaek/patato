@@ -64,6 +64,8 @@ type NodeConfig struct {
 	DeviceTTL    Duration `yaml:"device_ttl"`
 	// LegacyToken 是迁移前 Xboard 的全局 server_token，只在过渡期对标记了 allow_legacy_token 的节点生效。
 	LegacyToken string `yaml:"legacy_token"`
+	// BinaryURL 是 patato-node 安装命令下载二进制的地址，{arch} 换成 amd64 或 arm64。
+	BinaryURL string `yaml:"binary_url"`
 }
 
 type RiskConfig struct {
@@ -141,6 +143,7 @@ func Default() *Config {
 			PullInterval: 60,
 			OfflineAfter: Duration(5 * time.Minute),
 			DeviceTTL:    Duration(5 * time.Minute),
+			BinaryURL:    "https://github.com/momaek/patato/releases/latest/download/patato-node-linux-{arch}",
 		},
 		Risk:    RiskConfig{UserThreshold: 100, NodeThreshold: 5},
 		Change:  ChangeConfig{PlanTTL: Duration(30 * time.Minute), ApprovalTTL: Duration(30 * time.Minute)},

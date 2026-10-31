@@ -30,6 +30,6 @@ jobs:
       - name: Generated code is up to date
         run: make check-generated
       - name: Test
-        run: go test -race ./...
+        run: go test -race -tags with_quic,with_utls,with_acme ./...
       - name: Build
         run: make build

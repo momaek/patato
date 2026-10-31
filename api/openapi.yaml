@@ -4,7 +4,8 @@ info:
   version: 0.1.0
   description: |
     Patato 的 API 契约。x-risk 是接口声明的风险等级；写接口的实际等级由变更计划按影响面决定。
-    x-access 说明鉴权方式：admin（运营者会话或 CLI / Agent token）、operator（只接受运营者会话）、portal（终端用户会话）、public。
+    x-access 说明鉴权方式：admin（运营者会话或 CLI / Agent token）、operator（只接受运营者会话）、portal（终端用户会话）、machine（patato-node 的机器 token）、public。
+    原生节点协议（/api/v1/node/*）的报文定义见 Go 包 github.com/momaek/patato/nodeapi。
 servers:
   - url: /
 components:
@@ -20,6 +21,10 @@ components:
       type: apiKey
       in: cookie
       name: patato_portal
+    machineToken:
+      type: http
+      scheme: bearer
+      description: patato-node 凭注册码换取的机器 token
   parameters:
     IdempotencyKey:
       name: Idempotency-Key
@@ -405,7 +410,7 @@ paths:
       requestBody:
         content:
           application/json:
-            schema: {"type": "object", "properties": {"dry_run": {"type": "boolean", "description": "为 true 时只预演，返回变更计划"}, "instruction": {"type": "string", "description": "用户的原始指令，显示在审批卡片上"}, "name": {"type": "string"}, "address": {"type": "string"}, "port": {"type": "integer"}, "rate": {"type": "number"}, "tags": {"type": "array", "items": {"type": "string"}}, "settings": {"type": "object"}, "sort": {"type": "integer"}}}
+            schema: {"type": "object", "properties": {"dry_run": {"type": "boolean", "description": "为 true 时只预演，返回变更计划"}, "instruction": {"type": "string", "description": "用户的原始指令，显示在审批卡片上"}, "name": {"type": "string"}, "address": {"type": "string"}, "port": {"type": "integer"}, "rate": {"type": "number"}, "tags": {"type": "array", "items": {"type": "string"}}, "settings": {"type": "object"}, "sort": {"type": "integer"}, "backend": {"type": "string", "enum": ["native", "uniproxy"]}}}
       responses:
         '200': {description: 预演结果或已执行的变更计划, content: {application/json: {schema: {$ref: '#/components/schemas/ChangePlan'}}}}
         '202': {description: 敏感操作，已生成审批, content: {application/json: {schema: {$ref: '#/components/schemas/ChangePlan'}}}}
@@ -456,7 +461,7 @@ paths:
       requestBody:
         content:
           application/json:
-            schema: {"type": "object", "properties": {"dry_run": {"type": "boolean", "description": "为 true 时只预演，返回变更计划"}, "instruction": {"type": "string", "description": "用户的原始指令，显示在审批卡片上"}, "template": {"type": "string", "description": "ID 或代号"}, "host": {"type": "string", "description": "tolato 中的机器名；与 address 二选一"}, "address": {"type": "string", "description": "客户端连接地址；不传时从 tolato 查询"}, "plans": {"type": "array", "items": {"type": "string", "description": "ID 或代号"}}, "name": {"type": "string"}, "code": {"type": "string"}, "port": {"type": "integer"}, "region": {"type": "string"}}, "required": ["template", "plans"]}
+            schema: {"type": "object", "properties": {"dry_run": {"type": "boolean", "description": "为 true 时只预演，返回变更计划"}, "instruction": {"type": "string", "description": "用户的原始指令，显示在审批卡片上"}, "template": {"type": "string", "description": "ID 或代号"}, "host": {"type": "string", "description": "tolato 中的机器名；与 address 二选一"}, "address": {"type": "string", "description": "客户端连接地址；不传时从 tolato 查询"}, "plans": {"type": "array", "items": {"type": "string", "description": "ID 或代号"}}, "name": {"type": "string"}, "code": {"type": "string"}, "port": {"type": "integer"}, "region": {"type": "string"}, "backend": {"type": "string", "enum": ["native", "uniproxy"], "description": "native 为 patato-node，uniproxy 为 V2bX / XrayR；不传时机器已接入 patato-node 则为 native"}}, "required": ["template", "plans"]}
       responses:
         '200': {description: 预演结果或已执行的变更计划, content: {application/json: {schema: {$ref: '#/components/schemas/ChangePlan'}}}}
         '202': {description: 敏感操作，已生成审批, content: {application/json: {schema: {$ref: '#/components/schemas/ChangePlan'}}}}
@@ -520,6 +525,115 @@ paths:
       responses:
         '200': {description: 预演结果或已执行的变更计划, content: {application/json: {schema: {$ref: '#/components/schemas/ChangePlan'}}}}
         '202': {description: 敏感操作，已生成审批, content: {application/json: {schema: {$ref: '#/components/schemas/ChangePlan'}}}}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /api/v1/machines:
+    get:
+      operationId: get_machines
+      summary: "机器列表：接入状态与承载的节点"
+      x-risk: read
+      x-access: admin
+      security: [{token: []}, {operatorSession: []}]
+      parameters:
+        - $ref: '#/components/parameters/XActor'
+      responses:
+        '200': {description: 成功}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /api/v1/machines/{id}:
+    get:
+      operationId: get_machines_id
+      summary: "机器详情"
+      x-risk: read
+      x-access: admin
+      security: [{token: []}, {operatorSession: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}, description: 机器名，与节点的 host 一致}
+        - $ref: '#/components/parameters/XActor'
+      responses:
+        '200': {description: 成功}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /api/v1/machines/{id}/install-cmd:
+    get:
+      operationId: get_machines_id_install_cmd
+      summary: "patato-node 安装命令（含一次性注册码，需要可写 token）"
+      x-risk: normal
+      x-access: admin
+      security: [{token: []}, {operatorSession: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+        - $ref: '#/components/parameters/XActor'
+      responses:
+        '200': {description: 成功}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /api/v1/machines/{id}:revoke:
+    post:
+      operationId: post_machines_id_revoke
+      summary: "吊销机器的 patato-node 凭证"
+      x-risk: normal
+      x-access: admin
+      x-operation: machine.revoke
+      security: [{token: []}, {operatorSession: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+        - $ref: '#/components/parameters/XActor'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        content:
+          application/json:
+            schema: {"type": "object", "properties": {"dry_run": {"type": "boolean", "description": "为 true 时只预演，返回变更计划"}, "instruction": {"type": "string", "description": "用户的原始指令，显示在审批卡片上"}}}
+      responses:
+        '200': {description: 预演结果或已执行的变更计划, content: {application/json: {schema: {$ref: '#/components/schemas/ChangePlan'}}}}
+        '202': {description: 敏感操作，已生成审批, content: {application/json: {schema: {$ref: '#/components/schemas/ChangePlan'}}}}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /api/v1/node/enroll:
+    post:
+      operationId: post_node_enroll
+      summary: "patato-node 凭注册码换取机器 token"
+      x-risk: normal
+      x-access: public
+      requestBody:
+        content:
+          application/json:
+            schema: {"type": "object", "properties": {"code": {"type": "string"}, "hostname": {"type": "string"}, "version": {"type": "string"}}, "required": ["code"]}
+      responses:
+        '200': {description: 机器名与机器 token（只返回这一次）}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /api/v1/node/sync:
+    post:
+      operationId: post_node_sync
+      summary: "patato-node 同步节点配置与用户"
+      x-risk: normal
+      x-access: machine
+      security: [{machineToken: []}]
+      requestBody:
+        content:
+          application/json:
+            schema: {"type": "object", "description": "nodeapi.SyncRequest：本地已应用的 config_rev / users_rev"}
+      responses:
+        '200': {description: nodeapi.SyncResponse：有变化的节点（配置、全量或增量用户）、已移除的节点、运行参数}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /api/v1/node/report:
+    post:
+      operationId: post_node_report
+      summary: "patato-node 上报流量、在线 IP 与运行状态"
+      x-risk: normal
+      x-access: machine
+      security: [{machineToken: []}]
+      requestBody:
+        content:
+          application/json:
+            schema: {"type": "object", "description": "nodeapi.ReportRequest：同一个 spool 内 seq 严格递增，按 机器 + spool + seq 去重"}
+      responses:
+        '200': {description: nodeapi.ReportResponse：已确认的 seq；duplicate 为 true 表示这一批之前已入账}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /api/v1/node/ws:
+    get:
+      operationId: get_node_ws
+      summary: "patato-node 的推送通道（WebSocket）"
+      x-risk: read
+      x-access: machine
+      security: [{machineToken: []}]
+      responses:
+        '101': {description: '升级为 WebSocket；节点配置或用户变化时推送 {"type": "changed"}'}
         default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
   /api/v1/plans:
     get:

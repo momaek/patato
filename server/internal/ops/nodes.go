@@ -36,6 +36,8 @@ type provisionParams struct {
 	Code     string `json:"code"`
 	Port     int    `json:"port"`
 	Region   string `json:"region"`
+	// Backend 为 native（patato-node）或 uniproxy（V2bX / XrayR）；不传时，机器已接入 patato-node 则为 native。
+	Backend string `json:"backend"`
 }
 
 // provisionResolved 是预演时定下的完整节点参数，执行阶段只按它创建。
@@ -51,6 +53,7 @@ type provisionResolved struct {
 	Port       int             `json:"port"`
 	Settings   json.RawMessage `json:"settings"`
 	Rate       float64         `json:"rate"`
+	Backend    string          `json:"backend"`
 }
 
 func (o *NodeProvision) Plan(ctx context.Context, q *db.Queries, raw json.RawMessage) (*change.Draft, error) {
@@ -91,6 +94,11 @@ func (o *NodeProvision) Plan(ctx context.Context, q *db.Queries, raw json.RawMes
 		}
 		res.Address = m.IP
 		res.Region = firstNonEmpty(res.Region, m.City, m.Country)
+	}
+
+	res.Backend, err = chooseBackend(ctx, q, res.Host, p.Backend)
+	if err != nil {
+		return nil, err
 	}
 
 	port, err := allocatePort(ctx, q, res.Host, tpl, p.Port)
@@ -154,16 +162,23 @@ func (o *NodeProvision) Plan(ctx context.Context, q *db.Queries, raw json.RawMes
 
 	diff = append([]change.DiffEntry{{Field: "节点", Before: nil, After: map[string]any{
 		"name": res.Name, "code": res.Code, "address": res.Address, "port": res.Port,
-		"protocol": res.Protocol, "region": res.Region, "state": "pending",
+		"protocol": res.Protocol, "region": res.Region, "state": "pending", "backend": res.Backend,
 	}}}, diff...)
+	steps := []string{
+		fmt.Sprintf("创建节点 %s（%s），协议 %s，地址 %s:%d，状态为待接入", res.Name, res.Code, res.Protocol, res.Address, res.Port),
+		"生成节点通信密钥",
+		fmt.Sprintf("挂到套餐：%s", strings.Join(planNames, "、")),
+	}
+	if res.Backend == "native" {
+		steps = append(steps,
+			fmt.Sprintf("机器 %s 上的 patato-node 通过推送收到新节点并启动", res.Host),
+			fmt.Sprintf("节点在 patato-node 上启动成功后，出现在 %d 名用户的订阅里", users))
+	} else {
+		steps = append(steps, fmt.Sprintf("节点收到首次心跳后，出现在 %d 名用户的订阅里", users))
+	}
 	return &change.Draft{
-		Summary: fmt.Sprintf("把 %s 上线到%s", res.Name, strings.Join(planNames, "、")),
-		Steps: []string{
-			fmt.Sprintf("创建节点 %s（%s），协议 %s，地址 %s:%d，状态为待接入", res.Name, res.Code, res.Protocol, res.Address, res.Port),
-			"生成节点通信密钥",
-			fmt.Sprintf("挂到套餐：%s", strings.Join(planNames, "、")),
-			fmt.Sprintf("节点收到首次心跳后，出现在 %d 名用户的订阅里", users),
-		},
+		Summary:  fmt.Sprintf("把 %s 上线到%s", res.Name, strings.Join(planNames, "、")),
+		Steps:    steps,
 		Diff:     diff,
 		Impact:   change.Impact{Users: users, Nodes: 1},
 		Targets:  targets,
@@ -182,7 +197,7 @@ func (o *NodeProvision) Apply(ctx context.Context, q *db.Queries, raw json.RawMe
 	n, err := q.CreateNode(ctx, db.CreateNodeParams{
 		Code: r.Code, Name: r.Name, TemplateID: &tplID, Host: r.Host, Address: r.Address, Region: r.Region,
 		Protocol: r.Protocol, Port: int32(r.Port), ServerPort: int32(r.Port), Settings: r.Settings, Rate: r.Rate,
-		State: "pending", Tags: []string{}, KeyHash: hash, KeyCipher: sealed,
+		State: "pending", Tags: []string{}, KeyHash: hash, KeyCipher: sealed, Backend: firstNonEmpty(r.Backend, "uniproxy"),
 	})
 	if err != nil {
 		if isUniqueViolation(err) {
@@ -198,9 +213,15 @@ func (o *NodeProvision) Apply(ctx context.Context, q *db.Queries, raw json.RawMe
 			return nil, err
 		}
 	}
+	next := fmt.Sprintf("用 patato node install-cmd %s 取得安装命令，在机器上执行后节点会自动转为在线", n.Code)
+	if n.Backend == "native" {
+		next = fmt.Sprintf("机器 %s 上的 patato-node 会在几秒内收到推送并启动节点；用 patato node show %s 确认已转为在线", n.Host, n.Code)
+		if m, err := q.GetMachineByHost(ctx, n.Host); err != nil || m.TokenHash == nil {
+			next = fmt.Sprintf("机器 %s 还没有接入 patato-node：用 patato machine install-cmd %s 取得安装命令，在机器上执行后节点会自动转为在线", n.Host, n.Host)
+		}
+	}
 	return map[string]any{
-		"node_id": n.ID, "code": n.Code, "name": n.Name, "state": n.State,
-		"next": fmt.Sprintf("用 patato node install-cmd %s 取得安装命令，在机器上执行后节点会自动转为在线", n.Code),
+		"node_id": n.ID, "code": n.Code, "name": n.Name, "state": n.State, "backend": n.Backend, "next": next,
 	}, nil
 }
 
@@ -220,6 +241,7 @@ type nodeUpdateParams struct {
 	Tags     []string        `json:"tags"`
 	Settings json.RawMessage `json:"settings"`
 	Sort     *int            `json:"sort"`
+	Backend  *string         `json:"backend"`
 }
 
 func (o *NodeUpdate) Plan(ctx context.Context, q *db.Queries, raw json.RawMessage) (*change.Draft, error) {
@@ -266,6 +288,19 @@ func (o *NodeUpdate) Plan(ctx context.Context, q *db.Queries, raw json.RawMessag
 	if p.Sort != nil && int32(*p.Sort) != n.Sort {
 		add("sort", n.Sort, *p.Sort)
 	}
+	steps := []string{}
+	if p.Backend != nil && *p.Backend != n.Backend {
+		b, err := chooseBackend(ctx, q, n.Host, *p.Backend)
+		if err != nil {
+			return nil, err
+		}
+		add("backend", n.Backend, b)
+		if b == "native" {
+			steps = append(steps, fmt.Sprintf("改由机器 %s 上的 patato-node 承载；先停掉机器上原来的 V2bX / XrayR，避免端口冲突", n.Host))
+		} else {
+			steps = append(steps, fmt.Sprintf("patato-node 停掉这个节点；之后用 patato node install-cmd %s 安装 V2bX", n.Code))
+		}
+	}
 	if len(diff) == 0 {
 		return nil, apierr.BadRequest("nothing_to_change", "没有任何字段需要修改")
 	}
@@ -275,7 +310,7 @@ func (o *NodeUpdate) Plan(ctx context.Context, q *db.Queries, raw json.RawMessag
 	}
 	return &change.Draft{
 		Summary: fmt.Sprintf("修改节点 %s", n.Name),
-		Steps:   []string{fmt.Sprintf("更新节点 %s 的 %d 项设置，节点后端在下次拉取配置时生效", n.Name, len(diff))},
+		Steps:   append([]string{fmt.Sprintf("更新节点 %s 的 %d 项设置，%s", n.Name, len(diff), applyHint(n.Backend))}, steps...),
 		Diff:    diff,
 		Impact:  change.Impact{Users: users, Nodes: 1},
 		Targets: []change.Target{nodeTarget(n)},
@@ -293,7 +328,10 @@ func (o *NodeUpdate) Apply(ctx context.Context, q *db.Queries, raw json.RawMessa
 	}
 	args := db.UpdateNodeParams{
 		ID: n.ID, Name: n.Name, Address: n.Address, Port: n.Port, ServerPort: n.ServerPort,
-		Rate: n.Rate, Tags: n.Tags, Settings: n.Settings, Sort: n.Sort,
+		Rate: n.Rate, Tags: n.Tags, Settings: n.Settings, Sort: n.Sort, Backend: n.Backend,
+	}
+	if p.Backend != nil {
+		args.Backend = *p.Backend
 	}
 	if p.Name != nil {
 		args.Name = *p.Name
@@ -551,6 +589,36 @@ func (o *NodeRotateKey) Apply(ctx context.Context, q *db.Queries, raw json.RawMe
 }
 
 // ---- helpers -----------------------------------------------------------
+
+// chooseBackend 决定节点由谁承载。不指定时：机器已接入 patato-node 则用它，否则用 V2bX / XrayR（UniProxy）。
+func chooseBackend(ctx context.Context, q *db.Queries, host, want string) (string, error) {
+	want = strings.ToLower(strings.TrimSpace(want))
+	switch want {
+	case "uniproxy", "v2bx", "xrayr":
+		return "uniproxy", nil
+	case "native", "patato-node":
+		if host == "" {
+			return "", apierr.BadRequest("missing_host", "patato-node 按机器承载节点，需要传 host").
+				WithHint("传 host（tolato 中的机器名），或改用 backend: uniproxy")
+		}
+		return "native", nil
+	case "":
+		if host != "" {
+			if m, err := q.GetMachineByHost(ctx, host); err == nil && m.TokenHash != nil {
+				return "native", nil
+			}
+		}
+		return "uniproxy", nil
+	}
+	return "", apierr.BadRequest("invalid_backend", "backend %q 不支持", want).WithHint("可选 native（patato-node）或 uniproxy（V2bX / XrayR）")
+}
+
+func applyHint(backend string) string {
+	if backend == "native" {
+		return "patato-node 收到推送后立即生效"
+	}
+	return "节点后端在下次拉取配置时生效"
+}
 
 // newNodeKey 生成节点密钥：明文只在安装命令里出现，库里保存哈希（用于校验）和密文（用于再次生成安装命令）。
 func newNodeKey(box *secret.Box) (plain string, hash, sealed []byte) {

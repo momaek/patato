@@ -18,6 +18,7 @@ import (
 	"github.com/momaek/patato/server/internal/config"
 	"github.com/momaek/patato/server/internal/events"
 	"github.com/momaek/patato/server/internal/jobs"
+	"github.com/momaek/patato/server/internal/native"
 	"github.com/momaek/patato/server/internal/notify"
 	"github.com/momaek/patato/server/internal/ops"
 	"github.com/momaek/patato/server/internal/secret"
@@ -40,6 +41,7 @@ type App struct {
 	Telegram  *notify.Telegram
 	Tolato    *tolato.Client
 	Jobs      *jobs.Runner
+	Native    *native.Handler
 	HTTP      *api.Server
 	Log       *slog.Logger
 }
@@ -107,6 +109,9 @@ func New(ctx context.Context, cfg *config.Config, log *slog.Logger) (*App, error
 	if cfg.SMTP.Host != "" {
 		mailer = &notify.SMTPMailer{Host: cfg.SMTP.Host, Port: cfg.SMTP.Port, Username: cfg.SMTP.Username, Password: cfg.SMTP.Password, From: cfg.SMTP.From}
 	}
+	a.Native = native.New(st, native.Config{
+		ReportInterval: cfg.Node.PushInterval, SyncInterval: cfg.Node.PullInterval, DeviceTTL: cfg.Node.DeviceTTL.D(),
+	}, a.Events, log)
 	var binder api.TelegramBinder
 	if a.Telegram != nil {
 		binder = a.Telegram
@@ -118,6 +123,7 @@ func New(ctx context.Context, cfg *config.Config, log *slog.Logger) (*App, error
 			LegacyToken: cfg.Node.LegacyToken, DeviceTTL: cfg.Node.DeviceTTL.D(),
 		}, a.Events, log),
 		Subscribe: subscribe.New(st, subscribe.Config{ServiceName: cfg.ServiceName, Path: cfg.SubscribePath, Loc: loc}, log),
+		Native:    a.Native,
 		Mailer:    mailer, Telegram: binder, Log: log,
 	})
 	return a, nil
@@ -197,6 +203,7 @@ func (a *App) Run(ctx context.Context) error {
 	if a.Telegram != nil {
 		go a.Telegram.Run(ctx)
 	}
+	go a.Native.Hub().Run(ctx)
 	srv := &http.Server{Addr: a.Cfg.Listen, Handler: a.HTTP, ReadHeaderTimeout: 10 * time.Second}
 	errc := make(chan error, 1)
 	go func() {

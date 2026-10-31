@@ -127,9 +127,9 @@ func (q *Queries) CountUsersOfNode(ctx context.Context, nodeID int64) (int64, er
 
 const createNode = `-- name: CreateNode :one
 INSERT INTO nodes (code, name, template_id, host, address, region, protocol, port, server_port,
-                   settings, rate, state, tags, key_hash, key_cipher)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
-RETURNING id, code, name, template_id, host, address, region, protocol, port, server_port, settings, rate, state, tags, sort, key_hash, key_cipher, allow_legacy_token, last_heartbeat_at, last_push_at, load, created_at, updated_at, version
+                   settings, rate, state, tags, key_hash, key_cipher, backend)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+RETURNING id, code, name, template_id, host, address, region, protocol, port, server_port, settings, rate, state, tags, sort, key_hash, key_cipher, allow_legacy_token, last_heartbeat_at, last_push_at, load, created_at, updated_at, version, backend, runtime
 `
 
 type CreateNodeParams struct {
@@ -148,6 +148,7 @@ type CreateNodeParams struct {
 	Tags       []string
 	KeyHash    []byte
 	KeyCipher  []byte
+	Backend    string
 }
 
 func (q *Queries) CreateNode(ctx context.Context, arg CreateNodeParams) (Node, error) {
@@ -167,6 +168,7 @@ func (q *Queries) CreateNode(ctx context.Context, arg CreateNodeParams) (Node, e
 		arg.Tags,
 		arg.KeyHash,
 		arg.KeyCipher,
+		arg.Backend,
 	)
 	var i Node
 	err := row.Scan(
@@ -194,6 +196,8 @@ func (q *Queries) CreateNode(ctx context.Context, arg CreateNodeParams) (Node, e
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Version,
+		&i.Backend,
+		&i.Runtime,
 	)
 	return i, err
 }
@@ -326,7 +330,7 @@ func (q *Queries) DetachNode(ctx context.Context, arg DetachNodeParams) (int64, 
 }
 
 const getNode = `-- name: GetNode :one
-SELECT id, code, name, template_id, host, address, region, protocol, port, server_port, settings, rate, state, tags, sort, key_hash, key_cipher, allow_legacy_token, last_heartbeat_at, last_push_at, load, created_at, updated_at, version FROM nodes WHERE id = $1
+SELECT id, code, name, template_id, host, address, region, protocol, port, server_port, settings, rate, state, tags, sort, key_hash, key_cipher, allow_legacy_token, last_heartbeat_at, last_push_at, load, created_at, updated_at, version, backend, runtime FROM nodes WHERE id = $1
 `
 
 func (q *Queries) GetNode(ctx context.Context, id int64) (Node, error) {
@@ -357,12 +361,14 @@ func (q *Queries) GetNode(ctx context.Context, id int64) (Node, error) {
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Version,
+		&i.Backend,
+		&i.Runtime,
 	)
 	return i, err
 }
 
 const getNodeByCode = `-- name: GetNodeByCode :one
-SELECT id, code, name, template_id, host, address, region, protocol, port, server_port, settings, rate, state, tags, sort, key_hash, key_cipher, allow_legacy_token, last_heartbeat_at, last_push_at, load, created_at, updated_at, version FROM nodes WHERE code = $1
+SELECT id, code, name, template_id, host, address, region, protocol, port, server_port, settings, rate, state, tags, sort, key_hash, key_cipher, allow_legacy_token, last_heartbeat_at, last_push_at, load, created_at, updated_at, version, backend, runtime FROM nodes WHERE code = $1
 `
 
 func (q *Queries) GetNodeByCode(ctx context.Context, code string) (Node, error) {
@@ -393,12 +399,14 @@ func (q *Queries) GetNodeByCode(ctx context.Context, code string) (Node, error) 
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Version,
+		&i.Backend,
+		&i.Runtime,
 	)
 	return i, err
 }
 
 const getNodeByKeyHash = `-- name: GetNodeByKeyHash :one
-SELECT id, code, name, template_id, host, address, region, protocol, port, server_port, settings, rate, state, tags, sort, key_hash, key_cipher, allow_legacy_token, last_heartbeat_at, last_push_at, load, created_at, updated_at, version FROM nodes WHERE key_hash = $1
+SELECT id, code, name, template_id, host, address, region, protocol, port, server_port, settings, rate, state, tags, sort, key_hash, key_cipher, allow_legacy_token, last_heartbeat_at, last_push_at, load, created_at, updated_at, version, backend, runtime FROM nodes WHERE key_hash = $1
 `
 
 func (q *Queries) GetNodeByKeyHash(ctx context.Context, keyHash []byte) (Node, error) {
@@ -429,6 +437,8 @@ func (q *Queries) GetNodeByKeyHash(ctx context.Context, keyHash []byte) (Node, e
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Version,
+		&i.Backend,
+		&i.Runtime,
 	)
 	return i, err
 }
@@ -585,7 +595,7 @@ func (q *Queries) ListNodePlans(ctx context.Context, nodeID int64) ([]Plan, erro
 
 const listNodes = `-- name: ListNodes :many
 
-SELECT id, code, name, template_id, host, address, region, protocol, port, server_port, settings, rate, state, tags, sort, key_hash, key_cipher, allow_legacy_token, last_heartbeat_at, last_push_at, load, created_at, updated_at, version FROM nodes ORDER BY sort, id
+SELECT id, code, name, template_id, host, address, region, protocol, port, server_port, settings, rate, state, tags, sort, key_hash, key_cipher, allow_legacy_token, last_heartbeat_at, last_push_at, load, created_at, updated_at, version, backend, runtime FROM nodes ORDER BY sort, id
 `
 
 // 节点 -------------------------------------------------------------------
@@ -623,6 +633,8 @@ func (q *Queries) ListNodes(ctx context.Context) ([]Node, error) {
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.Version,
+			&i.Backend,
+			&i.Runtime,
 		); err != nil {
 			return nil, err
 		}
@@ -673,7 +685,7 @@ func (q *Queries) ListPlanNodePairs(ctx context.Context) ([]ListPlanNodePairsRow
 }
 
 const listPlanNodes = `-- name: ListPlanNodes :many
-SELECT n.id, n.code, n.name, n.template_id, n.host, n.address, n.region, n.protocol, n.port, n.server_port, n.settings, n.rate, n.state, n.tags, n.sort, n.key_hash, n.key_cipher, n.allow_legacy_token, n.last_heartbeat_at, n.last_push_at, n.load, n.created_at, n.updated_at, n.version FROM nodes n JOIN plan_nodes pn ON pn.node_id = n.id
+SELECT n.id, n.code, n.name, n.template_id, n.host, n.address, n.region, n.protocol, n.port, n.server_port, n.settings, n.rate, n.state, n.tags, n.sort, n.key_hash, n.key_cipher, n.allow_legacy_token, n.last_heartbeat_at, n.last_push_at, n.load, n.created_at, n.updated_at, n.version, n.backend, n.runtime FROM nodes n JOIN plan_nodes pn ON pn.node_id = n.id
 WHERE pn.plan_id = $1 ORDER BY n.sort, n.id
 `
 
@@ -711,6 +723,8 @@ func (q *Queries) ListPlanNodes(ctx context.Context, planID int64) ([]Node, erro
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.Version,
+			&i.Backend,
+			&i.Runtime,
 		); err != nil {
 			return nil, err
 		}
@@ -949,9 +963,9 @@ func (q *Queries) TouchNodePush(ctx context.Context, id int64) error {
 const updateNode = `-- name: UpdateNode :one
 UPDATE nodes SET
     name = $2, address = $3, port = $4, server_port = $5, rate = $6, tags = $7, settings = $8,
-    sort = $9, updated_at = now(), version = version + 1
+    sort = $9, backend = $10, updated_at = now(), version = version + 1
 WHERE id = $1
-RETURNING id, code, name, template_id, host, address, region, protocol, port, server_port, settings, rate, state, tags, sort, key_hash, key_cipher, allow_legacy_token, last_heartbeat_at, last_push_at, load, created_at, updated_at, version
+RETURNING id, code, name, template_id, host, address, region, protocol, port, server_port, settings, rate, state, tags, sort, key_hash, key_cipher, allow_legacy_token, last_heartbeat_at, last_push_at, load, created_at, updated_at, version, backend, runtime
 `
 
 type UpdateNodeParams struct {
@@ -964,6 +978,7 @@ type UpdateNodeParams struct {
 	Tags       []string
 	Settings   json.RawMessage
 	Sort       int32
+	Backend    string
 }
 
 func (q *Queries) UpdateNode(ctx context.Context, arg UpdateNodeParams) (Node, error) {
@@ -977,6 +992,7 @@ func (q *Queries) UpdateNode(ctx context.Context, arg UpdateNodeParams) (Node, e
 		arg.Tags,
 		arg.Settings,
 		arg.Sort,
+		arg.Backend,
 	)
 	var i Node
 	err := row.Scan(
@@ -1004,6 +1020,8 @@ func (q *Queries) UpdateNode(ctx context.Context, arg UpdateNodeParams) (Node, e
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Version,
+		&i.Backend,
+		&i.Runtime,
 	)
 	return i, err
 }

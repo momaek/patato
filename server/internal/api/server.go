@@ -14,6 +14,7 @@ import (
 	"github.com/momaek/patato/server/internal/auth"
 	"github.com/momaek/patato/server/internal/change"
 	"github.com/momaek/patato/server/internal/config"
+	"github.com/momaek/patato/server/internal/native"
 	"github.com/momaek/patato/server/internal/notify"
 	"github.com/momaek/patato/server/internal/secret"
 	"github.com/momaek/patato/server/internal/store"
@@ -35,6 +36,7 @@ type Deps struct {
 	Box       *secret.Box
 	UniProxy  *uniproxy.Handler
 	Subscribe *subscribe.Handler
+	Native    *native.Handler
 	Mailer    notify.Mailer
 	Telegram  TelegramBinder
 	Log       *slog.Logger
@@ -123,7 +125,8 @@ func requestLog(log *slog.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
 		c.Next()
-		if strings.HasPrefix(c.Request.URL.Path, "/api/v1/server/") && c.Writer.Status() < 400 {
+		p := c.Request.URL.Path
+		if (strings.HasPrefix(p, "/api/v1/server/") || strings.HasPrefix(p, "/api/v1/node/")) && c.Writer.Status() < 400 {
 			return // 节点高频请求，只记录失败
 		}
 		log.Info("http", "method", c.Request.Method, "path", c.Request.URL.Path, "status", c.Writer.Status(),

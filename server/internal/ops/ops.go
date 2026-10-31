@@ -49,7 +49,7 @@ func (d *Deps) now() time.Time {
 func All(d *Deps) []change.Operation {
 	return []change.Operation{
 		&NodeProvision{d}, &NodeUpdate{d}, &NodeAttach{d, true}, &NodeAttach{d, false},
-		&NodeDelete{d}, &NodeRotateKey{d},
+		&NodeDelete{d}, &NodeRotateKey{d}, &MachineRevoke{d},
 		&TemplateCreate{d}, &TemplateUpdate{d},
 		&PlanCreate{d}, &PlanUpdate{d}, &PlanDelete{d},
 		&UserCreate{d}, &UserUpdate{d}, &UserResetTraffic{d}, &UserResetToken{d}, &UserDelete{d},

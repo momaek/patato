@@ -117,6 +117,30 @@ type IdempotencyKey struct {
 	CreatedAt   time.Time
 }
 
+type Machine struct {
+	ID              int64
+	Host            string
+	TokenHash       []byte
+	EnrollHash      []byte
+	EnrollCipher    []byte
+	EnrollExpiresAt *time.Time
+	Hostname        string
+	AgentVersion    string
+	Kernel          string
+	EnrolledAt      *time.Time
+	LastSeenAt      *time.Time
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+	Version         int64
+}
+
+type MachineSpool struct {
+	MachineID int64
+	Spool     string
+	LastSeq   int64
+	UpdatedAt time.Time
+}
+
 type Node struct {
 	ID               int64
 	Code             string
@@ -142,6 +166,8 @@ type Node struct {
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
 	Version          int64
+	Backend          string
+	Runtime          json.RawMessage
 }
 
 type NodeAlive struct {

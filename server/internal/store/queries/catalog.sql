@@ -43,8 +43,8 @@ SELECT version FROM nodes WHERE id = $1 FOR UPDATE;
 
 -- name: CreateNode :one
 INSERT INTO nodes (code, name, template_id, host, address, region, protocol, port, server_port,
-                   settings, rate, state, tags, key_hash, key_cipher)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+                   settings, rate, state, tags, key_hash, key_cipher, backend)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
 RETURNING *;
 
 -- name: SetNodeKey :exec
@@ -157,7 +157,7 @@ SELECT count(*) FROM users WHERE plan_id = $1;
 -- name: UpdateNode :one
 UPDATE nodes SET
     name = $2, address = $3, port = $4, server_port = $5, rate = $6, tags = $7, settings = $8,
-    sort = $9, updated_at = now(), version = version + 1
+    sort = $9, backend = $10, updated_at = now(), version = version + 1
 WHERE id = $1
 RETURNING *;
 
