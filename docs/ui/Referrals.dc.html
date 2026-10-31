@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>Admin 返佣</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;family=Noto+Sans+SC:wght@400;500;700&amp;display=swap">
+<style>
+body{margin:0;background:#F4F6F5}
+a{color:#2B44C4}a:hover{color:#1E3299}
+:focus-visible{outline:2px solid #2B44C4;outline-offset:2px}
+</style>
+</helmet>
+<div style="min-height: 100vh; display: flex; flex-wrap: wrap; background: #F4F6F5; color: #18201D; font-family: 'IBM Plex Sans', 'Noto Sans SC', system-ui, sans-serif; font-size: 14px; line-height: 1.55">
+
+<nav aria-label="主导航" style="flex: 1 1 200px; box-sizing: border-box; padding: 24px 14px; display: flex; flex-direction: column; gap: 28px; background: #FFFFFF; border-right: 1px solid #D9DFDB">
+<div style="display: flex; align-items: center; gap: 10px; padding: 0 10px">
+<svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true"><path d="M4 12.5C3 7.5 7 3 12 3.5c4.6.4 7.2 4 6.4 8.4-.8 4.6-4.6 7.4-8.8 6.8C6.6 18.2 4.6 15.7 4 12.5Z" fill="#2B44C4"></path></svg>
+<span style="font-size: 18px; font-weight: 600; letter-spacing: -0.01em">patato</span>
+</div>
+<div style="display: flex; flex-direction: column; gap: 2px">
+<a href="Main.dc.html" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; border-radius: 6px; text-decoration: none; color: #18201D">总览</a>
+<a href="Approval.dc.html" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; border-radius: 6px; text-decoration: none; color: #18201D">审批<span style="font-size: 12px; font-weight: 600; padding: 0 7px; border-radius: 10px; background: #FBEFE4; color: #A34A06">2</span></a>
+<a href="Nodes.dc.html" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; border-radius: 6px; text-decoration: none; color: #18201D">节点</a>
+<a href="Plans.dc.html" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; border-radius: 6px; text-decoration: none; color: #18201D">套餐</a>
+<a href="Users.dc.html" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; border-radius: 6px; text-decoration: none; color: #18201D">用户</a>
+<a href="Audit.dc.html" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; border-radius: 6px; text-decoration: none; color: #18201D">审计日志</a>
+</div>
+<div style="display: flex; flex-direction: column; gap: 2px; padding-top: 12px; border-top: 1px solid #E6EAE7">
+<span style="padding: 0 10px 4px; font-size: 12px; color: #56625C">售卖与运营（二期）</span>
+<a href="Orders.dc.html" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; border-radius: 6px; text-decoration: none; color: #18201D">订单</a>
+<a href="Tickets.dc.html" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; border-radius: 6px; text-decoration: none; color: #18201D">工单<span style="font-size: 12px; font-weight: 600; padding: 0 7px; border-radius: 10px; background: #E8ECFB; color: #1E3299">3</span></a>
+<a href="Referrals.dc.html" aria-current="page" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; border-radius: 6px; text-decoration: none; background: #E8ECFB; color: #1E3299; font-weight: 600">返佣</a>
+</div>
+<div style="margin-top: auto; padding: 12px 10px 0; border-top: 1px solid #D9DFDB; display: flex; flex-direction: column; gap: 2px">
+<span style="font-weight: 500">运营者</span>
+<span style="font-size: 12px; color: #56625C">已用 passkey 登录</span>
+</div>
+</nav>
+
+<main style="flex: 999 1 560px; min-width: 0; box-sizing: border-box; padding: 32px 40px 56px; display: flex; flex-direction: column; gap: 28px">
+
+<header style="display: flex; flex-direction: column; gap: 6px">
+<h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.25">返佣</h1>
+<p style="margin: 0; color: #56625C">本月通过邀请注册 214 人，其中 97 人已付款</p>
+</header>
+
+<section aria-labelledby="flag-h" style="display: flex; flex-direction: column; gap: 12px">
+<div style="display: flex; align-items: baseline; gap: 10px">
+<h2 id="flag-h" style="margin: 0; font-size: 18px; font-weight: 600">需要你确认</h2>
+<span style="color: #56625C">1 件</span>
+</div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 16px; padding: 18px 22px; background: #FFFFFF; border: 1px solid #D9DFDB; border-radius: 10px">
+<span style="font-size: 12px; font-weight: 500; padding: 2px 8px; border-radius: 4px; background: #FBEFE4; color: #A34A06; white-space: nowrap">返佣已冻结</span>
+<div style="flex: 1 1 360px; min-width: 0; display: flex; flex-direction: column; gap: 3px">
+<p style="margin: 0; font-size: 16px; font-weight: 500">u_30122 一天内邀请了 9 个账号</p>
+<p style="margin: 0; font-size: 13px; color: #56625C">9 个账号注册 IP 在同一网段，其中 7 个只买了入门套餐 1 个月。冻结的返佣共 [金额]。</p>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px">
+<a href="Users.dc.html" style="display: inline-flex; align-items: center; min-height: 40px; padding: 0 16px; border-radius: 8px; border: 1px solid #C9D0CC; color: #18201D; font-weight: 500; text-decoration: none">查看这些账号</a>
+<button type="button" style="min-height: 40px; padding: 0 16px; border: 1px solid #C9D0CC; border-radius: 8px; background: #FFFFFF; color: #18201D; font: inherit; font-weight: 500; cursor: pointer">发起解冻（需审批）</button>
+</div>
+</div>
+</section>
+
+<div style="display: flex; flex-wrap: wrap; gap: 28px; align-items: flex-start">
+
+<section aria-labelledby="top-h" style="flex: 2 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 12px">
+<h2 id="top-h" style="margin: 0; font-size: 18px; font-weight: 600">邀请人</h2>
+<div style="overflow-x: auto; background: #FFFFFF; border: 1px solid #D9DFDB; border-radius: 10px">
+<table style="width: 100%; min-width: 640px; border-collapse: collapse">
+<thead>
+<tr>
+<th scope="col" style="text-align: left; font-size: 13px; font-weight: 500; color: #56625C; padding: 10px 16px; border-bottom: 1px solid #D9DFDB">邀请人</th>
+<th scope="col" style="text-align: right; font-size: 13px; font-weight: 500; color: #56625C; padding: 10px 16px; border-bottom: 1px solid #D9DFDB">已邀请</th>
+<th scope="col" style="text-align: right; font-size: 13px; font-weight: 500; color: #56625C; padding: 10px 16px; border-bottom: 1px solid #D9DFDB">已付款</th>
+<th scope="col" style="text-align: right; font-size: 13px; font-weight: 500; color: #56625C; padding: 10px 16px; border-bottom: 1px solid #D9DFDB">累计返佣</th>
+<th scope="col" style="text-align: right; font-size: 13px; font-weight: 500; color: #56625C; padding: 10px 16px; border-bottom: 1px solid #D9DFDB">可用余额</th>
+<th scope="col" style="text-align: left; font-size: 13px; font-weight: 500; color: #56625C; padding: 10px 16px; border-bottom: 1px solid #D9DFDB">状态</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="padding: 12px 16px"><span style="display: flex; flex-direction: column"><span style="font-weight: 500">tan***@example.com</span><span style="font-size: 12px; color: #56625C; font-family: 'IBM Plex Mono', monospace">u_04471</span></span></td>
+<td style="padding: 12px 16px; text-align: right; font-variant-numeric: tabular-nums">38</td>
+<td style="padding: 12px 16px; text-align: right; font-variant-numeric: tabular-nums">29</td>
+<td style="padding: 12px 16px; text-align: right">[金额]</td>
+<td style="padding: 12px 16px; text-align: right">[金额]</td>
+<td style="padding: 12px 16px"><span style="color: #1C6B45; font-weight: 500">正常</span></td>
+</tr>
+<tr>
+<td style="padding: 12px 16px; border-top: 1px solid #E6EAE7"><span style="display: flex; flex-direction: column"><span style="font-weight: 500">lin***@example.com</span><span style="font-size: 12px; color: #56625C; font-family: 'IBM Plex Mono', monospace">u_18342</span></span></td>
+<td style="padding: 12px 16px; border-top: 1px solid #E6EAE7; text-align: right; font-variant-numeric: tabular-nums">6</td>
+<td style="padding: 12px 16px; border-top: 1px solid #E6EAE7; text-align: right; font-variant-numeric: tabular-nums">4</td>
+<td style="padding: 12px 16px; border-top: 1px solid #E6EAE7; text-align: right">[金额]</td>
+<td style="padding: 12px 16px; border-top: 1px solid #E6EAE7; text-align: right">[金额]</td>
+<td style="padding: 12px 16px; border-top: 1px solid #E6EAE7"><span style="color: #1C6B45; font-weight: 500">正常</span></td>
+</tr>
+<tr style="background: #FDF8F3">
+<td style="padding: 12px 16px; border-top: 1px solid #E6EAE7"><span style="display: flex; flex-direction: column"><span style="font-weight: 500">xu***@example.com</span><span style="font-size: 12px; color: #56625C; font-family: 'IBM Plex Mono', monospace">u_30122</span></span></td>
+<td style="padding: 12px 16px; border-top: 1px solid #E6EAE7; text-align: right; font-variant-numeric: tabular-nums">9</td>
+<td style="padding: 12px 16px; border-top: 1px solid #E6EAE7; text-align: right; font-variant-numeric: tabular-nums">7</td>
+<td style="padding: 12px 16px; border-top: 1px solid #E6EAE7; text-align: right">[金额]</td>
+<td style="padding: 12px 16px; border-top: 1px solid #E6EAE7; text-align: right">—</td>
+<td style="padding: 12px 16px; border-top: 1px solid #E6EAE7"><span style="color: #A34A06; font-weight: 500">冻结</span></td>
+</tr>
+<tr>
+<td style="padding: 12px 16px; border-top: 1px solid #E6EAE7"><span style="display: flex; flex-direction: column"><span style="font-weight: 500">he***@example.com</span><span style="font-size: 12px; color: #56625C; font-family: 'IBM Plex Mono', monospace">u_12093</span></span></td>
+<td style="padding: 12px 16px; border-top: 1px solid #E6EAE7; text-align: right; font-variant-numeric: tabular-nums">3</td>
+<td style="padding: 12px 16px; border-top: 1px solid #E6EAE7; text-align: right; font-variant-numeric: tabular-nums">1</td>
+<td style="padding: 12px 16px; border-top: 1px solid #E6EAE7; text-align: right">[金额]</td>
+<td style="padding: 12px 16px; border-top: 1px solid #E6EAE7; text-align: right">[金额]</td>
+<td style="padding: 12px 16px; border-top: 1px solid #E6EAE7"><span style="color: #1C6B45; font-weight: 500">正常</span></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+
+<section aria-labelledby="rule-h" style="flex: 1 1 300px; min-width: 0; display: flex; flex-direction: column; gap: 12px">
+<h2 id="rule-h" style="margin: 0; font-size: 18px; font-weight: 600">规则</h2>
+<div style="display: flex; flex-direction: column; gap: 14px; padding: 18px; background: #FFFFFF; border: 1px solid #D9DFDB; border-radius: 10px">
+<dl style="margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 12px">
+<dt style="color: #56625C">返佣比例</dt><dd style="margin: 0">[返佣比例]</dd>
+<dt style="color: #56625C">入账时间</dt><dd style="margin: 0">付款后 [N] 天无退款</dd>
+<dt style="color: #56625C">使用方式</dt><dd style="margin: 0">续费时抵扣</dd>
+<dt style="color: #56625C">提现</dt><dd style="margin: 0">[待定]</dd>
+<dt style="color: #56625C">自动冻结</dt><dd style="margin: 0">一天内邀请超过 5 个同网段账号</dd>
+</dl>
+<p style="margin: 0; font-size: 13px; color: #56625C">规则涉及钱，修改是敏感操作，需要审批：</p>
+<code style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; padding: 6px 10px; background: #F4F6F5; border-radius: 6px; overflow-wrap: anywhere">patato referral settings --rate [新比例] --dry-run</code>
+</div>
+</section>
+
+</div>
+
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1060}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

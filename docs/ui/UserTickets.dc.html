@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>用户侧 工单</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=Noto+Sans+SC:wght@400;500;700&amp;display=swap">
+<style>
+body{margin:0;background:#F4F6F5}
+a{color:#2B44C4}a:hover{color:#1E3299}
+:focus-visible{outline:2px solid #2B44C4;outline-offset:2px}
+</style>
+</helmet>
+<div style="width: 390px; min-height: 844px; box-sizing: border-box; padding: 20px 20px 32px; display: flex; flex-direction: column; gap: 24px; background: #F4F6F5; color: #18201D; font-family: 'IBM Plex Sans', 'Noto Sans SC', system-ui, sans-serif; font-size: 15px; line-height: 1.6">
+
+<header style="display: flex; align-items: center; justify-content: space-between; gap: 12px">
+<div style="display: flex; align-items: center; gap: 10px">
+<span aria-hidden="true" style="width: 28px; height: 28px; border-radius: 7px; background: #2B44C4; display: inline-flex; align-items: center; justify-content: center; color: #FFFFFF; font-weight: 600; font-size: 14px">S</span>
+<span style="font-weight: 600">[你的服务名]</span>
+</div>
+<a href="UserLogin.dc.html" style="font-size: 14px">退出</a>
+</header>
+
+<nav aria-label="用户导航" style="display: flex; gap: 4px; padding: 4px; background: #E6EAE7; border-radius: 12px">
+<a href="UserHome.dc.html" style="flex: 1 1 0; display: flex; align-items: center; justify-content: center; min-height: 44px; border-radius: 9px; color: #2E3833; font-size: 14px; text-decoration: none">订阅</a>
+<a href="UserPlans.dc.html" style="flex: 1 1 0; display: flex; align-items: center; justify-content: center; min-height: 44px; border-radius: 9px; color: #2E3833; font-size: 14px; text-decoration: none">续费</a>
+<a href="UserTickets.dc.html" aria-current="page" style="flex: 1 1 0; display: flex; align-items: center; justify-content: center; min-height: 44px; border-radius: 9px; background: #FFFFFF; color: #18201D; font-size: 14px; font-weight: 600; text-decoration: none">工单</a>
+<a href="UserInvite.dc.html" style="flex: 1 1 0; display: flex; align-items: center; justify-content: center; min-height: 44px; border-radius: 9px; color: #2E3833; font-size: 14px; text-decoration: none">邀请</a>
+</nav>
+
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 12px">
+<h1 style="margin: 0; font-size: 24px; font-weight: 600; line-height: 1.3">工单</h1>
+<button type="button" onClick="{{toggle}}" aria-expanded="{{expanded}}" style="min-height: 44px; padding: 0 16px; border: 0; border-radius: 10px; background: #2B44C4; color: #FFFFFF; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer">{{toggleLabel}}</button>
+</div>
+
+<sc-if value="{{open}}" hint-placeholder-val="{{ false }}">
+<form style="display: flex; flex-direction: column; gap: 14px; padding: 18px; background: #FFFFFF; border: 1px solid #D9DFDB; border-radius: 12px">
+<div style="display: flex; flex-direction: column; gap: 6px">
+<label for="topic" style="font-size: 14px; font-weight: 500">问题类型</label>
+<select id="topic" style="min-height: 46px; box-sizing: border-box; padding: 0 12px; border: 1px solid #C9D0CC; border-radius: 10px; background: #FFFFFF; font: inherit; color: #18201D">
+<option>连不上</option>
+<option>速度慢</option>
+<option>导入订阅失败</option>
+<option>账号与付款</option>
+<option>其他</option>
+</select>
+</div>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<label for="desc" style="font-size: 14px; font-weight: 500">具体情况</label>
+<textarea id="desc" rows="4" placeholder="用的什么客户端、哪个节点、从什么时候开始" style="box-sizing: border-box; padding: 10px 12px; border: 1px solid #C9D0CC; border-radius: 10px; background: #FFFFFF; font: inherit; color: #18201D; resize: vertical"></textarea>
+</div>
+<button type="button" style="min-height: 48px; border: 0; border-radius: 10px; background: #2B44C4; color: #FFFFFF; font: inherit; font-weight: 600; cursor: pointer">提交工单</button>
+</form>
+</sc-if>
+
+<ul style="list-style: none; margin: 0; padding: 0; background: #FFFFFF; border: 1px solid #D9DFDB; border-radius: 12px">
+<li style="border-bottom: 1px solid #E6EAE7">
+<a href="UserTicketDetail.dc.html" style="display: flex; flex-direction: column; gap: 4px; padding: 14px 16px; color: #18201D; text-decoration: none">
+<span style="display: flex; justify-content: space-between; align-items: center; gap: 8px"><span style="font-weight: 600">东京节点晚上很慢</span><span style="font-size: 12px; font-weight: 500; padding: 1px 8px; border-radius: 10px; background: #E8ECFB; color: #1E3299; white-space: nowrap">有新回复</span></span>
+<span style="font-size: 13px; color: #56625C">客服：已经把东京-03 加入高级套餐……</span>
+<span style="font-size: 12px; color: #56625C">10-31 09:40</span>
+</a>
+</li>
+<li style="border-bottom: 1px solid #E6EAE7">
+<a href="UserTicketDetail.dc.html" style="display: flex; flex-direction: column; gap: 4px; padding: 14px 16px; color: #18201D; text-decoration: none">
+<span style="display: flex; justify-content: space-between; align-items: center; gap: 8px"><span style="font-weight: 600">续费后流量没有恢复</span><span style="font-size: 12px; font-weight: 500; padding: 1px 8px; border-radius: 10px; background: #FBEFE4; color: #A34A06; white-space: nowrap">等待客服</span></span>
+<span style="font-size: 13px; color: #56625C">你：上个月续费以后，流量还显示用完……</span>
+<span style="font-size: 12px; color: #56625C">10-31 08:15</span>
+</a>
+</li>
+<li>
+<a href="UserTicketDetail.dc.html" style="display: flex; flex-direction: column; gap: 4px; padding: 14px 16px; color: #18201D; text-decoration: none">
+<span style="display: flex; justify-content: space-between; align-items: center; gap: 8px"><span style="font-weight: 600">Shadowrocket 导入失败</span><span style="font-size: 12px; font-weight: 500; padding: 1px 8px; border-radius: 10px; background: #ECEFF3; color: #4A5560; white-space: nowrap">已关闭</span></span>
+<span style="font-size: 13px; color: #56625C">客服：更新到最新版后重新点一键导入即可</span>
+<span style="font-size: 12px; color: #56625C">10-12 16:02</span>
+</a>
+</li>
+</ul>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { open: false };
+  }
+  renderVals() {
+    const open = !!(this.state && this.state.open);
+    return {
+      open: open,
+      expanded: open ? 'true' : 'false',
+      toggleLabel: open ? '收起' : '新建工单',
+      toggle: () => this.setState({ open: !open })
+    };
+  }
+}
+</script>
+</body>
+</html>

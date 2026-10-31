@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>Admin 审批详情</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;family=Noto+Sans+SC:wght@400;500;700&amp;display=swap">
+<style>
+body{margin:0;background:#F4F6F5}
+a{color:#2B44C4}a:hover{color:#1E3299}
+:focus-visible{outline:2px solid #2B44C4;outline-offset:2px}
+</style>
+</helmet>
+<div style="min-height: 100vh; display: flex; flex-wrap: wrap; background: #F4F6F5; color: #18201D; font-family: 'IBM Plex Sans', 'Noto Sans SC', system-ui, sans-serif; font-size: 14px; line-height: 1.55">
+
+<nav aria-label="主导航" style="flex: 1 1 200px; box-sizing: border-box; padding: 24px 14px; display: flex; flex-direction: column; gap: 28px; background: #FFFFFF; border-right: 1px solid #D9DFDB">
+<div style="display: flex; align-items: center; gap: 10px; padding: 0 10px">
+<svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true"><path d="M4 12.5C3 7.5 7 3 12 3.5c4.6.4 7.2 4 6.4 8.4-.8 4.6-4.6 7.4-8.8 6.8C6.6 18.2 4.6 15.7 4 12.5Z" fill="#2B44C4"></path></svg>
+<span style="font-size: 18px; font-weight: 600; letter-spacing: -0.01em">patato</span>
+</div>
+<div style="display: flex; flex-direction: column; gap: 2px">
+<a href="Main.dc.html" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; border-radius: 6px; text-decoration: none; color: #18201D">总览</a>
+<a href="Approval.dc.html" aria-current="page" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; border-radius: 6px; text-decoration: none; background: #E8ECFB; color: #1E3299; font-weight: 600">审批<span style="font-size: 12px; font-weight: 600; padding: 0 7px; border-radius: 10px; background: #FBEFE4; color: #A34A06">2</span></a>
+<a href="Nodes.dc.html" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; border-radius: 6px; text-decoration: none; color: #18201D">节点</a>
+<a href="Plans.dc.html" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; border-radius: 6px; text-decoration: none; color: #18201D">套餐</a>
+<a href="Users.dc.html" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; border-radius: 6px; text-decoration: none; color: #18201D">用户</a>
+<a href="Audit.dc.html" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; border-radius: 6px; text-decoration: none; color: #18201D">审计日志</a>
+</div>
+<div style="display: flex; flex-direction: column; gap: 2px; padding-top: 12px; border-top: 1px solid #E6EAE7">
+<span style="padding: 0 10px 4px; font-size: 12px; color: #56625C">售卖与运营（二期）</span>
+<a href="Orders.dc.html" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; border-radius: 6px; text-decoration: none; color: #18201D">订单</a>
+<a href="Tickets.dc.html" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; border-radius: 6px; text-decoration: none; color: #18201D">工单<span style="font-size: 12px; font-weight: 600; padding: 0 7px; border-radius: 10px; background: #E8ECFB; color: #1E3299">3</span></a>
+<a href="Referrals.dc.html" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; border-radius: 6px; text-decoration: none; color: #18201D">返佣</a>
+</div>
+<div style="margin-top: auto; padding: 12px 10px 0; border-top: 1px solid #D9DFDB; display: flex; flex-direction: column; gap: 2px">
+<span style="font-weight: 500">运营者</span>
+<span style="font-size: 12px; color: #56625C">已用 passkey 登录</span>
+</div>
+</nav>
+
+<main style="flex: 999 1 560px; min-width: 0; box-sizing: border-box; padding: 28px 40px 56px; display: flex; flex-direction: column; gap: 28px">
+
+<p style="margin: 0; font-size: 13px; color: #56625C"><a href="Main.dc.html">总览</a> / 待审批 / <span style="font-family: 'IBM Plex Mono', monospace">apr_7Kq2</span></p>
+
+<header style="display: flex; flex-direction: column; gap: 12px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px">
+<span style="font-size: 12px; font-weight: 500; padding: 2px 8px; border-radius: 4px; background: #FBEFE4; color: #A34A06">敏感</span>
+<span style="font-size: 13px; color: #56625C">接口声明为常规，因影响面升级</span>
+</div>
+<h1 style="margin: 0; font-size: 32px; font-weight: 600; letter-spacing: -0.015em; line-height: 1.25">把 东京-03 挂到高级套餐</h1>
+<p style="margin: 0; font-size: 16px; color: #2E3833; max-width: 46em">批准后，高级套餐的 1,200 名用户会在订阅里看到 东京-03。套餐里现有的 4 个节点不受影响，用户无需重新导入订阅。</p>
+</header>
+
+<div style="display: flex; flex-wrap: wrap; gap: 28px; align-items: flex-start">
+
+<div style="flex: 2 1 520px; min-width: 0; display: flex; flex-direction: column; gap: 28px">
+
+<section aria-labelledby="impact-h" style="display: flex; flex-direction: column; gap: 12px">
+<h2 id="impact-h" style="margin: 0; font-size: 18px; font-weight: 600">影响范围</h2>
+<dl style="margin: 0; display: flex; flex-wrap: wrap; background: #FFFFFF; border: 1px solid #D9DFDB; border-radius: 10px">
+<div style="flex: 1 1 160px; padding: 16px 20px; display: flex; flex-direction: column; gap: 2px">
+<dt style="font-size: 13px; color: #56625C">受影响用户</dt>
+<dd style="margin: 0; font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums">1,200</dd>
+</div>
+<div style="flex: 1 1 160px; padding: 16px 20px; display: flex; flex-direction: column; gap: 2px; border-left: 1px solid #E6EAE7">
+<dt style="font-size: 13px; color: #56625C">涉及节点</dt>
+<dd style="margin: 0; font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums">1</dd>
+</div>
+<div style="flex: 2 1 240px; padding: 16px 20px; display: flex; flex-direction: column; gap: 2px; border-left: 1px solid #E6EAE7">
+<dt style="font-size: 13px; color: #56625C">升级原因</dt>
+<dd style="margin: 0; font-size: 14px">受影响用户超过 100 人的阈值，常规操作升为敏感</dd>
+</div>
+</dl>
+</section>
+
+<section aria-labelledby="diff-h" style="display: flex; flex-direction: column; gap: 12px">
+<div style="display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px">
+<h2 id="diff-h" style="margin: 0; font-size: 18px; font-weight: 600">变更内容</h2>
+<span style="font-size: 13px; color: #56625C">来自预演结果，批准后按这份计划执行</span>
+</div>
+<div style="overflow-x: auto; background: #FFFFFF; border: 1px solid #D9DFDB; border-radius: 10px">
+<table style="width: 100%; min-width: 560px; border-collapse: collapse">
+<thead>
+<tr>
+<th scope="col" style="width: 26%; text-align: left; font-size: 13px; font-weight: 500; color: #56625C; padding: 10px 18px; border-bottom: 1px solid #D9DFDB">字段</th>
+<th scope="col" style="width: 37%; text-align: left; font-size: 13px; font-weight: 500; color: #56625C; padding: 10px 18px; border-bottom: 1px solid #D9DFDB">现在</th>
+<th scope="col" style="width: 37%; text-align: left; font-size: 13px; font-weight: 500; color: #56625C; padding: 10px 18px; border-bottom: 1px solid #D9DFDB">批准后</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<th scope="row" style="text-align: left; font-weight: 500; padding: 14px 18px; vertical-align: top">高级套餐的节点</th>
+<td style="padding: 14px 18px; vertical-align: top; color: #2E3833">东京-01、东京-02、香港-01、新加坡-01</td>
+<td style="padding: 14px 18px; vertical-align: top">东京-01、东京-02、<mark style="background: #E3F2EA; color: #1C6B45; font-weight: 600; padding: 1px 4px; border-radius: 3px">东京-03</mark>、香港-01、新加坡-01</td>
+</tr>
+<tr>
+<th scope="row" style="text-align: left; font-weight: 500; padding: 14px 18px; vertical-align: top; border-top: 1px solid #E6EAE7">东京-03 下发到订阅</th>
+<td style="padding: 14px 18px; vertical-align: top; border-top: 1px solid #E6EAE7; color: #2E3833">否（待接入）</td>
+<td style="padding: 14px 18px; vertical-align: top; border-top: 1px solid #E6EAE7">收到首次心跳后下发</td>
+</tr>
+<tr>
+<th scope="row" style="text-align: left; font-weight: 500; padding: 14px 18px; vertical-align: top; border-top: 1px solid #E6EAE7">版本校验</th>
+<td style="padding: 14px 18px; vertical-align: top; border-top: 1px solid #E6EAE7; font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: #2E3833">plan premium v14<br>node tokyo-03 v1</td>
+<td style="padding: 14px 18px; vertical-align: top; border-top: 1px solid #E6EAE7; font-size: 13px; color: #2E3833">执行时版本必须仍一致，否则作废</td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+
+<section aria-labelledby="steps-h" style="display: flex; flex-direction: column; gap: 12px">
+<h2 id="steps-h" style="margin: 0; font-size: 18px; font-weight: 600">执行步骤</h2>
+<ol style="margin: 0; padding: 16px 20px 16px 40px; background: #FFFFFF; border: 1px solid #D9DFDB; border-radius: 10px; display: flex; flex-direction: column; gap: 8px">
+<li>校验高级套餐和 东京-03 的版本与预演时一致</li>
+<li>把 东京-03 加入高级套餐的节点列表</li>
+<li>东京-03 收到首次心跳后，出现在 1,200 名用户的订阅里</li>
+<li>写入审计日志，并通知发起的会话</li>
+</ol>
+</section>
+
+</div>
+
+<aside aria-label="审批信息" style="flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 20px">
+
+<section aria-labelledby="decide-h" style="display: flex; flex-direction: column; gap: 14px; padding: 20px; background: #FFFFFF; border: 1px solid #C9D0CC; border-radius: 12px">
+<div style="display: flex; flex-direction: column; gap: 2px">
+<h2 id="decide-h" style="margin: 0; font-size: 16px; font-weight: 600">你的决定</h2>
+<p style="margin: 0; font-size: 13px; color: #56625C">23 分钟后过期（14:55）</p>
+</div>
+<button type="button" style="min-height: 44px; border: 0; border-radius: 8px; background: #2B44C4; color: #FFFFFF; font: inherit; font-size: 15px; font-weight: 600; cursor: pointer">用 passkey 批准</button>
+<button type="button" style="min-height: 44px; border: 1px solid #C9D0CC; border-radius: 8px; background: #FFFFFF; color: #18201D; font: inherit; font-size: 15px; font-weight: 500; cursor: pointer">拒绝</button>
+<p style="margin: 0; font-size: 13px; color: #56625C">这次批准只对这一个变更有效。执行时如果套餐或节点已被改过，批准会作废，需要重新发起。</p>
+<div style="display: flex; flex-direction: column; gap: 6px; padding-top: 12px; border-top: 1px solid #E6EAE7">
+<p style="margin: 0; font-size: 13px; color: #56625C">不在电脑前？Telegram 里的审批卡片同样可以批准。在终端里也可以运行：</p>
+<code style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; padding: 6px 10px; background: #F4F6F5; border-radius: 6px; overflow-wrap: anywhere">patato approval approve apr_7Kq2</code>
+</div>
+</section>
+
+<section aria-labelledby="who-h" style="display: flex; flex-direction: column; gap: 12px">
+<h2 id="who-h" style="margin: 0; font-size: 16px; font-weight: 600">发起方</h2>
+<figure style="margin: 0; padding: 16px 18px; background: #FFFFFF; border: 1px solid #D9DFDB; border-radius: 10px; display: flex; flex-direction: column; gap: 8px">
+<figcaption style="font-size: 13px; color: #56625C">原始指令</figcaption>
+<blockquote style="margin: 0; font-size: 17px; line-height: 1.6">把刚上线的东京机器加到高级套餐。</blockquote>
+</figure>
+<dl style="margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 12px; font-size: 13px">
+<dt style="color: #56625C">凭证</dt><dd style="margin: 0">CLI token，属于运营者</dd>
+<dt style="color: #56625C">调用方自报</dt><dd style="margin: 0">Claude Code 会话</dd>
+<dt style="color: #56625C">会话</dt><dd style="margin: 0; font-family: 'IBM Plex Mono', monospace; overflow-wrap: anywhere">sess_3f9a21c0</dd>
+<dt style="color: #56625C">变更计划</dt><dd style="margin: 0; font-family: 'IBM Plex Mono', monospace; overflow-wrap: anywhere">chg_01J9X4QK</dd>
+<dt style="color: #56625C">预演时间</dt><dd style="margin: 0">14:30:12</dd>
+</dl>
+</section>
+
+</aside>
+</div>
+
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1060}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

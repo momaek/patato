@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>Admin 用户</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;family=Noto+Sans+SC:wght@400;500;700&amp;display=swap">
+<style>
+body{margin:0;background:#F4F6F5}
+a{color:#2B44C4}a:hover{color:#1E3299}
+:focus-visible{outline:2px solid #2B44C4;outline-offset:2px}
+</style>
+</helmet>
+<div style="min-height: 100vh; display: flex; flex-wrap: wrap; background: #F4F6F5; color: #18201D; font-family: 'IBM Plex Sans', 'Noto Sans SC', system-ui, sans-serif; font-size: 14px; line-height: 1.55">
+
+<nav aria-label="主导航" style="flex: 1 1 200px; box-sizing: border-box; padding: 24px 14px; display: flex; flex-direction: column; gap: 28px; background: #FFFFFF; border-right: 1px solid #D9DFDB">
+<div style="display: flex; align-items: center; gap: 10px; padding: 0 10px">
+<svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true"><path d="M4 12.5C3 7.5 7 3 12 3.5c4.6.4 7.2 4 6.4 8.4-.8 4.6-4.6 7.4-8.8 6.8C6.6 18.2 4.6 15.7 4 12.5Z" fill="#2B44C4"></path></svg>
+<span style="font-size: 18px; font-weight: 600; letter-spacing: -0.01em">patato</span>
+</div>
+<div style="display: flex; flex-direction: column; gap: 2px">
+<a href="Main.dc.html" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; border-radius: 6px; text-decoration: none; color: #18201D">总览</a>
+<a href="Approval.dc.html" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; border-radius: 6px; text-decoration: none; color: #18201D">审批<span style="font-size: 12px; font-weight: 600; padding: 0 7px; border-radius: 10px; background: #FBEFE4; color: #A34A06">2</span></a>
+<a href="Nodes.dc.html" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; border-radius: 6px; text-decoration: none; color: #18201D">节点</a>
+<a href="Plans.dc.html" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; border-radius: 6px; text-decoration: none; color: #18201D">套餐</a>
+<a href="Users.dc.html" aria-current="page" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; border-radius: 6px; text-decoration: none; background: #E8ECFB; color: #1E3299; font-weight: 600">用户</a>
+<a href="Audit.dc.html" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; border-radius: 6px; text-decoration: none; color: #18201D">审计日志</a>
+</div>
+<div style="display: flex; flex-direction: column; gap: 2px; padding-top: 12px; border-top: 1px solid #E6EAE7">
+<span style="padding: 0 10px 4px; font-size: 12px; color: #56625C">售卖与运营（二期）</span>
+<a href="Orders.dc.html" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; border-radius: 6px; text-decoration: none; color: #18201D">订单</a>
+<a href="Tickets.dc.html" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; border-radius: 6px; text-decoration: none; color: #18201D">工单<span style="font-size: 12px; font-weight: 600; padding: 0 7px; border-radius: 10px; background: #E8ECFB; color: #1E3299">3</span></a>
+<a href="Referrals.dc.html" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; border-radius: 6px; text-decoration: none; color: #18201D">返佣</a>
+</div>
+<div style="margin-top: auto; padding: 12px 10px 0; border-top: 1px solid #D9DFDB; display: flex; flex-direction: column; gap: 2px">
+<span style="font-weight: 500">运营者</span>
+<span style="font-size: 12px; color: #56625C">已用 passkey 登录</span>
+</div>
+</nav>
+
+<main style="flex: 999 1 560px; min-width: 0; box-sizing: border-box; padding: 32px 40px 56px; display: flex; flex-direction: column; gap: 24px">
+
+<header style="display: flex; flex-direction: column; gap: 6px">
+<h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.25">用户</h1>
+<p style="margin: 0; color: #56625C">9,814 名用户，9,406 名使用中</p>
+</header>
+
+<form role="search" style="display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 16px">
+<div style="flex: 1 1 320px; display: flex; flex-direction: column; gap: 6px">
+<label for="q" style="font-size: 13px; font-weight: 500">搜索</label>
+<input id="q" type="search" placeholder="邮箱或用户 ID" style="min-height: 40px; box-sizing: border-box; padding: 0 12px; border: 1px solid #C9D0CC; border-radius: 8px; background: #FFFFFF; font: inherit; color: #18201D">
+</div>
+<div role="group" aria-label="按状态筛选" style="display: flex; flex-wrap: wrap; gap: 8px">
+<button type="button" aria-pressed="true" style="min-height: 40px; padding: 0 14px; border-radius: 20px; border: 1px solid #2B44C4; background: #2B44C4; color: #FFFFFF; font: inherit; font-weight: 500; cursor: pointer">全部</button>
+<button type="button" aria-pressed="false" style="min-height: 40px; padding: 0 14px; border-radius: 20px; border: 1px solid #C9D0CC; background: #FFFFFF; color: #18201D; font: inherit; cursor: pointer">使用中</button>
+<button type="button" aria-pressed="false" style="min-height: 40px; padding: 0 14px; border-radius: 20px; border: 1px solid #C9D0CC; background: #FFFFFF; color: #18201D; font: inherit; cursor: pointer">7 天内到期</button>
+<button type="button" aria-pressed="false" style="min-height: 40px; padding: 0 14px; border-radius: 20px; border: 1px solid #C9D0CC; background: #FFFFFF; color: #18201D; font: inherit; cursor: pointer">已到期</button>
+<button type="button" aria-pressed="false" style="min-height: 40px; padding: 0 14px; border-radius: 20px; border: 1px solid #C9D0CC; background: #FFFFFF; color: #18201D; font: inherit; cursor: pointer">超额停用</button>
+</div>
+</form>
+
+<div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start">
+
+<div style="flex: 2 1 560px; min-width: 0; overflow-x: auto; background: #FFFFFF; border: 1px solid #D9DFDB; border-radius: 10px">
+<table style="width: 100%; min-width: 720px; border-collapse: collapse">
+<thead>
+<tr>
+<th scope="col" style="text-align: left; font-size: 13px; font-weight: 500; color: #56625C; padding: 10px 16px; border-bottom: 1px solid #D9DFDB">用户</th>
+<th scope="col" style="text-align: left; font-size: 13px; font-weight: 500; color: #56625C; padding: 10px 16px; border-bottom: 1px solid #D9DFDB">套餐</th>
+<th scope="col" style="text-align: left; font-size: 13px; font-weight: 500; color: #56625C; padding: 10px 16px; border-bottom: 1px solid #D9DFDB">状态</th>
+<th scope="col" style="text-align: right; font-size: 13px; font-weight: 500; color: #56625C; padding: 10px 16px; border-bottom: 1px solid #D9DFDB">本月流量</th>
+<th scope="col" style="text-align: left; font-size: 13px; font-weight: 500; color: #56625C; padding: 10px 16px; border-bottom: 1px solid #D9DFDB">到期</th>
+</tr>
+</thead>
+<tbody>
+<tr style="background: #F3F5FD">
+<td style="padding: 12px 16px; box-shadow: inset 3px 0 0 #2B44C4"><span style="display: flex; flex-direction: column"><span style="font-weight: 500">lin***@example.com</span><span style="font-size: 12px; color: #56625C; font-family: 'IBM Plex Mono', monospace">u_18342</span></span></td>
+<td style="padding: 12px 16px">高级</td>
+<td style="padding: 12px 16px"><span style="color: #1C6B45; font-weight: 500">使用中</span></td>
+<td style="padding: 12px 16px; text-align: right; font-variant-numeric: tabular-nums">126.4 / 300 GB</td>
+<td style="padding: 12px 16px">12-15</td>
+</tr>
+<tr>
+<td style="padding: 12px 16px; border-top: 1px solid #E6EAE7"><span style="display: flex; flex-direction: column"><span style="font-weight: 500">wei***@example.com</span><span style="font-size: 12px; color: #56625C; font-family: 'IBM Plex Mono', monospace">u_20417</span></span></td>
+<td style="padding: 12px 16px; border-top: 1px solid #E6EAE7">标准</td>
+<td style="padding: 12px 16px; border-top: 1px solid #E6EAE7"><span style="color: #B42318; font-weight: 500">超额停用</span></td>
+<td style="padding: 12px 16px; border-top: 1px solid #E6EAE7; text-align: right; font-variant-numeric: tabular-nums">100 / 100 GB</td>
+<td style="padding: 12px 16px; border-top: 1px solid #E6EAE7">01-03</td>
+</tr>
+<tr>
+<td style="padding: 12px 16px; border-top: 1px solid #E6EAE7"><span style="display: flex; flex-direction: column"><span style="font-weight: 500">chen***@example.com</span><span style="font-size: 12px; color: #56625C; font-family: 'IBM Plex Mono', monospace">u_09213</span></span></td>
+<td style="padding: 12px 16px; border-top: 1px solid #E6EAE7">高级</td>
+<td style="padding: 12px 16px; border-top: 1px solid #E6EAE7"><span style="color: #A34A06; font-weight: 500">今天到期</span></td>
+<td style="padding: 12px 16px; border-top: 1px solid #E6EAE7; text-align: right; font-variant-numeric: tabular-nums">211.0 / 300 GB</td>
+<td style="padding: 12px 16px; border-top: 1px solid #E6EAE7">10-31</td>
+</tr>
+<tr>
+<td style="padding: 12px 16px; border-top: 1px solid #E6EAE7"><span style="display: flex; flex-direction: column"><span style="font-weight: 500">zhao***@example.com</span><span style="font-size: 12px; color: #56625C; font-family: 'IBM Plex Mono', monospace">u_15580</span></span></td>
+<td style="padding: 12px 16px; border-top: 1px solid #E6EAE7">入门</td>
+<td style="padding: 12px 16px; border-top: 1px solid #E6EAE7"><span style="color: #1C6B45; font-weight: 500">使用中</span></td>
+<td style="padding: 12px 16px; border-top: 1px solid #E6EAE7; text-align: right; font-variant-numeric: tabular-nums">8.2 / 30 GB</td>
+<td style="padding: 12px 16px; border-top: 1px solid #E6EAE7">11-20</td>
+</tr>
+<tr>
+<td style="padding: 12px 16px; border-top: 1px solid #E6EAE7"><span style="display: flex; flex-direction: column"><span style="font-weight: 500">liu***@example.com</span><span style="font-size: 12px; color: #56625C; font-family: 'IBM Plex Mono', monospace">u_11876</span></span></td>
+<td style="padding: 12px 16px; border-top: 1px solid #E6EAE7">标准</td>
+<td style="padding: 12px 16px; border-top: 1px solid #E6EAE7"><span style="color: #56625C; font-weight: 500">已到期</span></td>
+<td style="padding: 12px 16px; border-top: 1px solid #E6EAE7; text-align: right; font-variant-numeric: tabular-nums">—</td>
+<td style="padding: 12px 16px; border-top: 1px solid #E6EAE7">10-22</td>
+</tr>
+<tr>
+<td style="padding: 12px 16px; border-top: 1px solid #E6EAE7"><span style="display: flex; flex-direction: column"><span style="font-weight: 500">sun***@example.com</span><span style="font-size: 12px; color: #56625C; font-family: 'IBM Plex Mono', monospace">u_21004</span></span></td>
+<td style="padding: 12px 16px; border-top: 1px solid #E6EAE7">高级</td>
+<td style="padding: 12px 16px; border-top: 1px solid #E6EAE7"><span style="color: #1C6B45; font-weight: 500">使用中</span></td>
+<td style="padding: 12px 16px; border-top: 1px solid #E6EAE7; text-align: right; font-variant-numeric: tabular-nums">54.7 / 300 GB</td>
+<td style="padding: 12px 16px; border-top: 1px solid #E6EAE7">02-08</td>
+</tr>
+</tbody>
+</table>
+</div>
+
+<aside aria-labelledby="user-h" style="flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 18px; padding: 22px; background: #FFFFFF; border: 1px solid #D9DFDB; border-radius: 12px">
+<div style="display: flex; flex-direction: column; gap: 2px">
+<h2 id="user-h" style="margin: 0; font-size: 18px; font-weight: 600; overflow-wrap: anywhere">lin***@example.com</h2>
+<span style="font-size: 13px; color: #56625C"><span style="font-family: 'IBM Plex Mono', monospace">u_18342</span>，9 月 15 日从 Xboard 迁移</span>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; justify-content: space-between; align-items: baseline">
+<span style="color: #56625C">本月流量</span>
+<span style="font-variant-numeric: tabular-nums"><strong style="font-weight: 600">126.4 GB</strong><span style="color: #56625C"> / 300 GB</span></span>
+</div>
+<div role="progressbar" aria-label="本月已用流量" aria-valuemin="0" aria-valuemax="300" aria-valuenow="126.4" style="height: 8px; border-radius: 4px; background: #E6EAE7; overflow: hidden">
+<div style="width: 42%; height: 100%; background: #2B44C4"></div>
+</div>
+</div>
+
+<dl style="margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 12px">
+<dt style="color: #56625C">套餐</dt><dd style="margin: 0"><a href="Plans.dc.html">高级</a></dd>
+<dt style="color: #56625C">到期</dt><dd style="margin: 0">2026-12-15</dd>
+<dt style="color: #56625C">流量重置</dt><dd style="margin: 0">11 月 15 日</dd>
+<dt style="color: #56625C">在线设备</dt><dd style="margin: 0">2 / 3 台</dd>
+<dt style="color: #56625C">订阅 token</dt><dd style="margin: 0">10-31 13:52 重置过</dd>
+</dl>
+
+<div style="display: flex; flex-direction: column; gap: 8px; padding-top: 14px; border-top: 1px solid #E6EAE7">
+<h3 style="margin: 0; font-size: 14px; font-weight: 600">最近记录</h3>
+<ol style="list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 13px">
+<li style="display: flex; gap: 12px"><span style="width: 76px; flex: none; color: #56625C">10-31 13:52</span><span>重置订阅 token，来自 patato CLI</span></li>
+<li style="display: flex; gap: 12px"><span style="width: 76px; flex: none; color: #56625C">10-15 00:00</span><span>流量按周期重置</span></li>
+<li style="display: flex; gap: 12px"><span style="width: 76px; flex: none; color: #56625C">09-15 03:20</span><span>从 Xboard 迁移导入</span></li>
+</ol>
+<a href="Audit.dc.html" style="font-size: 13px; font-weight: 500">在审计日志中查看全部</a>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 6px; padding-top: 14px; border-top: 1px solid #E6EAE7">
+<p style="margin: 0; font-size: 13px; color: #56625C">重置流量或订阅 token，在终端运行：</p>
+<code style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; padding: 6px 10px; background: #F4F6F5; border-radius: 6px; overflow-wrap: anywhere">patato user reset-traffic u_18342 --dry-run</code>
+</div>
+</aside>
+
+</div>
+
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1060}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

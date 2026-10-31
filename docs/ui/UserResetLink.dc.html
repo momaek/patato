@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>用户侧 重置订阅链接</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;family=Noto+Sans+SC:wght@400;500;700&amp;display=swap">
+<style>
+body{margin:0;background:#F4F6F5}
+a{color:#2B44C4}a:hover{color:#1E3299}
+:focus-visible{outline:2px solid #2B44C4;outline-offset:2px}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #F4F6F5; color: #18201D; font-family: 'IBM Plex Sans', 'Noto Sans SC', system-ui, sans-serif; font-size: 15px; line-height: 1.6">
+
+<div aria-hidden="true" style="box-sizing: border-box; padding: 20px; display: flex; flex-direction: column; gap: 24px">
+<div style="display: flex; align-items: center; justify-content: space-between">
+<div style="display: flex; align-items: center; gap: 10px">
+<span style="width: 28px; height: 28px; border-radius: 7px; background: #2B44C4"></span>
+<span style="font-weight: 600">[你的服务名]</span>
+</div>
+<span style="font-size: 14px; color: #2B44C4">退出</span>
+</div>
+<div style="height: 220px; background: #FFFFFF; border: 1px solid #D9DFDB; border-radius: 14px"></div>
+<div style="height: 150px; background: #FFFFFF; border: 1px solid #D9DFDB; border-radius: 10px"></div>
+<div style="height: 120px; background: #FFFFFF; border: 1px solid #D9DFDB; border-radius: 10px"></div>
+</div>
+
+<div aria-hidden="true" style="position: absolute; inset: 0; background: rgba(24, 32, 29, 0.45)"></div>
+
+<sc-if value="{{confirming}}" hint-placeholder-val="{{ true }}">
+<section role="dialog" aria-modal="true" aria-labelledby="sheet-h" style="position: absolute; left: 0; right: 0; bottom: 0; box-sizing: border-box; padding: 28px 24px 36px; display: flex; flex-direction: column; gap: 16px; background: #FFFFFF; border-radius: 20px 20px 0 0">
+<h2 id="sheet-h" style="margin: 0; font-size: 22px; font-weight: 600; line-height: 1.35">重置订阅链接？</h2>
+<p style="margin: 0; color: #2E3833">旧链接会立即失效。正在使用的 2 台设备会断开，需要用新链接重新导入一次。</p>
+<p style="margin: 0; font-size: 14px; color: #56625C">只有怀疑链接被别人拿到时才需要重置。账号密码和套餐不受影响。</p>
+<div style="display: flex; flex-direction: column; gap: 10px; margin-top: 8px">
+<button type="button" onClick="{{reset}}" style="min-height: 50px; border: 0; border-radius: 10px; background: #B42318; color: #FFFFFF; font: inherit; font-size: 16px; font-weight: 600; cursor: pointer">重置链接</button>
+<a href="UserHome.dc.html" style="display: flex; align-items: center; justify-content: center; min-height: 50px; border: 1px solid #C9D0CC; border-radius: 10px; color: #18201D; font-weight: 500; text-decoration: none">取消</a>
+</div>
+</section>
+</sc-if>
+
+<sc-if value="{{done}}" hint-placeholder-val="{{ false }}">
+<section role="dialog" aria-modal="true" aria-labelledby="done-h" style="position: absolute; left: 0; right: 0; bottom: 0; box-sizing: border-box; padding: 28px 24px 36px; display: flex; flex-direction: column; gap: 16px; background: #FFFFFF; border-radius: 20px 20px 0 0">
+<h2 id="done-h" style="margin: 0; font-size: 22px; font-weight: 600; line-height: 1.35">链接已重置</h2>
+<p style="margin: 0; color: #2E3833">这是新的订阅链接。在每台设备上重新导入一次，就能恢复使用。</p>
+<p style="margin: 0; padding: 12px 14px; border-radius: 10px; background: #F4F6F5; font-family: 'IBM Plex Mono', monospace; font-size: 13px; overflow-wrap: anywhere">https://[你的域名]/api/v1/client/subscribe?token=3b7e••••••••0c52</p>
+<div style="display: flex; flex-direction: column; gap: 10px; margin-top: 8px">
+<button type="button" onClick="{{copy}}" style="min-height: 50px; border: 0; border-radius: 10px; background: #2B44C4; color: #FFFFFF; font: inherit; font-size: 16px; font-weight: 600; cursor: pointer">{{copyLabel}}</button>
+<a href="UserHome.dc.html" style="display: flex; align-items: center; justify-content: center; min-height: 50px; border: 1px solid #C9D0CC; border-radius: 10px; color: #18201D; font-weight: 500; text-decoration: none">回到我的订阅</a>
+</div>
+</section>
+</sc-if>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { done: false, copied: false };
+  }
+  renderVals() {
+    const s = this.state || {};
+    return {
+      confirming: !s.done,
+      done: !!s.done,
+      reset: () => this.setState({ done: true }),
+      copy: () => this.setState({ copied: true }),
+      copyLabel: s.copied ? '已复制' : '复制新链接'
+    };
+  }
+}
+</script>
+</body>
+</html>

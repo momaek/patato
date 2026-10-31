@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>用户侧 我的订阅</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;family=Noto+Sans+SC:wght@400;500;700&amp;display=swap">
+<style>
+body{margin:0;background:#F4F6F5}
+a{color:#2B44C4}a:hover{color:#1E3299}
+:focus-visible{outline:2px solid #2B44C4;outline-offset:2px}
+</style>
+</helmet>
+<div style="width: 390px; min-height: 1300px; box-sizing: border-box; padding: 20px 20px 40px; display: flex; flex-direction: column; gap: 28px; background: #F4F6F5; color: #18201D; font-family: 'IBM Plex Sans', 'Noto Sans SC', system-ui, sans-serif; font-size: 15px; line-height: 1.6">
+
+<header style="display: flex; align-items: center; justify-content: space-between; gap: 12px">
+<div style="display: flex; align-items: center; gap: 10px">
+<span aria-hidden="true" style="width: 28px; height: 28px; border-radius: 7px; background: #2B44C4; display: inline-flex; align-items: center; justify-content: center; color: #FFFFFF; font-weight: 600; font-size: 14px">S</span>
+<span style="font-weight: 600">[你的服务名]</span>
+</div>
+<a href="UserLogin.dc.html" style="font-size: 14px">退出</a>
+</header>
+
+<nav aria-label="用户导航" style="display: flex; gap: 4px; padding: 4px; background: #E6EAE7; border-radius: 12px">
+<a href="UserHome.dc.html" aria-current="page" style="flex: 1 1 0; display: flex; align-items: center; justify-content: center; min-height: 44px; border-radius: 9px; background: #FFFFFF; color: #18201D; font-size: 14px; font-weight: 600; text-decoration: none">订阅</a>
+<a href="UserPlans.dc.html" style="flex: 1 1 0; display: flex; align-items: center; justify-content: center; min-height: 44px; border-radius: 9px; color: #2E3833; font-size: 14px; text-decoration: none">续费</a>
+<a href="UserTickets.dc.html" style="flex: 1 1 0; display: flex; align-items: center; justify-content: center; min-height: 44px; border-radius: 9px; color: #2E3833; font-size: 14px; text-decoration: none">工单</a>
+<a href="UserInvite.dc.html" style="flex: 1 1 0; display: flex; align-items: center; justify-content: center; min-height: 44px; border-radius: 9px; color: #2E3833; font-size: 14px; text-decoration: none">邀请</a>
+</nav>
+
+<section aria-labelledby="plan-h" style="display: flex; flex-direction: column; gap: 16px; padding: 20px; background: #FFFFFF; border: 1px solid #D9DFDB; border-radius: 14px">
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 8px">
+<h1 id="plan-h" style="margin: 0; font-size: 22px; font-weight: 600; line-height: 1.3">高级套餐</h1>
+<span style="font-size: 13px; font-weight: 500; padding: 2px 10px; border-radius: 12px; background: #E3F2EA; color: #1C6B45">使用中</span>
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; justify-content: space-between; align-items: baseline; gap: 8px">
+<span style="font-size: 14px; color: #56625C">本月流量</span>
+<span style="font-variant-numeric: tabular-nums"><strong style="font-size: 20px; font-weight: 600">126.4 GB</strong><span style="color: #56625C"> / 300 GB</span></span>
+</div>
+<div role="progressbar" aria-label="本月已用流量" aria-valuemin="0" aria-valuemax="300" aria-valuenow="126.4" style="height: 10px; border-radius: 5px; background: #E6EAE7; overflow: hidden">
+<div style="width: 42%; height: 100%; border-radius: 5px; background: #2B44C4"></div>
+</div>
+<span style="font-size: 13px; color: #56625C">还剩 173.6 GB，11 月 15 日重置</span>
+</div>
+<dl style="margin: 0; padding-top: 14px; border-top: 1px solid #E6EAE7; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; font-size: 14px">
+<dt style="color: #56625C">到期时间</dt><dd style="margin: 0; text-align: right">2026-12-15，还剩 45 天</dd>
+<dt style="color: #56625C">设备数</dt><dd style="margin: 0; text-align: right">2 / 3 台在线</dd>
+<dt style="color: #56625C">续费</dt><dd style="margin: 0; text-align: right"><a href="UserPlans.dc.html">去续费</a></dd>
+</dl>
+</section>
+
+<section aria-labelledby="import-h" style="display: flex; flex-direction: column; gap: 14px">
+<div style="display: flex; flex-direction: column; gap: 2px">
+<h2 id="import-h" style="margin: 0; font-size: 18px; font-weight: 600">导入到客户端</h2>
+<p style="margin: 0; font-size: 14px; color: #56625C">点一下打开对应的 App，订阅会自动添加。</p>
+</div>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px">
+<a href="#" style="display: flex; flex-direction: column; gap: 2px; min-height: 64px; box-sizing: border-box; padding: 12px 14px; border: 1px solid #C9D0CC; border-radius: 10px; background: #FFFFFF; color: #18201D; text-decoration: none"><span style="font-weight: 600">Clash Verge</span><span style="font-size: 12px; color: #56625C">Windows、macOS</span></a>
+<a href="#" style="display: flex; flex-direction: column; gap: 2px; min-height: 64px; box-sizing: border-box; padding: 12px 14px; border: 1px solid #C9D0CC; border-radius: 10px; background: #FFFFFF; color: #18201D; text-decoration: none"><span style="font-weight: 600">Shadowrocket</span><span style="font-size: 12px; color: #56625C">iPhone、iPad</span></a>
+<a href="#" style="display: flex; flex-direction: column; gap: 2px; min-height: 64px; box-sizing: border-box; padding: 12px 14px; border: 1px solid #C9D0CC; border-radius: 10px; background: #FFFFFF; color: #18201D; text-decoration: none"><span style="font-weight: 600">sing-box</span><span style="font-size: 12px; color: #56625C">iOS、Android</span></a>
+<a href="#" style="display: flex; flex-direction: column; gap: 2px; min-height: 64px; box-sizing: border-box; padding: 12px 14px; border: 1px solid #C9D0CC; border-radius: 10px; background: #FFFFFF; color: #18201D; text-decoration: none"><span style="font-weight: 600">v2rayN</span><span style="font-size: 12px; color: #56625C">Windows</span></a>
+</div>
+</section>
+
+<section aria-labelledby="link-h" style="display: flex; flex-direction: column; gap: 12px">
+<h2 id="link-h" style="margin: 0; font-size: 18px; font-weight: 600">订阅链接</h2>
+<p style="margin: 0; padding: 12px 14px; border-radius: 10px; background: #FFFFFF; border: 1px solid #D9DFDB; font-family: 'IBM Plex Mono', monospace; font-size: 13px; overflow-wrap: anywhere; color: #2E3833">https://[你的域名]/api/v1/client/subscribe?token=8f2c••••••••91ad</p>
+<div style="display: flex; gap: 10px">
+<button type="button" onClick="{{copy}}" style="flex: 1 1 0; min-height: 46px; border: 0; border-radius: 10px; background: #2B44C4; color: #FFFFFF; font: inherit; font-weight: 600; cursor: pointer">{{copyLabel}}</button>
+<button type="button" onClick="{{toggleQr}}" aria-expanded="{{qrExpanded}}" style="flex: 1 1 0; min-height: 46px; border: 1px solid #C9D0CC; border-radius: 10px; background: #FFFFFF; color: #18201D; font: inherit; font-weight: 500; cursor: pointer">{{qrLabel}}</button>
+</div>
+<sc-if value="{{showQr}}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 20px; background: #FFFFFF; border: 1px solid #D9DFDB; border-radius: 10px">
+<div role="img" aria-label="订阅链接二维码占位" style="width: 180px; height: 180px; border: 2px dashed #C9D0CC; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #56625C; font-size: 13px">二维码</div>
+<span style="font-size: 13px; color: #56625C">用手机客户端扫码导入</span>
+</div>
+</sc-if>
+</section>
+
+<section aria-labelledby="nodes-h" style="display: flex; flex-direction: column; gap: 12px">
+<h2 id="nodes-h" style="margin: 0; font-size: 18px; font-weight: 600">可用节点</h2>
+<ul style="list-style: none; margin: 0; padding: 0; background: #FFFFFF; border: 1px solid #D9DFDB; border-radius: 10px">
+<li style="display: flex; justify-content: space-between; align-items: center; padding: 12px 14px"><span>东京-01</span><span style="display: inline-flex; align-items: center; gap: 6px; font-size: 14px; color: #1C6B45"><span style="width: 8px; height: 8px; border-radius: 50%; background: #1C6B45"></span>正常</span></li>
+<li style="display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border-top: 1px solid #E6EAE7"><span>东京-02</span><span style="display: inline-flex; align-items: center; gap: 6px; font-size: 14px; color: #1C6B45"><span style="width: 8px; height: 8px; border-radius: 50%; background: #1C6B45"></span>正常</span></li>
+<li style="display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border-top: 1px solid #E6EAE7"><span>香港-01</span><span style="display: inline-flex; align-items: center; gap: 6px; font-size: 14px; color: #1C6B45"><span style="width: 8px; height: 8px; border-radius: 50%; background: #1C6B45"></span>正常</span></li>
+<li style="display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border-top: 1px solid #E6EAE7"><span>香港-02</span><span style="display: inline-flex; align-items: center; gap: 6px; font-size: 14px; color: #B42318"><span style="width: 8px; height: 8px; border-radius: 50%; background: #B42318"></span>维护中</span></li>
+<li style="display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border-top: 1px solid #E6EAE7"><span>新加坡-01</span><span style="display: inline-flex; align-items: center; gap: 6px; font-size: 14px; color: #1C6B45"><span style="width: 8px; height: 8px; border-radius: 50%; background: #1C6B45"></span>正常</span></li>
+</ul>
+</section>
+
+<section aria-labelledby="reset-h" style="display: flex; flex-direction: column; gap: 10px; padding: 18px; border: 1px solid #F0C9C4; border-radius: 12px; background: #FFFFFF">
+<h2 id="reset-h" style="margin: 0; font-size: 16px; font-weight: 600">链接泄露了？</h2>
+<p style="margin: 0; font-size: 14px; color: #56625C">重置后旧链接立即失效，所有设备都要重新导入一次。</p>
+<a href="UserResetLink.dc.html" style="display: flex; align-items: center; justify-content: center; min-height: 44px; box-sizing: border-box; border: 1px solid #B42318; border-radius: 10px; background: #FFFFFF; color: #B42318; font-weight: 600; text-decoration: none">重置订阅链接</a>
+</section>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1300}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { copied: false, showQr: false };
+  }
+  renderVals() {
+    const s = this.state || {};
+    return {
+      copyLabel: s.copied ? '已复制' : '复制链接',
+      copy: () => this.setState({ copied: true }),
+      showQr: !!s.showQr,
+      qrExpanded: s.showQr ? 'true' : 'false',
+      qrLabel: s.showQr ? '收起二维码' : '显示二维码',
+      toggleQr: () => this.setState({ showQr: !s.showQr })
+    };
+  }
+}
+</script>
+</body>
+</html>

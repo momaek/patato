@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>Admin 工单</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;family=Noto+Sans+SC:wght@400;500;700&amp;display=swap">
+<style>
+body{margin:0;background:#F4F6F5}
+a{color:#2B44C4}a:hover{color:#1E3299}
+:focus-visible{outline:2px solid #2B44C4;outline-offset:2px}
+</style>
+</helmet>
+<div style="min-height: 100vh; display: flex; flex-wrap: wrap; background: #F4F6F5; color: #18201D; font-family: 'IBM Plex Sans', 'Noto Sans SC', system-ui, sans-serif; font-size: 14px; line-height: 1.55">
+
+<nav aria-label="主导航" style="flex: 1 1 200px; box-sizing: border-box; padding: 24px 14px; display: flex; flex-direction: column; gap: 28px; background: #FFFFFF; border-right: 1px solid #D9DFDB">
+<div style="display: flex; align-items: center; gap: 10px; padding: 0 10px">
+<svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true"><path d="M4 12.5C3 7.5 7 3 12 3.5c4.6.4 7.2 4 6.4 8.4-.8 4.6-4.6 7.4-8.8 6.8C6.6 18.2 4.6 15.7 4 12.5Z" fill="#2B44C4"></path></svg>
+<span style="font-size: 18px; font-weight: 600; letter-spacing: -0.01em">patato</span>
+</div>
+<div style="display: flex; flex-direction: column; gap: 2px">
+<a href="Main.dc.html" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; border-radius: 6px; text-decoration: none; color: #18201D">总览</a>
+<a href="Approval.dc.html" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; border-radius: 6px; text-decoration: none; color: #18201D">审批<span style="font-size: 12px; font-weight: 600; padding: 0 7px; border-radius: 10px; background: #FBEFE4; color: #A34A06">2</span></a>
+<a href="Nodes.dc.html" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; border-radius: 6px; text-decoration: none; color: #18201D">节点</a>
+<a href="Plans.dc.html" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; border-radius: 6px; text-decoration: none; color: #18201D">套餐</a>
+<a href="Users.dc.html" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; border-radius: 6px; text-decoration: none; color: #18201D">用户</a>
+<a href="Audit.dc.html" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; border-radius: 6px; text-decoration: none; color: #18201D">审计日志</a>
+</div>
+<div style="display: flex; flex-direction: column; gap: 2px; padding-top: 12px; border-top: 1px solid #E6EAE7">
+<span style="padding: 0 10px 4px; font-size: 12px; color: #56625C">售卖与运营（二期）</span>
+<a href="Orders.dc.html" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; border-radius: 6px; text-decoration: none; color: #18201D">订单</a>
+<a href="Tickets.dc.html" aria-current="page" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; border-radius: 6px; text-decoration: none; background: #E8ECFB; color: #1E3299; font-weight: 600">工单<span style="font-size: 12px; font-weight: 600; padding: 0 7px; border-radius: 10px; background: #FFFFFF; color: #1E3299">3</span></a>
+<a href="Referrals.dc.html" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; border-radius: 6px; text-decoration: none; color: #18201D">返佣</a>
+</div>
+<div style="margin-top: auto; padding: 12px 10px 0; border-top: 1px solid #D9DFDB; display: flex; flex-direction: column; gap: 2px">
+<span style="font-weight: 500">运营者</span>
+<span style="font-size: 12px; color: #56625C">已用 passkey 登录</span>
+</div>
+</nav>
+
+<main style="flex: 999 1 560px; min-width: 0; box-sizing: border-box; padding: 32px 40px 56px; display: flex; flex-direction: column; gap: 24px">
+
+<header style="display: flex; flex-direction: column; gap: 6px">
+<h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.25">工单</h1>
+<p style="margin: 0; color: #56625C">3 个待处理，其中 2 个已有 Agent 草拟的回复等你确认</p>
+</header>
+
+<div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start">
+
+<section aria-labelledby="list-h" style="flex: 1 1 300px; min-width: 0; display: flex; flex-direction: column; gap: 10px">
+<h2 id="list-h" style="margin: 0; font-size: 15px; font-weight: 600">待处理</h2>
+<ul style="list-style: none; margin: 0; padding: 0; background: #FFFFFF; border: 1px solid #D9DFDB; border-radius: 10px">
+<li style="background: #F3F5FD; box-shadow: inset 3px 0 0 #2B44C4">
+<a href="#" aria-current="true" style="display: flex; flex-direction: column; gap: 3px; padding: 14px 16px; color: #18201D; text-decoration: none">
+<span style="display: flex; justify-content: space-between; gap: 8px"><span style="font-weight: 600">续费后流量没有恢复</span><span style="font-size: 12px; color: #A34A06; white-space: nowrap">等了 2 小时</span></span>
+<span style="font-size: 13px; color: #56625C">wei***@example.com，账号与付款</span>
+<span style="font-size: 12px; color: #1E3299">有回复草稿</span>
+</a>
+</li>
+<li style="border-top: 1px solid #E6EAE7">
+<a href="#" style="display: flex; flex-direction: column; gap: 3px; padding: 14px 16px; color: #18201D; text-decoration: none">
+<span style="display: flex; justify-content: space-between; gap: 8px"><span style="font-weight: 600">香港节点连不上</span><span style="font-size: 12px; color: #56625C; white-space: nowrap">等了 18 分钟</span></span>
+<span style="font-size: 13px; color: #56625C">sun***@example.com，连不上</span>
+<span style="font-size: 12px; color: #1E3299">有回复草稿</span>
+</a>
+</li>
+<li style="border-top: 1px solid #E6EAE7">
+<a href="#" style="display: flex; flex-direction: column; gap: 3px; padding: 14px 16px; color: #18201D; text-decoration: none">
+<span style="display: flex; justify-content: space-between; gap: 8px"><span style="font-weight: 600">能不能开发票</span><span style="font-size: 12px; color: #56625C; white-space: nowrap">等了 6 分钟</span></span>
+<span style="font-size: 13px; color: #56625C">qi***@example.com，其他</span>
+<span style="font-size: 12px; color: #56625C">Agent 无法回答，等你处理</span>
+</a>
+</li>
+</ul>
+<a href="#" style="font-size: 13px; font-weight: 500">查看已关闭的工单</a>
+</section>
+
+<section aria-labelledby="t-h" style="flex: 2 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 16px; padding: 24px; background: #FFFFFF; border: 1px solid #D9DFDB; border-radius: 12px">
+<div style="display: flex; flex-direction: column; gap: 4px">
+<h2 id="t-h" style="margin: 0; font-size: 20px; font-weight: 600">续费后流量没有恢复</h2>
+<span style="font-size: 13px; color: #56625C"><a href="Users.dc.html">wei***@example.com</a>，标准套餐，10-31 08:15 提交</span>
+</div>
+
+<dl style="margin: 0; display: flex; flex-wrap: wrap; gap: 8px 32px; padding: 12px 16px; background: #F4F6F5; border-radius: 8px; font-size: 13px">
+<div style="display: flex; gap: 8px"><dt style="color: #56625C">状态</dt><dd style="margin: 0; color: #B42318; font-weight: 500">超额停用</dd></div>
+<div style="display: flex; gap: 8px"><dt style="color: #56625C">本月流量</dt><dd style="margin: 0">100 / 100 GB</dd></div>
+<div style="display: flex; gap: 8px"><dt style="color: #56625C">最近订单</dt><dd style="margin: 0"><a href="Orders.dc.html" style="font-family: 'IBM Plex Mono', monospace">ord_01J9ZT1B</a> 已取消</dd></div>
+</dl>
+
+<ol style="list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px">
+<li style="align-self: flex-start; max-width: 80%; display: flex; flex-direction: column; gap: 4px">
+<div style="padding: 12px 14px; border-radius: 12px 12px 12px 4px; background: #F4F6F5">上个月续费以后，流量还显示用完，现在完全用不了。</div>
+<span style="font-size: 12px; color: #56625C">用户，10-31 08:15</span>
+</li>
+</ol>
+
+<sc-if value="{{hasDraft}}" hint-placeholder-val="{{ true }}">
+<div style="display: flex; flex-direction: column; gap: 10px; padding: 16px; border: 1px dashed #2B44C4; border-radius: 10px; background: #F7F8FE">
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px">
+<span style="font-weight: 600; color: #1E3299">回复草稿，还没发送</span>
+<span style="font-size: 12px; color: #56625C">Claude Code 会话草拟，依据：订单 ord_01J9ZT1B 状态为已取消</span>
+</div>
+<label for="draft" style="font-size: 13px; color: #56625C">发送前可以修改</label>
+<textarea id="draft" rows="4" style="box-sizing: border-box; padding: 10px 12px; border: 1px solid #C9D0CC; border-radius: 8px; background: #FFFFFF; font: inherit; color: #18201D; resize: vertical">查了一下，10 月 30 日那笔续费订单没有付款成功，已经自动取消，所以流量没有恢复。重新下单付款后，流量会立即恢复，订阅链接不用改。</textarea>
+<div style="display: flex; flex-wrap: wrap; gap: 10px">
+<button type="button" onClick="{{send}}" style="min-height: 44px; padding: 0 20px; border: 0; border-radius: 8px; background: #2B44C4; color: #FFFFFF; font: inherit; font-weight: 600; cursor: pointer">发送回复</button>
+<button type="button" style="min-height: 44px; padding: 0 16px; border: 1px solid #C9D0CC; border-radius: 8px; background: #FFFFFF; color: #18201D; font: inherit; cursor: pointer">丢弃草稿</button>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{sent}}" hint-placeholder-val="{{ false }}">
+<div role="status" style="align-self: flex-end; max-width: 80%; display: flex; flex-direction: column; gap: 4px; align-items: flex-end">
+<div style="padding: 12px 14px; border-radius: 12px 12px 4px 12px; background: #2B44C4; color: #FFFFFF">查了一下，10 月 30 日那笔续费订单没有付款成功，已经自动取消，所以流量没有恢复。重新下单付款后，流量会立即恢复，订阅链接不用改。</div>
+<span style="font-size: 12px; color: #56625C">运营者，刚刚发送</span>
+</div>
+</sc-if>
+
+<p style="margin: 0; font-size: 13px; color: #56625C">Agent 只能草拟回复，发送前需要你确认。涉及退款、改价的请求，Agent 会走审批，不会在工单里直接承诺。</p>
+</section>
+
+</div>
+
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1060}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { sent: false };
+  }
+  renderVals() {
+    const sent = !!(this.state && this.state.sent);
+    return {
+      sent: sent,
+      hasDraft: !sent,
+      send: () => this.setState({ sent: true })
+    };
+  }
+}
+</script>
+</body>
+</html>
