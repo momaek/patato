@@ -38,13 +38,17 @@
 
 **网页的角色**
 
-网页仍然保留，但只承担三件事：
+网页分为两部分：给运营者用的 Admin，和给终端用户用的用户侧。
+
+Admin 不是日常操作的主入口，只承担三件事：
 
 - **看**：仪表盘、报表、审计日志。
 - **批**：审批的渠道之一，不是唯一渠道（见「审批机制」）。
-- **兜底**：Agent 处理不了时，人能手动操作。
+- **兜底**：Agent 处理不了时，人能手动操作。MVP 阶段由 CLI 承担兜底，Admin 从二期开始提供手动操作。
 
-约束：不允许出现只有网页能做的操作。网页和 CLI 都只是 API 的客户端。
+约束：不允许出现只有 Admin 网页能做的操作。Admin 网页和 CLI 都只是 API 的客户端。
+
+用户侧面向终端用户：查看订阅、用量和到期时间，后续承载续费、工单等自助功能。用户不使用 CLI 和 Agent，所以用户侧不受上面这条约束，但同样只是 API 的客户端。切换后 Xboard 的用户前台随之下线，因此 MVP 必须提供用户侧最小版。
 
 ## 系统架构
 
@@ -57,7 +61,7 @@ tolato 管机器、Patato 管业务，Agent 通过各自的 CLI 调度两者；�
       │                                   ▲
    AI Agent（Claude Code / Codex + skill）  │ 推送审批
    │                │                     │
- tolato CLI       xb CLI                  │
+ tolato CLI       patato CLI              │
    │                │                     │
  tolato（管机器）←─ Patato（管业务）────────┘
    │ 远程执行  查询  │ UniProxy（二期起：原生节点协议）
@@ -69,14 +73,14 @@ tolato 管机器、Patato 管业务，Agent 通过各自的 CLI 调度两者；�
 **与 tolato 的集成**
 
 - Patato 通过 tolato API 只读查询机器信息（名称、IP、地区），用于 `provision` 时把机器名解析成节点地址；Patato 不调用 tolato 的远程执行。
-- 节点后端的安装由 Agent 通过 `tolato exec` 完成，执行的命令由 Patato 生成（`xb node install-cmd`），不由 Agent 自行拼写。
+- 节点后端的安装由 Agent 通过 `tolato exec` 完成，执行的命令由 Patato 生成（`patato node install-cmd`），不由 Agent 自行拼写。
 - Patato 定期拉取 tolato 中针对 Patato 所在主机的执行记录，用于「主要风险」中面板主机一项的告警。
 
 **技术栈**
 
 - 后端：Go，与 tolato 一致。
 - 数据库：PostgreSQL；缓存与队列：Redis。
-- 前端：MVP 只做只读仪表盘和审批页，技术选型与 tolato 的 Vue 3 + shadcn-vue 保持一致。是否需要用户前台取决于续费方案（见「待确认」）。
+- 前端：Admin 与用户侧两个前端应用，技术选型与 tolato 的 Vue 3 + shadcn-vue 保持一致。MVP 的 Admin 只做只读仪表盘和审批页，用户侧只做最小版。
 - 部署：Docker Compose 单机起步，接口无状态，后续可水平扩展。
 
 ## 模块划分
@@ -87,7 +91,7 @@ MVP 只做跑通「一句话上节点」和平滑迁移所需的模块，售卖�
 | --- | --- | --- | --- |
 | 节点 | 节点模板、节点生命周期、与节点后端通信、在线状态 | 模板化建节点；兼容 Xboard UniProxy 节点接口；按节点签发通信密钥；状态 pending → online → offline，收到首次心跳前不下发到订阅 | 自动替换掉线节点、成本分析 |
 | 套餐 | 套餐定义、节点挂载、流量与时长规则 | 增删改查；挂载 / 卸载节点 | 套餐版本化、灰度调价 |
-| 用户 | 账号、订阅 token、到期与超额处理 | 注册登录；到期 / 超额自动停用；重置 token；设备数与限速沿用 Xboard 的配置下发给节点 | 风控 |
+| 用户 | 账号、订阅 token、到期与超额处理 | 账号与登录（注册见「待确认」）；到期 / 超额自动停用；重置 token；设备数与限速沿用 Xboard 的配置下发给节点 | 风控 |
 | 订阅 | 按客户端生成订阅内容 | 通用 base64（v2rayN / Shadowrocket 等）、Clash / Mihomo、Sing-box；按 UA 分发，与 Xboard 行为一致 | 更多客户端格式、按地区下发 |
 | 流量计费 | 节点上报聚合、扣减、重置 | 上报先落库再聚合与扣减；按周期重置，规则与 Xboard 一致 | 账单明细、异常检测 |
 | 审批 | 敏感操作的审批请求与验证 | Telegram 按钮 + 网页审批（passkey）；签名回调 | 一次性码、多人审批 |
@@ -97,7 +101,189 @@ MVP 只做跑通「一句话上节点」和平滑迁移所需的模块，售卖�
 | 迁移 | 从 Xboard 导入数据 | 用户、套餐、节点；保持订阅链接可用 | 订单与财务数据 |
 | 支付与运营 | 订单、支付、工单、优惠券、邀请返佣 | 不做（续费的过渡方案见「待确认」） | 全部 |
 
-管理后台在 MVP 阶段只做只读仪表盘和审批页，日常操作走 CLI 和 Agent。
+Admin 在 MVP 阶段只做只读仪表盘和审批页，日常操作走 CLI 和 Agent；用户侧在 MVP 阶段只做最小版（见「功能清单」）。
+
+## 功能清单
+
+按组件拆到功能粒度，阶段取值：MVP、二期、待定（见「待确认」）。
+
+### Patato 服务端
+
+**底座**：所有业务模块依赖它，第 1–2 周完成。
+
+| 功能 | 阶段 |
+| --- | --- |
+| API 框架：`/api/v1`、JSON、统一错误格式（`code` / `hint` / `retryable`） | MVP |
+| 凭证体系：运营者会话（passkey）、CLI / Agent token、终端用户会话、节点密钥 | MVP |
+| 变更计划引擎：dry\_run → `change_id`、受影响对象 `version` 校验、impact 计算 | MVP |
+| 风险等级：接口声明最低等级，按影响面动态升级，阈值可配置 | MVP |
+| 幂等：`Idempotency-Key` 存储与重放 | MVP |
+| 审计：所有写操作，关联 token 主体、`X-Actor`、`change_id` | MVP |
+| `/skill.md` 与工具清单分发 | MVP |
+
+**节点**
+
+| 功能 | 阶段 |
+| --- | --- |
+| 节点模板管理 | MVP |
+| 意图级 provision：推断端口、名称、协议配置 | MVP |
+| 节点状态机 pending → online → offline，心跳检测 | MVP |
+| 按节点签发、吊销密钥 | MVP |
+| 生成安装命令（`install-cmd`） | MVP |
+| tolato 集成：查询机器的 IP 和地区 | MVP |
+| 自动替换掉线节点、成本分析 | 二期 |
+
+**节点协议**
+
+| 功能 | 阶段 |
+| --- | --- |
+| 内部原生节点协议模型 | MVP |
+| UniProxy 适配层：config / user / push / alive / alivelist / status | MVP |
+| 旧全局 token 过渡期兼容 | MVP |
+| 原生协议服务端：WebSocket 推送、增量同步、上报序号确认 | 二期 |
+
+**套餐**
+
+| 功能 | 阶段 |
+| --- | --- |
+| 增删改查；流量、时长、价格、重置规则 | MVP |
+| 挂载、卸载节点 | MVP |
+| 套餐版本化、灰度调价 | 二期 |
+
+**用户**
+
+| 功能 | 阶段 |
+| --- | --- |
+| 账号、订阅 token、UUID | MVP |
+| 到期和超额自动停用 | MVP |
+| 重置流量、重置 token | MVP |
+| 设备数、限速下发给节点 | MVP |
+| 终端用户登录（用户侧） | MVP |
+| 注册 | 待定 |
+| 风控 | 二期 |
+
+**订阅**
+
+| 功能 | 阶段 |
+| --- | --- |
+| 兼容 Xboard 的订阅路径 | MVP |
+| 按 UA 分发 | MVP |
+| 格式生成：通用 base64、Clash / Mihomo、sing-box | MVP |
+| 只下发 online 状态的节点 | MVP |
+| 更多客户端格式、按地区下发 | 二期 |
+
+**流量计费**
+
+| 功能 | 阶段 |
+| --- | --- |
+| 上报先落库，再异步聚合和扣减 | MVP |
+| 在线 IP 统计（设备数限制） | MVP |
+| 按周期重置，规则与 Xboard 一致 | MVP |
+| 与 Xboard 双跑对账工具 | MVP |
+| 账单明细、异常检测 | 二期 |
+
+**审批**
+
+| 功能 | 阶段 |
+| --- | --- |
+| 审批请求：绑定 `change_id`，有效期 30 分钟，一次性 | MVP |
+| Telegram bot：卡片、按钮、回调校验、绑定审批人 | MVP |
+| 网页审批 + passkey | MVP |
+| CLI 拉起 passkey 确认页（`patato approval approve`） | MVP |
+| 批准后执行；版本不一致时作废 | MVP |
+| 一次性码、多人审批 | 二期 |
+
+**事件与告警**
+
+| 功能 | 阶段 |
+| --- | --- |
+| 事件总线：节点掉线、用户到期、流量超额 | MVP |
+| 推送到 Telegram | MVP |
+| 面板主机 exec 告警（拉取 tolato 执行记录） | MVP |
+| `status` 总览：异常节点、即将到期、待审批 | MVP |
+| Webhook 订阅、Agent 自动处置 | 二期 |
+
+**迁移**
+
+| 功能 | 阶段 |
+| --- | --- |
+| 从 Xboard 导入用户、套餐、节点，token 与 UUID 原样保留 | MVP |
+| 用户密码哈希原样迁移，兼容 Xboard 现有的哈希算法，用户首次登录后升级为新算法 | MVP |
+| 回切方案 | MVP |
+| 订单与财务数据迁移 | 二期 |
+
+**售卖与运营**
+
+| 功能 | 阶段 |
+| --- | --- |
+| 续费过渡方案 | 待定（上线前必须确定） |
+| 支付订单、工单、优惠券、邀请返佣 | 二期 |
+
+**自身运维**
+
+| 功能 | 阶段 |
+| --- | --- |
+| 数据库备份与恢复（计费数据丢失即资损） | MVP |
+| Patato 自身监控 | 待定 |
+| 密钥轮换：节点密钥、审批签名密钥、Telegram bot token | 待定 |
+
+### patato CLI
+
+| 功能 | 阶段 |
+| --- | --- |
+| `auth login` / `logout`：浏览器授权，签发 token | MVP |
+| 资源命令：`status`、`template`、`node`、`plan`、`user`、`change`、`approval`、`audit`、`events watch` | MVP |
+| 通用参数：`--dry-run`、`--json`、`--wait` | MVP |
+| 自动生成 `Idempotency-Key`，重试时复用 | MVP |
+
+### Admin 网页
+
+| 功能 | 阶段 |
+| --- | --- |
+| 运营者登录（passkey） | MVP |
+| 仪表盘：系统总览、异常节点、即将到期用户、待审批 | MVP |
+| 节点、套餐、用户的只读查看 | MVP |
+| 审计日志 | MVP |
+| 审批页：查看变更计划详情、批准或拒绝（passkey） | MVP |
+| 兜底的手动操作 | 二期（MVP 由 CLI 兜底） |
+| 报表：流量、收入、节点成本 | 二期 |
+
+### 用户侧网页
+
+| 功能 | 阶段 |
+| --- | --- |
+| 登录（迁移来的账号直接可用）、找回密码 | MVP |
+| 订阅链接：复制、二维码、主流客户端一键导入 | MVP |
+| 当前套餐、已用 / 剩余流量、到期时间 | MVP |
+| 重置订阅 token（旧链接立即失效） | MVP |
+| 注册 | 待定 |
+| 续费入口 | 待定（取决于续费方案） |
+| 购买与支付、工单、邀请返佣 | 二期 |
+
+### patato-node
+
+| 功能 | 阶段 |
+| --- | --- |
+| 控制面客户端：WebSocket 推送 + 轮询兜底，全量与增量同步 | 二期 |
+| 身份引导：经 tolato-agent 获取身份证明，换取机器 token | 二期 |
+| 内核管理（首版内核见「待确认」） | 二期 |
+| 用户增量更新、限速、设备数限制 | 二期 |
+| 流量统计：带序号上报，本地缓存，面板确认后清除 | 二期 |
+| 状态上报：内核进程、端口可达性、证书到期 | 二期 |
+| machine 模式：一个进程承载多个节点 | 二期 |
+| 证书：接收面板下发的证书，或用受限子 token 自行申请 | 二期 |
+| 本地配置独立运行（便于测试） | 二期 |
+
+### tolato 侧配合
+
+这些改动在 tolato 仓库里，排期时需要单独计入。
+
+| 功能 | 阶段 |
+| --- | --- |
+| 供 Patato 调用的只读机器查询 API（名称、IP、地区） | MVP |
+| 执行记录查询 API（面板主机告警） | MVP |
+| tolato-agent 本机身份证明接口 | 二期（patato-node 的前提） |
+| patato-node 的安装、升级、重启 | 二期 |
 
 ## 数据模型
 
@@ -133,7 +319,7 @@ MVP 的核心实体如下，字段细节在第 1 周定稿。带 `version` 的�
 
 **身份**
 
-- token 分两类：人的会话凭证（网页登录 + passkey），以及由 `xb auth login` 签发的 CLI / Agent token。
+- token 分三类：运营者的会话凭证（Admin 登录 + passkey）；由 `patato auth login` 签发的 CLI / Agent token；终端用户的会话凭证（用户侧登录），只能访问该用户自己的数据，与管理接口完全隔离。
 - CLI / Agent token 只能调用只读、常规接口和发起敏感操作，不能调用审批接口和禁止级接口。
 - `X-Actor` 由调用方自报（人、CLI、某个 Agent 会话），只写入审计作备注；权限判断只看 token 主体。
 
@@ -234,10 +420,23 @@ patato-node 选择自研，而不是 fork Xboard-Node 或 V2bX：协议、鉴权
 | 渠道 | 适用操作 | 验证方式 |
 | --- | --- | --- |
 | Telegram / IM 按钮 | 日常敏感操作 | 回调带服务端签名，绑定审批人账号 |
+| CLI 拉起 passkey | 在 Agent 工作流里就地批准 | 服务端渲染的确认页 + passkey 校验 |
 | 网页审批页 | 需要看详情、批量处理 | 登录会话 + passkey 确认 |
 | 推送 + 一次性码 / passkey | 高风险：批量改价、退款 | 一次性码或 passkey 校验 |
 
 与 Agent 的对话不是审批渠道：常规操作本来就不需要审批，Agent 在对话里的确认只是 Skill 层面的礼貌询问，服务端不认。
+
+**CLI 拉起 passkey**
+
+让人不离开 Agent 的工作流也能批准：Agent 发起敏感操作后，执行 `patato approval approve <id>`，CLI 在本机浏览器打开 Patato 服务端渲染的确认页（`/approve/<id>`），人看过变更内容后用 passkey（指纹或安全密钥）确认。
+
+- Agent 能执行这条命令，但完成不了 passkey 的用户验证，所以只能发起、不能批准。
+- 确认页的内容由服务端根据变更计划生成，不经 Agent 转述。
+- 确认页只展示这一笔审批，批准后即失效；需要看全部细节或批量处理时，用网页审批页。
+
+**不采用：一次性码经 Agent 转交**
+
+由 Telegram 发一次性码、人再告诉 Agent 由它提交，这种方式不采用。码虽然绑定单笔审批、Agent 无法自行生成，但人很容易只听 Agent 的转述就交出码，而不去核对卡片内容；具备电脑或浏览器操作能力的 Agent 也可能直接读到这个码。
 
 **为什么不能在对话里批敏感操作**
 
@@ -256,44 +455,45 @@ Agent 本身能调用接口。如果服务端只认「有人说了确认」，Ag
 2. 服务端向配置的渠道推送审批卡片。
 3. 人批准或拒绝；服务端校验签名、有效期和审批人权限。
 4. 批准后服务端执行 `change_id` 对应的计划；若受影响对象的 `version` 已变化（与 dry\_run 时不一致），作废并要求重新发起。
-5. 结果写入审计并发出事件。发起方通过 `--wait` 或 `xb approval show` 获取结果，不假设发起时的 Agent 会话仍然在线。
+5. 结果写入审计并发出事件。发起方通过 `--wait` 或 `patato approval show` 获取结果，不假设发起时的 Agent 会话仍然在线。
 
 ## CLI 设计
 
-CLI 是 API 的薄封装，命名和交互风格与 tolato 保持一致；所有命令默认输出人可读格式，加 `--json` 输出结构化结果供 Agent 解析。
+CLI 是 API 的薄封装，命名和交互风格与 tolato 保持一致。命令名为 `patato`，与 `tolato` 对应，一眼能分清管业务还是管机器；安装时同时提供短别名 `pat`，文档和 Skill 中统一写全名。所有命令默认输出人可读格式，加 `--json` 输出结构化结果供 Agent 解析。
 
 | 命令 | 作用 | 风险等级 |
 | --- | --- | --- |
-| `xb auth login` / `logout` | 浏览器授权，选择只读或可写权限，签发 CLI token | — |
-| `xb status` | 系统总览：异常节点、即将到期用户、待审批事项 | 只读 |
-| `xb template list` / `show <名称>` | 查看节点模板 | 只读 |
-| `xb node list` / `show <节点>` | 查看节点、状态及是否已下发到订阅 | 只读 |
-| `xb node provision --host <机器> --template <模板> --plan <套餐>` | 意图级上节点：建节点 + 挂套餐 | 常规（按影响面可升为敏感） |
-| `xb node install-cmd <节点>` | 输出在节点机器上安装并配置 V2bX 的命令 | 只读 |
-| `xb node attach` / `detach <节点> --plan <套餐>` | 挂载或卸载节点 | 常规（按影响面可升为敏感） |
-| `xb node delete <节点>` | 删除节点 | 敏感 |
-| `xb plan list` / `show <套餐>` | 查看套餐 | 只读 |
-| `xb plan update <套餐> --price ...` | 修改套餐（价格、流量、时长） | 敏感 |
-| `xb user show <用户>` | 查看用户、订阅与用量 | 只读 |
-| `xb user reset-traffic` / `reset-token <用户>` | 重置流量或订阅 token | 常规 |
-| `xb change show` / `apply <change_id>` | 查看或执行预演好的变更计划 | 由计划的风险等级决定 |
-| `xb approval list` / `show <id>` | 查看审批请求状态 | 只读 |
-| `xb audit log` | 查看审计日志 | 只读 |
-| `xb events watch` | 订阅系统事件流 | 只读 |
+| `patato auth login` / `logout` | 浏览器授权，选择只读或可写权限，签发 CLI token | — |
+| `patato status` | 系统总览：异常节点、即将到期用户、待审批事项 | 只读 |
+| `patato template list` / `show <名称>` | 查看节点模板 | 只读 |
+| `patato node list` / `show <节点>` | 查看节点、状态及是否已下发到订阅 | 只读 |
+| `patato node provision --host <机器> --template <模板> --plan <套餐>` | 意图级上节点：建节点 + 挂套餐 | 常规（按影响面可升为敏感） |
+| `patato node install-cmd <节点>` | 输出在节点机器上安装并配置 V2bX 的命令 | 只读 |
+| `patato node attach` / `detach <节点> --plan <套餐>` | 挂载或卸载节点 | 常规（按影响面可升为敏感） |
+| `patato node delete <节点>` | 删除节点 | 敏感 |
+| `patato plan list` / `show <套餐>` | 查看套餐 | 只读 |
+| `patato plan update <套餐> --price ...` | 修改套餐（价格、流量、时长） | 敏感 |
+| `patato user show <用户>` | 查看用户、订阅与用量 | 只读 |
+| `patato user reset-traffic` / `reset-token <用户>` | 重置流量或订阅 token | 常规 |
+| `patato change show` / `apply <change_id>` | 查看或执行预演好的变更计划 | 由计划的风险等级决定 |
+| `patato approval list` / `show <id>` | 查看审批请求状态 | 只读 |
+| `patato approval approve <id>` | 在本机浏览器打开确认页，由人用 passkey 批准；命令本身不完成批准 | — |
+| `patato audit log` | 查看审计日志 | 只读 |
+| `patato events watch` | 订阅系统事件流 | 只读 |
 
 通用参数：所有写命令支持 `--dry-run`，输出 `change_id`；敏感命令执行后返回审批 id 并提示审批渠道，`--wait` 可阻塞等待审批结果。
 
 ## Skill 规则
 
-Skill 由服务端在 `/skill.md` 提供，教 Agent 如何安全地使用 `xb` 和 `tolato` 两个 CLI；它是行为指引，真正的安全边界在服务端（风险等级 + 审批）。唯一的例外是 Patato 所在主机，那里只靠 Skill 约束，见「主要风险」。
+Skill 由服务端在 `/skill.md` 提供，教 Agent 如何安全地使用 `patato` 和 `tolato` 两个 CLI；它是行为指引，真正的安全边界在服务端（风险等级 + 审批）。唯一的例外是 Patato 所在主机，那里只靠 Skill 约束，见「主要风险」。
 
 **基本规则**
 
 1. 先查后做：任何写操作前，先用只读命令确认对象存在且唯一，例如套餐名、机器名。
 2. 有歧义就问：匹配到多个对象、或缺少必要信息时，向用户提问，不自行猜测。
 3. 写操作先预演：先 `--dry-run` 拿到 `change_id`，把计划和影响范围用一两句话告诉用户。
-4. 常规操作：预演结果符合用户意图即可用 `xb change apply <change_id>` 执行，无需再次确认。
-5. 敏感操作：只发起，不催促；告诉用户审批已推送到哪个渠道，不得声称「用户已确认」。
+4. 常规操作：预演结果符合用户意图即可用 `patato change apply <change_id>` 执行，无需再次确认。
+5. 敏感操作：只发起，不催促；告诉用户审批已推送到哪个渠道，也可以执行 `patato approval approve <id>` 为用户打开确认页；不得声称「用户已确认」，不得索要一次性码或代为点击确认。
 6. 失败不硬试：读 `error.hint` 修正一次；仍失败则停下来，报告原因和建议。
 7. 不越界：不在机器上执行 skill 未列出的破坏性命令；不直接改数据库；不绕开 API；不对 Patato 所在主机执行任何 `tolato exec`。
 8. 收尾回报：一句话说明结果，包括对象名、状态和验证结论。
@@ -303,12 +503,12 @@ Skill 由服务端在 `/skill.md` 提供，教 Agent 如何安全地使用 `xb` 
 用户：「把刚上线的东京机器加到高级套餐。」
 
 1. `tolato nodes list`：找到东京机器，确认唯一。
-2. `xb plan list`：确认「高级套餐」对应的套餐，确认唯一。
-3. `xb template list`：选择匹配地区和套餐的模板；没有合适模板则询问用户。
-4. `xb node provision --host tokyo-01 --template jp-premium --plan premium --dry-run`：拿到 `change_id`，向用户说明将创建的节点和影响范围。
-5. `xb change apply <change_id>`：创建节点，此时节点为 pending，尚未下发到用户订阅。若因影响面升为敏感，告诉用户审批已推送，`--wait` 等待结果。
-6. `xb node install-cmd <节点>`，再用 `tolato exec tokyo-01 -- <上一步输出的命令>` 安装并配置 V2bX；不自行修改命令。
-7. `xb node show <节点>`：确认已收到首次心跳、状态为 online、已下发到订阅，回报「东京-03 已上线，挂在高级套餐，当前在线」。
+2. `patato plan list`：确认「高级套餐」对应的套餐，确认唯一。
+3. `patato template list`：选择匹配地区和套餐的模板；没有合适模板则询问用户。
+4. `patato node provision --host tokyo-01 --template jp-premium --plan premium --dry-run`：拿到 `change_id`，向用户说明将创建的节点和影响范围。
+5. `patato change apply <change_id>`：创建节点，此时节点为 pending，尚未下发到用户订阅。若因影响面升为敏感，告诉用户审批已推送到 Telegram，或执行 `patato approval approve <id>` 为用户打开确认页，再用 `--wait` 等待结果。
+6. `patato node install-cmd <节点>`，再用 `tolato exec tokyo-01 -- <上一步输出的命令>` 安装并配置 V2bX；不自行修改命令。
+7. `patato node show <节点>`：确认已收到首次心跳、状态为 online、已下发到订阅，回报「东京-03 已上线，挂在高级套餐，当前在线」。
 
 第 6 步失败时：报告原因并停下。节点保持 pending，不会出现在用户订阅里，由用户决定重试还是删除。
 
@@ -323,13 +523,15 @@ Skill 由服务端在 `/skill.md` 提供，教 Agent 如何安全地使用 `xb` 
 
 ## 里程碑与风险
 
-MVP 按 1 名工程师加 AI 辅助编码估算约 6 周，第一个关口是「Patato 接管一台节点，老用户订阅照常可用」。该估算未包含续费方案；若需要用户前台或支付，工期需重估。
+MVP 按 1 名工程师加 AI 辅助编码估算约 6 周，第一个关口是「Patato 接管一台节点，老用户订阅照常可用」。用户侧最小版已计入第 3–4 周，这两周因此偏紧；估算未包含续费方案，若需要支付，工期需重估。
 
 **里程碑**
 
 1. **第 1–2 周：底座与兼容层。** 数据模型；写操作的「生成计划 / 执行计划」骨架，含 dry\_run、`change_id`、风险等级、幂等与审计；原生节点协议的内部模型，以及其上的 UniProxy 兼容适配层（按节点签发密钥）；Xboard 迁移脚本。关口：一台节点上的 V2bX 不改代码连上 Patato。
-2. **第 3–4 周：业务主干。** 用户、套餐、订阅生成（三种格式 + 按 UA 分发）、流量计费。关口：小范围用户灰度，订阅链接与流量统计与 Xboard 一致。
+2. **第 3–4 周：业务主干。** 用户、套餐、订阅生成（三种格式 + 按 UA 分发）、流量计费、用户侧最小版。关口：小范围用户灰度，订阅链接与流量统计与 Xboard 一致。
 3. **第 5–6 周：Agent 化。** 意图级接口、按影响面动态升级、审批渠道、CLI、skill、面板主机执行告警。关口：一句话上节点全流程跑通，敏感操作必须经审批。
+
+tolato 侧的机器查询 API 和执行记录查询 API 需在第 5 周前就绪，不在上述 6 周估算内。
 4. **二期：** patato-node（原生节点协议、machine 模式、经 tolato-agent 引导身份）；支付、工单、优惠券、邀请返佣、更多订阅格式、事件自动处置。
 
 **主要风险**
@@ -349,10 +551,11 @@ MVP 按 1 名工程师加 AI 辅助编码估算约 6 周，第一个关口是「
 
 **待确认**
 
-- [ ] 迁移后用户的续费与自助查看订阅：保留 Xboard 收款并同步到 Patato，MVP 支持管理员手动续期，还是把最简支付挪进 MVP。这决定 MVP 是否需要用户前台。
+- [ ] MVP 是否开放新用户注册：只服务迁移来的老用户时，注册可放到二期。
+- [ ] Patato 自身监控与密钥轮换是否进 MVP。
+- [ ] 迁移后用户的续费与自助查看订阅：保留 Xboard 收款并同步到 Patato，MVP 支持管理员手动续期，还是把最简支付挪进 MVP。用户侧最小版已确定进 MVP，这一项决定用户侧是否需要续费入口。
 - [ ] Patato 是否直接复用 tolato 的账号、鉴权与审计，还是独立一套。
 - [ ] 节点模板的初始清单（地区 × 套餐）。
 - [ ] 审批人范围：只有自己，还是需要多人。
-- [ ] CLI 命名：`xb` 沿用自 Xboard，是否改为与项目名一致。
 - [ ] patato-node 首版内核：只用 sing-box（已覆盖 Reality、Hysteria2、TUIC、AnyTLS），还是同时支持 xray。
 - [ ] tolato-agent 是否已有本机身份证明接口；没有则需在 tolato 中新增，这是 patato-node 免密钥接入的前提。
