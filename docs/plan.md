@@ -59,7 +59,7 @@ Admin 和用户侧是两个独立应用，放在同一个 pnpm workspace 里共�
 | 用途 | 选型 | 说明 |
 | --- | --- | --- |
 | 部署 | Docker Compose：`postgres`、`patato-server`、`caddy` | 与 tolato 的部署方式一致 |
-| 前端托管 | 两个前端构建为静态文件，由 Caddy 托管并自动签发证书 | Admin 与用户侧可用不同域名，`/api` 反向代理到服务端 |
+| 前端托管 | 两个前端通过 `go:embed` 嵌入服务端，随一个应用镜像发布；Caddy 负责证书与反向代理 | 服务端按 `admin_url` / `portal_url` 的 Host 分发，两个前端使用不同域名 |
 | 备份 | `pg_dump` 定时任务，异机保存，每月做一次恢复演练 | 计费数据丢失即资损 |
 | CI | GitHub Actions：`golangci-lint`、`go test`、`vue-tsc`、构建镜像、检查生成代码是否与契约一致 | |
 

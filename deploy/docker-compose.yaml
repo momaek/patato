@@ -30,7 +30,7 @@ services:
     expose:
       - "8080"
 
-  # 反向代理：自动签发证书，托管两个前端的静态文件，把 API 转给服务端
+  # 反向代理与自动签发证书；前端已嵌入 server 镜像
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
@@ -41,8 +41,6 @@ services:
       - "443:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - ./web/admin:/srv/admin:ro
-      - ./web/portal:/srv/portal:ro
       - ./caddy-data:/data
 
   # 每天备份一次数据库，保留 14 天。备份目录请再同步到另一台机器。

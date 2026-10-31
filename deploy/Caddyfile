@@ -1,38 +1,5 @@
 # 把下面三个域名换成你自己的，并与 config.yaml 里的 public_url、admin_url、portal_url 一致。
-# 两个前端的 /api 也转给服务端：会话 cookie 留在各自的域名下，Origin 校验按 admin_url / portal_url 进行。
-
-(frontend) {
-	handle /api/* {
-		reverse_proxy server:8080
-	}
-	handle {
-		# 构建产物的文件名带哈希，可以长期缓存；index.html 每次都要重新取
-		@assets path /assets/*
-		header @assets Cache-Control "public, max-age=31536000, immutable"
-		@pages not path /assets/*
-		header @pages Cache-Control "no-cache"
-		try_files {path} /index.html
-		file_server
-	}
-	header {
-		# 审批页上有批准按钮，不允许被别的页面嵌进 iframe
-		X-Frame-Options DENY
-		Content-Security-Policy "frame-ancestors 'none'"
-		X-Content-Type-Options nosniff
-		Referrer-Policy strict-origin-when-cross-origin
-	}
-}
-
-api.example.com {
+# 保留原始 Host，服务端据此提供 Admin 或用户侧前端；Caddy 负责 HTTPS。
+api.example.com, admin.example.com, my.example.com {
 	reverse_proxy server:8080
-}
-
-admin.example.com {
-	root * /srv/admin
-	import frontend
-}
-
-my.example.com {
-	root * /srv/portal
-	import frontend
 }

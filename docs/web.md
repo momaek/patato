@@ -43,7 +43,22 @@ pnpm gen:api     # 改了 api/openapi.yaml 后重新生成 schema.d.ts
 
 ## 部署
 
-`make web` 构建两个应用并把产物放到 `deploy/web/admin`、`deploy/web/portal`，Compose 里的 Caddy 直接托管。两个前端域名下的 `/api/*` 都反代到服务端，会话 cookie 留在各自的域名下，服务端按 `admin_url` / `portal_url` 校验 Origin。Caddy 同时给两个前端加上 `X-Frame-Options: DENY`，审批页不能被嵌进别的页面。
+发布构建将两个前端通过 `go:embed` 嵌入 `patato-server`，前后端使用同一个应用镜像发布和回滚，不需要单独复制或挂载静态文件。PostgreSQL 和负责 HTTPS 的 Caddy 仍是独立容器。
+
+```bash
+# 在仓库根目录：构建两个前端及包含前端的服务端、节点端和 CLI
+make build
+
+# Docker 多阶段构建会自动安装前端依赖、构建并嵌入两个应用
+docker compose -f deploy/docker-compose.yaml build server
+docker compose -f deploy/docker-compose.yaml up -d
+```
+
+配置 `admin_url`、`portal_url` 为不同的域名（本地也可以是不同端口），不支持子路径。Caddy 将三个域名的请求原样反代到服务端，保留 Host；后端根据 Host 提供对应应用，未知域名不返回前端。两个前端的 `/api/*` 仍由同一服务处理，会话 cookie 留在各自的域名下，Origin 和 passkey 校验沿用原来的配置。
+
+服务端支持 SPA 页面直接访问与刷新，带哈希的 `/assets/*` 缓存一年，首页不缓存；缺失资源返回 404，不回退到首页。`X-Frame-Options: DENY` 等安全响应头由服务端设置，审批页不能被嵌进别的页面。
+
+`make web` 只构建前端，产物留在 `web/admin/dist` 和 `web/portal/dist`；之后可执行 `go build -tags embedweb ./server/cmd/patato-server`。不带 `embedweb` 标签的普通 `go run` / `go test` 不需要前端构建产物，开发时继续使用 Vite 热更新。
 
 ## 页面与服务端的约定
 

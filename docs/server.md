@@ -20,7 +20,7 @@ make lint
 
 ## 首次部署
 
-1. 按 `deploy/` 下的 Compose、Caddyfile 和 `config.example.yaml` 部署，填好 `admin_url`、`portal_url`、`webauthn.rp_id`。
+1. 按 `deploy/` 下的 Compose、Caddyfile 和 `config.example.yaml` 部署，填好 `admin_url`、`portal_url`、`webauthn.rp_id`。两个前端随服务端镜像内嵌，Caddy 只负责 HTTPS 和反向代理，无需挂载前端文件。源码部署执行 `docker compose -f deploy/docker-compose.yaml build server` 后再 `up -d`；本机构建完整二进制使用 `make build`（需要 pnpm）。
 2. 生成第一个运营者的邀请链接：`patato-server operator invite -name <名字>`，在 Admin 上用它注册 passkey。
 3. CLI 登录：`patato auth login` 发起设备授权（`POST /api/v1/auth/cli/grants`），运营者在 Admin 上核对短码并批准，CLI 换取 token。
 4. 配置 Telegram 后，运营者在 Admin 上生成绑定码（`POST /api/v1/auth/telegram:bind`），给机器人发送 `/bind <码>`，之后可以直接在 Telegram 里批准或拒绝。
