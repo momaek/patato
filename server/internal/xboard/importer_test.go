@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/md5"
 	"encoding/hex"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -36,7 +37,7 @@ func fakeXboard(t *testing.T) string {
 		`CREATE TABLE v2_user (id int, email text, password text, password_algo text, password_salt text, uuid text, token text,
 			plan_id int, group_id int, banned int, transfer_enable bigint, u bigint, d bigint, expired_at bigint, speed_limit int,
 			device_limit int, next_reset_at int, last_reset_at int, created_at int)`,
-		`INSERT INTO v2_plan VALUES (3, 7, '高级', 300, 0, 3, 1, '{"monthly": 2000}', true),
+		`INSERT INTO v2_plan VALUES (3, 7, '高级', 300, 0, 3, 1, '{"monthly": 19.9, "quarterly": "54.90", "onetime": null}', true),
 			(4, 8, '年付', 1000, NULL, NULL, 4, NULL, false)`,
 		`INSERT INTO v2_server VALUES
 			(10, 'vless', NULL, '["7"]', '东京-01', 1.5, '["jp"]', 'jp.example.com', '443', 443,
@@ -97,7 +98,7 @@ func TestImport(t *testing.T) {
 		t.Fatalf("expires: %v", u.ExpiresAt)
 	}
 	pl, _ := st.GetPlan(ctx, 3)
-	if pl.ResetMethod != "purchase_day" || pl.TransferBytes != 300<<30 || string(pl.Prices) != `{"monthly": 2000}` {
+	if pl.ResetMethod != "purchase_day" || pl.TransferBytes != 300<<30 || string(pl.Prices) != `{"monthly": 1990, "quarterly": 5490}` {
 		t.Fatalf("plan: %+v %s", pl, pl.Prices)
 	}
 
@@ -144,4 +145,18 @@ func TestImport(t *testing.T) {
 
 func dbPlan(code string) db.CreatePlanParams {
 	return db.CreatePlanParams{Code: code, Name: code, TransferBytes: 1, ResetMethod: "never", Prices: []byte("{}")}
+}
+
+// Xboard 的价格以元为单位、带小数；导入后按分存储，浮点误差要四舍五入掉。
+func TestNormalizePrices(t *testing.T) {
+	var warnings []string
+	warn := func(format string, args ...any) { warnings = append(warnings, fmt.Sprintf(format, args...)) }
+	got := string(normalizePrices(`{"monthly": 19.9, "quarterly": 0.29, "yearly": "199.99", "onetime": 10, "reset_traffic": null, "bad": "abc", "neg": -1}`, warn))
+	want := `{"monthly":1990,"onetime":1000,"quarterly":29,"yearly":19999}`
+	if got != want {
+		t.Fatalf("got %s, want %s", got, want)
+	}
+	if len(warnings) != 2 {
+		t.Fatalf("want 2 warnings for the invalid prices, got %v", warnings)
+	}
 }

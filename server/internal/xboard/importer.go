@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -206,7 +207,9 @@ func Import(ctx context.Context, st *store.Store, box *secret.Box, opt Options, 
 		}
 		prices := json.RawMessage("{}")
 		if s := p.str("prices"); s != "" && json.Valid([]byte(s)) {
-			prices = normalizePrices(s)
+			prices = normalizePrices(s, func(format string, args ...any) {
+				rep.warn("套餐 %d（%s）："+format, append([]any{id, p.str("name")}, args...)...)
+			})
 		}
 		_, err := tx.Exec(ctx, `INSERT INTO plans (id, code, name, transfer_bytes, reset_method, device_limit, speed_limit_mbps, prices, sellable)
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
@@ -373,21 +376,38 @@ func nonZero(v, def float64) float64 {
 }
 
 // normalizePrices 把 Xboard 的价格（可能是数字或字符串）统一成整数，单位保持原样（分）。
-func normalizePrices(s string) json.RawMessage {
+// normalizePrices 把 Xboard 的价格换成 Patato 的格式。Xboard 2025 起的 prices 以元为单位、可以带小数
+// （例如 {"monthly": 19.9}），Patato 统一存最小货币单位（分），所以乘 100 后四舍五入，不能直接截成整数。
+// 空值和非数字的价格跳过，并记一条提醒。
+func normalizePrices(s string, warn func(format string, args ...any)) json.RawMessage {
 	var raw map[string]any
 	if json.Unmarshal([]byte(s), &raw) != nil {
 		return json.RawMessage("{}")
 	}
 	out := map[string]int64{}
 	for k, v := range raw {
+		var yuan float64
 		switch n := v.(type) {
 		case float64:
-			out[k] = int64(n)
+			yuan = n
 		case string:
-			if f, err := strconv.ParseFloat(n, 64); err == nil {
-				out[k] = int64(f)
+			f, err := strconv.ParseFloat(strings.TrimSpace(n), 64)
+			if err != nil {
+				warn("价格 %s 的值 %q 不是数字，已跳过", k, n)
+				continue
 			}
+			yuan = f
+		case nil:
+			continue
+		default:
+			warn("价格 %s 的值 %v 不是数字，已跳过", k, v)
+			continue
 		}
+		if yuan < 0 || math.IsNaN(yuan) || math.IsInf(yuan, 0) {
+			warn("价格 %s 的值 %v 不合法，已跳过", k, yuan)
+			continue
+		}
+		out[k] = int64(math.Round(yuan * 100))
 	}
 	b, _ := json.Marshal(out)
 	return b

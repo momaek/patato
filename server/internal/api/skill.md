@@ -13,6 +13,7 @@
 7. 不越界：不在机器上执行这里未列出的破坏性命令；不直接改数据库；不绕开 API；不对 Patato 所在主机执行任何 `tolato exec`。
 8. 收尾回报：一句话说明结果，包括对象名、状态和验证结论。
 9. 每个写请求都带 `Idempotency-Key`；重试同一个请求时复用同一个 key。把用户的原话放进 `instruction` 字段，它会显示在审批卡片上。
+10. 价格一律以最小货币单位（分）传整数：19.9 元写 `1990`。周期键沿用 Xboard：`monthly`、`quarterly`、`half_yearly`、`yearly`、`two_yearly`、`three_yearly`、`onetime`、`reset_traffic`。
 
 ## 标准流程：一句话上节点
 
