@@ -1,6 +1,6 @@
 # Patato 服务端
 
-> 对应 [开发计划](plan.md) 中 MVP 的后端部分。前端见 [前端说明](web.md)；CLI 尚未开始。
+> 对应 [开发计划](plan.md) 中 MVP 的后端部分。前端见 [前端说明](web.md)，CLI 见 [CLI 说明](cli.md)。
 
 ## 本地运行
 

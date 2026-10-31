@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -121,7 +122,21 @@ func (s *Server) passkeyLoginFinish(c *gin.Context) {
 	s.startOperatorSession(c, op)
 }
 
+// logout 结束运营者会话；带 Bearer token 时吊销这个 token（patato auth logout 用它，token 只能吊销自己）。
 func (s *Server) logout(c *gin.Context) {
+	if h := c.GetHeader("Authorization"); strings.HasPrefix(h, "Bearer ") {
+		row, err := s.d.Auth.Token(c, strings.TrimPrefix(h, "Bearer "))
+		if err != nil {
+			fail(c, apierr.ErrUnauthorized.WithHint("token 已经无效，本地删掉即可"))
+			return
+		}
+		if _, err := s.d.Store.RevokeAPIToken(c, db.RevokeAPITokenParams{ID: row.ID, OperatorID: row.OperatorID}); err != nil {
+			fail(c, err)
+			return
+		}
+		ok(c, gin.H{"revoked": row.ID})
+		return
+	}
 	if v, err := c.Cookie(cookieAdmin); err == nil {
 		_ = s.d.Auth.EndSession(c, v)
 	}
@@ -132,7 +147,7 @@ func (s *Server) logout(c *gin.Context) {
 func (s *Server) whoami(c *gin.Context) {
 	p := getPrincipal(c)
 	ok(c, gin.H{"kind": p.kind, "operator": gin.H{"id": p.operator.ID, "name": p.operator.Name}, "scope": p.scope,
-		"token_id": p.tokenID, "can_approve": p.kind == "operator"})
+		"token_id": p.tokenID, "can_approve": p.kind == "operator", "admin_url": s.d.Cfg.AdminURL})
 }
 
 func (s *Server) cliGrantCreate(c *gin.Context) {

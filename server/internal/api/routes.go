@@ -57,7 +57,7 @@ func (s *Server) routes() []route {
 		{"POST", "/api/v1/auth/passkey/register:finish", accessPublic, "normal", "", "完成注册 passkey", s.passkeyRegisterFinish},
 		{"POST", "/api/v1/auth/passkey/login:begin", accessPublic, "normal", "", "开始 passkey 登录", s.passkeyLoginBegin},
 		{"POST", "/api/v1/auth/passkey/login:finish", accessPublic, "normal", "", "完成 passkey 登录", s.passkeyLoginFinish},
-		{"POST", "/api/v1/auth/logout", accessPublic, "normal", "", "退出登录", s.logout},
+		{"POST", "/api/v1/auth/logout", accessPublic, "normal", "", "退出登录；带 Bearer token 时吊销这个 token", s.logout},
 		{"GET", "/api/v1/auth/me", accessAdmin, "read", "", "当前调用方", s.whoami},
 		{"POST", "/api/v1/auth/passkeys:begin", accessOperator, "normal", "", "再添加一把 passkey", s.passkeyAddBegin},
 		{"POST", "/api/v1/auth/passkeys:finish", accessOperator, "normal", "", "完成添加 passkey", s.passkeyAddFinish},

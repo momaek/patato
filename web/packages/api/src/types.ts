@@ -19,6 +19,7 @@ export interface WhoAmI {
   scope: string
   token_id: number
   can_approve: boolean
+  admin_url?: string
 }
 
 export interface WebAuthnBegin {

@@ -115,7 +115,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 退出登录 */
+        /** 退出登录；带 Bearer token 时吊销这个 token */
         post: operations["post_auth_logout"];
         delete?: never;
         options?: never;
