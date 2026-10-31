@@ -181,7 +181,7 @@ func (a *App) checkPanelHost(ctx context.Context) error {
 			Kind: events.PanelHostExec, Severity: "critical", Subject: "panel_host",
 			Message:  fmt.Sprintf("面板主机 %s 上有远程执行：%s（来源 %s）", a.Cfg.Tolato.PanelHost, truncate(cmd.Command, 120), cmd.Source),
 			Payload:  cmd,
-			DedupKey: "panel_host_exec:" + cmd.ID,
+			DedupKey: fmt.Sprintf("panel_host_exec:%d", cmd.ID),
 		})
 		if cmd.CreatedAt.After(latest) {
 			latest = cmd.CreatedAt
