@@ -11,4 +11,6 @@ Agentic 时代的代理面板：人只负责说话和审批，日常操作交给
 
 界面设计稿：[docs/ui](docs/ui/README.md)
 
+开发计划：[docs/plan.md](docs/plan.md)
+
 状态：设计阶段。
