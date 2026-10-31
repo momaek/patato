@@ -1,0 +1,7 @@
+packages:
+  - admin
+  - portal
+  - packages/*
+onlyBuiltDependencies:
+  - esbuild
+  - vue-demi

@@ -102,7 +102,7 @@ func (s *Server) status(c *gin.Context) {
 	ok(c, gin.H{
 		"todo":  todos,
 		"nodes": gin.H{"total": len(nodes), "online": nodeCounts["online"], "offline": nodeCounts["offline"], "pending": nodeCounts["pending"], "items": views},
-		"users": users,
+		"users": gin.H{"total": users.Total, "active": users.Active, "expired": users.Expired, "over_quota": users.OverQuota, "banned": users.Banned},
 		"expiring": gin.H{
 			"today":  count(endOfDay.Sub(now)),
 			"days_3": count(72 * time.Hour),

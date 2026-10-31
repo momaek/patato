@@ -1,0 +1,10 @@
+@import "tailwindcss";
+@import "@patato/ui/styles.css";
+@source "../../packages/ui/src";
+
+@layer base {
+  html {
+    font-size: 15px;
+    line-height: 1.6;
+  }
+}

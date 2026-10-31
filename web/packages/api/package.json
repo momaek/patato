@@ -1,0 +1,8 @@
+{
+  "name": "@patato/api",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": { "typecheck": "vue-tsc --noEmit -p ." },
+  "dependencies": {}
+}

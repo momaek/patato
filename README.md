@@ -15,4 +15,4 @@ Agentic 时代的代理面板：人只负责说话和审批，日常操作交给
 
 服务端说明：[docs/server.md](docs/server.md)
 
-状态：MVP 服务端已完成；CLI 与两个前端尚未开始。
+状态：MVP 服务端、patato-node、Admin 与用户侧前端已完成（见 [docs/server.md](docs/server.md)、[docs/web.md](docs/web.md)）；CLI 尚未开始。

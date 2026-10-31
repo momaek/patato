@@ -1,0 +1,73 @@
+# Patato 前端
+
+> 对应 [开发计划](plan.md) 中 MVP 的两个前端：Admin（运营者）和用户侧。设计稿见 [docs/ui](ui/README.md)。
+
+两个应用放在 `web/` 下的同一个 pnpm workspace 里，只通过 `/api/v1` 与服务端通信。
+
+| 目录 | 内容 |
+| --- | --- |
+| `web/admin` | Admin：总览、审批、节点、机器、套餐、用户、审计日志、账户与凭证、CLI 授权、passkey 登录与邀请注册 |
+| `web/portal` | 用户侧：登录、我的订阅（手机单栏、宽屏双栏）、找回密码、设置新密码、重置订阅链接、修改密码 |
+| `web/packages/ui` | 共享组件与设计 token（Tailwind 4 `@theme`，取自设计稿的颜色和字体约定） |
+| `web/packages/api` | API 客户端、响应类型、格式化函数；`schema.d.ts` 由 `api/openapi.yaml` 生成 |
+
+## 本地开发
+
+先按 [服务端说明](server.md) 跑起 patato-server，配置里写：
+
+```yaml
+admin_url: "http://localhost:5173"
+portal_url: "http://localhost:5174"
+webauthn:
+  rp_id: "localhost"
+session:
+  secure: false
+```
+
+```bash
+cd web
+pnpm install
+pnpm dev:admin    # http://localhost:5173
+pnpm dev:portal   # http://localhost:5174
+```
+
+Vite 把 `/api` 转给 `http://localhost:8080`（用环境变量 `PATATO_API` 改）。第一个运营者用 `patato-server operator invite -name <名字>` 生成的链接注册 passkey。
+
+用户侧在登录前显示的服务名和客服联系方式来自构建时的环境变量 `VITE_SERVICE_NAME`、`VITE_SUPPORT_CONTACT`；登录后以服务端的 `service_name` 为准。
+
+```bash
+pnpm typecheck   # 四个包的类型检查
+pnpm build       # 构建两个应用
+pnpm gen:api     # 改了 api/openapi.yaml 后重新生成 schema.d.ts
+```
+
+## 部署
+
+`make web` 构建两个应用并把产物放到 `deploy/web/admin`、`deploy/web/portal`，Compose 里的 Caddy 直接托管。两个前端域名下的 `/api/*` 都反代到服务端，会话 cookie 留在各自的域名下，服务端按 `admin_url` / `portal_url` 校验 Origin。Caddy 同时给两个前端加上 `X-Frame-Options: DENY`，审批页不能被嵌进别的页面。
+
+## 页面与服务端的约定
+
+服务端生成的链接指向这些前端路由，改路由时要同时改服务端：
+
+| 路由 | 来源 |
+| --- | --- |
+| Admin `/setup?invite=` | `patato-server operator invite` 输出的邀请链接 |
+| Admin `/cli-auth?code=` | CLI 设备授权的 `verification_url` |
+| Admin `/approvals/{id}` | Telegram 审批卡片；CLI 拉起确认页时带 `?via=cli`，审计里记为「CLI 拉起的 passkey」 |
+| 用户侧 `/reset-password?token=` | 找回密码邮件 |
+
+## 与计划的差异
+
+- **响应类型手写**：契约里大部分响应没有写 schema，生成的类型只用来约束请求路径（接口改名或删除时类型检查会失败），响应类型在 `packages/api/src/types.ts` 里按服务端视图手写。等契约补上响应 schema 后可以改成生成。
+- **没有用 TanStack Table**：MVP 的表格只是展示和简单筛选，用普通表格加共享样式就够了。
+- **组件没有用 shadcn-vue CLI 生成**：按它的做法（reka-ui + Tailwind + class-variance-authority）手写了需要的十来个组件，放在 `packages/ui`。
+- **中文字体不从外网加载**：IBM Plex 只打包拉丁子集，中文用系统字体（苹方、微软雅黑等）。Google Fonts 在部分地区不可用。
+- **国际化只做了用户侧**：用户侧文案都在 `portal/src/locales`，加英文只需要新增一份消息；Admin 只给运营者用，直接写中文。
+- **比设计稿多的页面**：Admin 的「机器」（patato-node 接入状态）、「账户与凭证」（CLI token、备用 passkey、Telegram 绑定）、CLI 授权页、邀请注册页；用户侧的「修改密码」。用户侧导航里设计稿的续费、工单、邀请属于待定或二期，没有放进导航。
+- **Admin 仍是只读加审批**：与设计一致，写操作的地方给出对应的 patato CLI 命令。
+
+## 已知限制
+
+- **没有端到端测试**：计划里的 Playwright 关键流程测试还没写。这次是对着真实服务端在浏览器里逐页走过：Admin 各页、拒绝审批、批准 CLI 授权；用户侧登录（含输错密码）、二维码、重置订阅链接、找回密码到设置新密码。passkey 批准、登录和注册需要真实的验证器，没有在自动化浏览器里验证。
+- **价格不带货币符号**：服务端按分存储，页面换算成元显示；货币由运营方决定，页面上不加符号。
+- **一键导入的 URL scheme 没有在真机上试过**：Clash Verge、Shadowrocket、sing-box 用各自文档里的导入链接；v2rayN 没有导入 scheme，改为复制链接。

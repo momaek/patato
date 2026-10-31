@@ -1,0 +1,61 @@
+/* 设计 token 与基础样式。应用的入口样式先 @import "tailwindcss" 再导入这个文件。 */
+@import "@fontsource/ibm-plex-sans/latin-400.css";
+@import "@fontsource/ibm-plex-sans/latin-500.css";
+@import "@fontsource/ibm-plex-sans/latin-600.css";
+@import "@fontsource/ibm-plex-mono/latin-400.css";
+@import "@fontsource/ibm-plex-mono/latin-500.css";
+
+/* 设计约定见 docs/ui/README.md。中文字体用系统自带的，不从外网加载。 */
+@theme {
+  --color-bg: #f4f6f5;
+  --color-card: #ffffff;
+  --color-ink: #18201d;
+  --color-muted: #56625c;
+  --color-line: #d9dfdb;
+  --color-line-soft: #e6eae7;
+  --color-control: #c9d0cc;
+  --color-accent: #2b44c4;
+  --color-accent-strong: #1e3299;
+  --color-accent-soft: #e8ecfb;
+  --color-ok: #1c6b45;
+  --color-ok-soft: #e3f2ea;
+  --color-warn: #a34a06;
+  --color-warn-soft: #fbefe4;
+  --color-bad: #b42318;
+  --color-bad-soft: #fbe9e7;
+  --color-idle: #4a5560;
+  --color-idle-soft: #eceff1;
+
+  --font-sans: "IBM Plex Sans", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+@layer base {
+  html {
+    background: var(--color-bg);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  a {
+    color: var(--color-accent);
+  }
+  a:hover {
+    color: var(--color-accent-strong);
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}

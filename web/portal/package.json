@@ -1,0 +1,30 @@
+{
+  "name": "@patato/portal",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc --noEmit -p . && vite build",
+    "preview": "vite preview",
+    "typecheck": "vue-tsc --noEmit -p ."
+  },
+  "dependencies": {
+    "@patato/api": "workspace:*",
+    "@patato/ui": "workspace:*",
+    "@tanstack/vue-query": "5.62.2",
+    "lucide-vue-next": "0.460.0",
+    "pinia": "2.2.6",
+    "vue": "3.5.13",
+    "vue-router": "4.5.0",
+    "vue-sonner": "1.3.0",
+    "qrcode": "1.5.4",
+    "vue-i18n": "10.0.5"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "4.1.17",
+    "@vitejs/plugin-vue": "5.2.1",
+    "tailwindcss": "4.1.17",
+    "vite": "6.0.3",
+    "@types/qrcode": "1.5.5"
+  }
+}
