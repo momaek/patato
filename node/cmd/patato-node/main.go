@@ -22,6 +22,7 @@ import (
 	"github.com/momaek/patato/node/internal/kernel"
 	"github.com/momaek/patato/node/internal/meter"
 	"github.com/momaek/patato/node/internal/spool"
+	"github.com/momaek/patato/node/internal/tolato"
 	"github.com/momaek/patato/nodeapi"
 )
 
@@ -33,6 +34,7 @@ const usage = `patato-node：Patato 的节点端
 用法：
   patato-node run [-c 配置文件]                       运行
   patato-node enroll --panel <地址> --code <注册码>    凭注册码接入面板，写入配置文件
+  patato-node enroll --panel <地址> --tolato           凭本机 tolato-agent 的身份证明接入面板
   patato-node install-service [-c 配置文件]           安装并启动 systemd 服务
   patato-node check [-c 配置文件]                     连一次面板，列出这台机器上的节点，不启动
   patato-node version
@@ -124,10 +126,13 @@ func enroll(args []string) error {
 	path := fs.String("c", config.DefaultPath, "配置文件")
 	panel := fs.String("panel", "", "Patato 的 API 地址")
 	code := fs.String("code", "", "面板生成的一次性注册码")
+	viaTolato := fs.Bool("tolato", false, "凭本机 tolato-agent 签发的身份证明接入，不需要注册码")
+	agentBin := fs.String("tolato-agent", tolato.DefaultAgent, "tolato-agent 的路径")
+	agentUnit := fs.String("tolato-unit", tolato.DefaultUnit, "tolato-agent 的 systemd unit，从中读取 --server 和 --data-dir")
 	stateDir := fs.String("state-dir", "", "本地状态目录，默认 /var/lib/patato-node")
 	_ = fs.Parse(args)
-	if *panel == "" || *code == "" {
-		return errors.New("需要 --panel 和 --code；它们在面板生成的安装命令里")
+	if *panel == "" || (*code == "" && !*viaTolato) {
+		return errors.New("需要 --panel，以及 --code 或 --tolato；它们在面板生成的安装命令里")
 	}
 	cfg, err := config.Load(*path)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
@@ -136,7 +141,14 @@ func enroll(args []string) error {
 	hostname, _ := os.Hostname()
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	resp, err := control.Enroll(ctx, *panel, nodeapi.EnrollRequest{Code: *code, Hostname: hostname, Version: version})
+	req := nodeapi.EnrollRequest{Code: *code, Hostname: hostname, Version: version}
+	if *viaTolato {
+		if req.Attestation, err = tolato.Attest(ctx, *agentBin, *agentUnit, strings.TrimRight(*panel, "/")); err != nil {
+			return err
+		}
+		req.Code = ""
+	}
+	resp, err := control.Enroll(ctx, *panel, req)
 	if err != nil {
 		return fmt.Errorf("接入失败：%w", err)
 	}

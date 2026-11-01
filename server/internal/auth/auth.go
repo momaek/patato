@@ -463,6 +463,23 @@ func (s *Service) UserLogin(ctx context.Context, email, plain string) (db.User, 
 	return u, nil
 }
 
+const (
+	maxRegistersPerIP = 5
+	registerWindow    = time.Hour
+)
+
+// CheckRegisterRate 限制同一 IP 每小时注册的次数。
+func (s *Service) CheckRegisterRate(ctx context.Context, ip string) error {
+	f, err := s.st.RecordAuthFailure(ctx, db.RecordAuthFailureParams{Key: "register:" + ip, WindowSeconds: int32(registerWindow.Seconds())})
+	if err != nil {
+		return err
+	}
+	if f.Failures > maxRegistersPerIP {
+		return apierr.New(429, "register_rate_limited", "注册太频繁，请稍后再试")
+	}
+	return nil
+}
+
 // StartPasswordReset 生成重置令牌；邮箱不存在时返回空串，调用方对外不区分两种情况。
 func (s *Service) StartPasswordReset(ctx context.Context, email string) (string, db.User, error) {
 	u, err := s.st.GetUserByEmail(ctx, strings.TrimSpace(email))

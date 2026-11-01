@@ -6,6 +6,7 @@ import { useQueryClient } from '@tanstack/vue-query'
 import { api, errorText, isApiError } from '@patato/api'
 import { Alert, Button, Field } from '@patato/ui'
 import AuthShell from '../components/AuthShell.vue'
+import { usePortalConfig } from '../session'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -15,6 +16,7 @@ const email = ref('')
 const password = ref('')
 const error = ref('')
 const busy = ref(false)
+const config = usePortalConfig()
 
 async function submit() {
   error.value = ''
@@ -47,5 +49,6 @@ async function submit() {
       <Alert v-if="error">{{ error }}</Alert>
       <Button type="submit" variant="primary" size="lg" block :loading="busy" :disabled="!email || !password">{{ t('login.submit') }}</Button>
     </form>
+    <RouterLink v-if="config.data.value?.registration" :to="{ name: 'register' }" class="self-center font-medium">{{ t('register.toRegister') }}</RouterLink>
   </AuthShell>
 </template>

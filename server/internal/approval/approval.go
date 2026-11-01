@@ -6,16 +6,19 @@ package approval
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 
 	"github.com/momaek/patato/server/internal/apierr"
 	"github.com/momaek/patato/server/internal/change"
+	"github.com/momaek/patato/server/internal/secret"
 	"github.com/momaek/patato/server/internal/store"
 	"github.com/momaek/patato/server/internal/store/db"
 )
@@ -32,10 +35,21 @@ type Notifier interface {
 	ApprovalDecided(ctx context.Context, approvalID string)
 }
 
+// CodeSender 把一次性码私下发给运营者（Telegram 私聊），不经过 Agent。
+type CodeSender interface {
+	SendCode(ctx context.Context, telegramUserID int64, text string) error
+}
+
+const (
+	codeTTL         = 5 * time.Minute
+	maxCodeAttempts = 5
+)
+
 type Service struct {
 	st       *store.Store
 	eng      *change.Engine
 	notifier Notifier
+	codes    CodeSender
 	log      *slog.Logger
 }
 
@@ -44,6 +58,8 @@ func New(st *store.Store, eng *change.Engine, log *slog.Logger) *Service {
 }
 
 func (s *Service) SetNotifier(n Notifier) { s.notifier = n }
+
+func (s *Service) SetCodeSender(c CodeSender) { s.codes = c }
 
 // Detail 是审批卡片需要的全部信息。
 type Detail struct {
@@ -58,6 +74,16 @@ type Detail struct {
 	Change      *change.Plan `json:"change"`
 	Requester   Requester    `json:"requester"`
 	Instruction string       `json:"instruction,omitempty"`
+	// Required 是需要几名运营者批准；Votes 是已批准的人。
+	Required  int    `json:"required"`
+	Votes     []Vote `json:"votes"`
+	NeedsCode bool   `json:"needs_code"`
+}
+
+type Vote struct {
+	Operator string    `json:"operator"`
+	Via      string    `json:"via"`
+	At       time.Time `json:"at"`
 }
 
 type Requester struct {
@@ -88,6 +114,14 @@ func (s *Service) Get(ctx context.Context, id string) (*Detail, error) {
 		DecidedVia: a.DecidedVia, DecidedAt: a.DecidedAt, Reason: a.Reason, Change: plan,
 		Requester:   Requester{Kind: row.SubjectKind, Label: row.SubjectLabel, Claim: row.ActorClaim, Entry: row.Entry},
 		Instruction: row.Instruction,
+		Required:    int(a.Required), NeedsCode: a.NeedsCode, Votes: []Vote{},
+	}
+	votes, err := s.st.ListApprovalVotes(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	for _, v := range votes {
+		d.Votes = append(d.Votes, Vote{Operator: v.OperatorName, Via: v.Via, At: v.CreatedAt})
 	}
 	if a.DecidedBy != nil {
 		if op, err := s.st.GetOperator(ctx, *a.DecidedBy); err == nil {
@@ -105,16 +139,57 @@ func effectiveStatus(a db.Approval) string {
 	return a.Status
 }
 
-// Approve 批准并执行变更。执行时数据已变化（版本不一致）则作废审批。
-func (s *Service) Approve(ctx context.Context, id string, op db.Operator, via string) (*Detail, error) {
+// Approve 记下一票批准；票数达到要求时执行变更。执行时数据已变化（版本不一致）则作废审批。
+// 需要一次性码的审批只能在网页上批准，code 是经 Telegram 私聊收到的码。
+func (s *Service) Approve(ctx context.Context, id string, op db.Operator, via, code string) (*Detail, error) {
+	a, err := s.st.GetApproval(ctx, id)
+	if store.IsNotFound(err) {
+		return nil, apierr.NotFound("approval_not_found", "审批 %s 不存在", id)
+	}
+	if err != nil {
+		return nil, err
+	}
+	if a.NeedsCode {
+		if via == ViaTelegram {
+			return nil, apierr.Forbidden("code_required", "这类审批需要在网页上输入一次性码并用 passkey 批准").
+				WithHint("在 Admin 的审批页点「发送一次性码」")
+		}
+		if err := s.checkCode(ctx, id, op.ID, code); err != nil {
+			return nil, err
+		}
+	}
 	actor := change.Actor{Kind: "operator", ID: op.ID, Label: op.Name, Entry: via, CanWrite: true}
 	var changeID string
-	err := s.st.Tx(ctx, func(q *db.Queries, _ pgx.Tx) error {
+	executed := false
+	err = s.st.Tx(ctx, func(q *db.Queries, _ pgx.Tx) error {
 		a, err := s.lockPending(ctx, q, id)
 		if err != nil {
 			return err
 		}
 		changeID = a.ChangeID
+		n, err := q.AddApprovalVote(ctx, db.AddApprovalVoteParams{ApprovalID: id, OperatorID: op.ID, Via: via})
+		if err != nil {
+			return err
+		}
+		if n == 0 {
+			return apierr.Conflict("already_voted", "你已经批准过这个审批").WithHint("还需要其他运营者批准")
+		}
+		votes, err := q.ListApprovalVotes(ctx, id)
+		if err != nil {
+			return err
+		}
+		if len(votes) < int(a.Required) {
+			row, err := q.LockChangePlan(ctx, a.ChangeID)
+			if err != nil {
+				return err
+			}
+			detail, _ := json.Marshal(map[string]any{"summary": row.Summary, "votes": len(votes), "required": a.Required})
+			return q.InsertAudit(ctx, db.InsertAuditParams{
+				SubjectKind: "operator", SubjectID: op.ID, SubjectLabel: op.Name, Entry: via, Action: row.Kind,
+				Risk: row.Risk, ChangeID: row.ID, Result: "vote", Detail: detail,
+			})
+		}
+		executed = true
 		plan, err := s.eng.ApplyApproved(ctx, q, actor, a.ChangeID)
 		if err != nil {
 			return err
@@ -128,7 +203,8 @@ func (s *Service) Approve(ctx context.Context, id string, op db.Operator, via st
 	})
 	var opErr *change.OpError
 	if errors.As(err, &opErr) {
-		// 执行失败：审批本身仍记为批准，变更标记为失败并记录原因。
+		// 执行失败：审批本身仍记为批准，变更标记为失败并记录原因。投票随事务回滚，这里补记。
+		_, _ = s.st.AddApprovalVote(ctx, db.AddApprovalVoteParams{ApprovalID: id, OperatorID: op.ID, Via: via})
 		_, derr := s.st.DecideApproval(ctx, db.DecideApprovalParams{ID: id, Status: "approved", DecidedBy: &op.ID, DecidedVia: via,
 			Reason: "执行失败：" + apierr.From(opErr.Err).Message})
 		if derr != nil {
@@ -141,8 +217,75 @@ func (s *Service) Approve(ctx context.Context, id string, op db.Operator, via st
 	if err != nil {
 		return nil, err
 	}
-	s.decided(ctx, id)
+	if executed {
+		s.decided(ctx, id)
+	}
 	return s.Get(ctx, id)
+}
+
+// SendCode 给运营者绑定的 Telegram 私聊发一次性码，5 分钟内有效。
+func (s *Service) SendCode(ctx context.Context, id string, op db.Operator) (time.Time, error) {
+	d, err := s.Get(ctx, id)
+	if err != nil {
+		return time.Time{}, err
+	}
+	if d.Status != "pending" {
+		return time.Time{}, apierr.Conflict("approval_closed", "审批 %s 已经是 %s 状态", id, d.Status)
+	}
+	if !d.NeedsCode {
+		return time.Time{}, apierr.BadRequest("code_not_needed", "这个审批不需要一次性码")
+	}
+	if s.codes == nil {
+		return time.Time{}, apierr.Conflict("telegram_not_configured", "没有配置 Telegram，发不了一次性码").
+			WithHint("在服务端配置 telegram.bot_token，或把这类操作从 approval.code_for 里去掉")
+	}
+	if op.TelegramUserID == nil {
+		return time.Time{}, apierr.Conflict("telegram_not_bound", "你的账号还没有绑定 Telegram").WithHint("在「账户与凭证」页生成绑定码")
+	}
+	code := secret.NumericCode(6)
+	expires := time.Now().Add(codeTTL)
+	if err := s.st.UpsertApprovalCode(ctx, db.UpsertApprovalCodeParams{ApprovalID: id, OperatorID: op.ID,
+		CodeHash: codeHash(id, code), ExpiresAt: expires}); err != nil {
+		return time.Time{}, err
+	}
+	text := fmt.Sprintf("一次性码：%s\n\n5 分钟内有效，只用于批准：%s\n只在 Patato Admin 的审批页输入，不要告诉任何人或 Agent。", code, d.Change.Summary)
+	if err := s.codes.SendCode(ctx, *op.TelegramUserID, text); err != nil {
+		return time.Time{}, fmt.Errorf("send code: %w", err)
+	}
+	return expires, nil
+}
+
+func codeHash(id, code string) []byte { return secret.Hash("approval:" + id + ":" + code) }
+
+// checkCode 校验一次性码：错 5 次作废，用过即删。尝试次数单独提交，不随批准事务回滚。
+func (s *Service) checkCode(ctx context.Context, id string, opID int64, code string) error {
+	if strings.TrimSpace(code) == "" {
+		return apierr.BadRequest("code_required", "需要一次性码").WithHint("点「发送一次性码」，在 Telegram 私聊里查收")
+	}
+	var bad error
+	err := s.st.Tx(ctx, func(q *db.Queries, _ pgx.Tx) error {
+		c, err := q.GetApprovalCode(ctx, db.GetApprovalCodeParams{ApprovalID: id, OperatorID: opID})
+		if store.IsNotFound(err) {
+			bad = apierr.BadRequest("code_invalid", "一次性码不对或已过期").WithHint("重新发送一次性码")
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if time.Now().After(c.ExpiresAt) || c.Attempts >= maxCodeAttempts {
+			bad = apierr.BadRequest("code_invalid", "一次性码已过期或错误次数太多").WithHint("重新发送一次性码")
+			return q.DeleteApprovalCode(ctx, db.DeleteApprovalCodeParams{ApprovalID: id, OperatorID: opID})
+		}
+		if subtle.ConstantTimeCompare(c.CodeHash, codeHash(id, strings.TrimSpace(code))) != 1 {
+			bad = apierr.BadRequest("code_invalid", "一次性码不对")
+			return q.BumpApprovalCodeAttempts(ctx, db.BumpApprovalCodeAttemptsParams{ApprovalID: id, OperatorID: opID})
+		}
+		return q.DeleteApprovalCode(ctx, db.DeleteApprovalCodeParams{ApprovalID: id, OperatorID: opID})
+	})
+	if err != nil {
+		return err
+	}
+	return bad
 }
 
 // Reject 拒绝变更，计划随之失效。
@@ -221,6 +364,12 @@ func Describe(d *Detail, loc *time.Location) string {
 		text += fmt.Sprintf("%d. %s\n", i+1, step)
 	}
 	text += fmt.Sprintf("\n影响：%d 名用户，%d 个节点\n", c.Impact.Users, c.Impact.Nodes)
+	if d.Required > 1 {
+		text += fmt.Sprintf("需要 %d 名运营者批准，已批准 %d 名\n", d.Required, len(d.Votes))
+	}
+	if d.NeedsCode {
+		text += "这类操作需要在网页上用一次性码 + passkey 批准，不能在这里批准\n"
+	}
 	if c.RiskReason != "" {
 		text += "升级原因：" + c.RiskReason + "\n"
 	}

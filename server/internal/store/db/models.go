@@ -32,6 +32,23 @@ type Approval struct {
 	TelegramChatID    *int64
 	TelegramMessageID *int64
 	CreatedAt         time.Time
+	Required          int32
+	NeedsCode         bool
+}
+
+type ApprovalCode struct {
+	ApprovalID string
+	OperatorID int64
+	CodeHash   []byte
+	Attempts   int32
+	ExpiresAt  time.Time
+}
+
+type ApprovalVote struct {
+	ApprovalID string
+	OperatorID int64
+	Via        string
+	CreatedAt  time.Time
 }
 
 type AuditLog struct {
@@ -55,6 +72,20 @@ type AuthFailure struct {
 	Failures    int32
 	WindowStart time.Time
 	LockedUntil *time.Time
+}
+
+type AutomationRule struct {
+	ID          int64
+	Name        string
+	EventKind   string
+	Action      string
+	Params      json.RawMessage
+	Enabled     bool
+	LastFiredAt *time.Time
+	LastResult  string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+	Version     int64
 }
 
 type ChangePlan struct {
@@ -93,6 +124,40 @@ type CliGrant struct {
 	OperatorID *int64
 	CreatedAt  time.Time
 	ExpiresAt  time.Time
+}
+
+type Commission struct {
+	ID        int64
+	InviterID int64
+	InviteeID *int64
+	OrderID   int64
+	Amount    int64
+	Status    string
+	Reason    string
+	ReleaseAt time.Time
+	SettledAt *time.Time
+	CreatedAt time.Time
+	UpdatedAt time.Time
+	Version   int64
+}
+
+type Coupon struct {
+	ID        int64
+	Code      string
+	Name      string
+	Kind      string
+	Value     int64
+	PlanIds   []int64
+	Periods   []string
+	MaxUses   int32
+	PerUser   int32
+	Used      int32
+	StartsAt  *time.Time
+	EndsAt    *time.Time
+	Enabled   bool
+	CreatedAt time.Time
+	UpdatedAt time.Time
+	Version   int64
 }
 
 type Event struct {
@@ -168,6 +233,7 @@ type Node struct {
 	Version          int64
 	Backend          string
 	Runtime          json.RawMessage
+	MonthlyCost      int64
 }
 
 type NodeAlive struct {
@@ -215,12 +281,53 @@ type OperatorInvite struct {
 	UsedAt    *time.Time
 }
 
+type Order struct {
+	ID             int64
+	TradeNo        string
+	UserID         int64
+	PlanID         *int64
+	PlanName       string
+	Period         string
+	Kind           string
+	Amount         int64
+	Discount       int64
+	BalanceUsed    int64
+	Total          int64
+	CouponID       *int64
+	Status         string
+	Method         string
+	GatewayTradeNo string
+	Days           int32
+	PrevExpiresAt  *time.Time
+	RefundAmount   int64
+	RefundDays     int32
+	Note           string
+	Source         string
+	CreatedAt      time.Time
+	ExpiresAt      time.Time
+	PaidAt         *time.Time
+	CancelledAt    *time.Time
+	RefundedAt     *time.Time
+	UpdatedAt      time.Time
+	Version        int64
+}
+
 type PasswordReset struct {
 	TokenHash []byte
 	UserID    int64
 	CreatedAt time.Time
 	ExpiresAt time.Time
 	UsedAt    *time.Time
+}
+
+type PaymentCallback struct {
+	ID         int64
+	Method     string
+	TradeNo    string
+	Verified   bool
+	Result     string
+	Payload    json.RawMessage
+	ReceivedAt time.Time
 }
 
 type Plan struct {
@@ -236,11 +343,46 @@ type Plan struct {
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
 	Version        int64
+	RolloutPrices  json.RawMessage
+	RolloutPercent int32
+	RuleProfile    *string
 }
 
 type PlanNode struct {
 	PlanID int64
 	NodeID int64
+}
+
+type PlanRevision struct {
+	ID        int64
+	PlanID    int64
+	Version   int64
+	Snapshot  json.RawMessage
+	CreatedAt time.Time
+}
+
+type RuleList struct {
+	Key        string
+	Url        string
+	Content    string
+	FetchedAt  *time.Time
+	FetchError string
+	CreatedAt  time.Time
+}
+
+type RuleProfile struct {
+	ID             int64
+	Code           string
+	Name           string
+	Description    string
+	SourceUrl      string
+	Content        string
+	UserSelectable bool
+	FetchedAt      *time.Time
+	FetchError     string
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+	Version        int64
 }
 
 type Session struct {
@@ -257,6 +399,39 @@ type Setting struct {
 	Key       string
 	Value     json.RawMessage
 	UpdatedAt time.Time
+}
+
+type Ticket struct {
+	ID               int64
+	UserID           int64
+	Subject          string
+	Status           string
+	NeedsHuman       bool
+	NeedsHumanReason string
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+	LastMessageAt    time.Time
+	ClosedAt         *time.Time
+	Version          int64
+}
+
+type TicketDraft struct {
+	TicketID  int64
+	Body      string
+	DraftedBy string
+	Basis     json.RawMessage
+	ChangeID  string
+	UpdatedAt time.Time
+}
+
+type TicketMessage struct {
+	ID         int64
+	TicketID   int64
+	Author     string
+	OperatorID *int64
+	Body       string
+	DraftedBy  string
+	CreatedAt  time.Time
 }
 
 type TrafficReport struct {
@@ -293,6 +468,11 @@ type User struct {
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
 	Version        int64
+	Balance        int64
+	InviteCode     *string
+	InvitedBy      *int64
+	RegisterIp     string
+	RuleProfile    *string
 }
 
 type UserTrafficDaily struct {
@@ -316,4 +496,18 @@ type WebauthnCredential struct {
 	Credential json.RawMessage
 	CreatedAt  time.Time
 	LastUsedAt *time.Time
+}
+
+type Webhook struct {
+	ID             int64
+	Name           string
+	Url            string
+	SecretCipher   []byte
+	Kinds          []string
+	Enabled        bool
+	LastStatus     string
+	LastDeliveryAt *time.Time
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+	Version        int64
 }

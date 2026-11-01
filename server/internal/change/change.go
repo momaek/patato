@@ -120,6 +120,9 @@ type Thresholds struct {
 	Nodes int
 }
 
+// ApprovalPolicy 决定一种操作的审批要求：需要几名运营者批准，批准时是否还要一次性码。
+type ApprovalPolicy func(kind string) (required int, needsCode bool)
+
 // ApprovalNotifier 在敏感操作生成审批后被调用，用于推送审批卡片。
 type ApprovalNotifier interface {
 	ApprovalCreated(ctx context.Context, approvalID string)
@@ -132,6 +135,7 @@ type Engine struct {
 	planTTL     time.Duration
 	approvalTTL time.Duration
 	notifier    ApprovalNotifier
+	policy      ApprovalPolicy
 	log         *slog.Logger
 }
 
@@ -146,6 +150,19 @@ func (e *Engine) Register(ops ...Operation) {
 }
 
 func (e *Engine) SetNotifier(n ApprovalNotifier) { e.notifier = n }
+
+func (e *Engine) SetPolicy(p ApprovalPolicy) { e.policy = p }
+
+func (e *Engine) approvalPolicy(kind string) (int32, bool) {
+	if e.policy == nil {
+		return 1, false
+	}
+	n, code := e.policy(kind)
+	if n < 1 {
+		n = 1
+	}
+	return int32(n), code
+}
 
 func (e *Engine) Operation(kind string) (Operation, bool) {
 	op, ok := e.ops[kind]
@@ -278,10 +295,13 @@ func (e *Engine) Apply(ctx context.Context, actor Actor, changeID string) (*Plan
 			return nil
 		}
 		if Risk(row.Risk) == Sensitive {
+			required, needsCode := e.approvalPolicy(row.Kind)
 			apr, err := q.CreateApproval(ctx, db.CreateApprovalParams{
 				ID:        secret.ID("apr"),
 				ChangeID:  changeID,
 				ExpiresAt: time.Now().Add(e.approvalTTL).UTC(),
+				Required:  required,
+				NeedsCode: needsCode,
 			})
 			if err != nil {
 				return err
@@ -394,8 +414,26 @@ func checkTargets(ctx context.Context, q *db.Queries, targets []Target) string {
 			v, err = q.UserVersionForUpdate(ctx, t.ID)
 		case "template":
 			v, err = q.TemplateVersionForUpdate(ctx, t.ID)
+		case "rule_profile":
+			v, err = q.RuleProfileVersionForUpdate(ctx, t.ID)
 		case "machine":
 			v, err = q.MachineVersionForUpdate(ctx, t.ID)
+		case "order":
+			v, err = q.OrderVersionForUpdate(ctx, t.ID)
+		case "coupon":
+			v, err = q.CouponVersionForUpdate(ctx, t.ID)
+		case "ticket":
+			v, err = q.TicketVersionForUpdate(ctx, t.ID)
+		case "webhook":
+			v, err = q.WebhookVersionForUpdate(ctx, t.ID)
+		case "automation":
+			v, err = q.AutomationRuleVersionForUpdate(ctx, t.ID)
+		case "setting":
+			// 设置没有数字 ID，用 SettingKeys 里的序号；版本是最后修改时间（微秒），没有记录时为 0
+			v, err = q.SettingVersionForUpdate(ctx, SettingKeys[t.ID])
+			if store.IsNotFound(err) {
+				v, err = 0, nil
+			}
 		default:
 			return fmt.Sprintf("未知的目标类型 %s", t.Type)
 		}
@@ -410,6 +448,24 @@ func checkTargets(ctx context.Context, q *db.Queries, targets []Target) string {
 		}
 	}
 	return ""
+}
+
+// SettingKeys 是可以作为变更目标的设置项，Target.ID 是这里的下标。
+var SettingKeys = []string{"referral.rules"}
+
+// SettingTarget 返回某个设置项当前版本的目标。
+func SettingTarget(ctx context.Context, q *db.Queries, key string) (Target, error) {
+	for i, k := range SettingKeys {
+		if k != key {
+			continue
+		}
+		v, err := q.SettingVersionForUpdate(ctx, key)
+		if store.IsNotFound(err) {
+			v, err = 0, nil
+		}
+		return Target{Type: "setting", ID: int64(i), Version: v}, err
+	}
+	return Target{}, fmt.Errorf("unknown setting %s", key)
 }
 
 // Get 读取一份计划。

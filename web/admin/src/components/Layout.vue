@@ -2,7 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useQuery } from '@tanstack/vue-query'
-import { api, type ApprovalItem, type List } from '@patato/api'
+import { api, type ApprovalItem, type List, type Status } from '@patato/api'
 import { useSession } from '../lib/session'
 
 const session = useSession()
@@ -18,6 +18,9 @@ const pending = useQuery({
   refetchInterval: 30_000,
 })
 const pendingCount = computed(() => (pending.data.value?.items ?? []).filter((a) => a.status === 'pending').length)
+// 工单徽标：等你处理的工单数，跟总览共用一份数据
+const status = useQuery({ queryKey: ['status'], queryFn: () => api.get<Status>('/api/v1/status'), refetchInterval: 60_000 })
+const ticketCount = computed(() => status.data.value?.tickets?.needs_human ?? 0)
 
 const items = computed(() => [
   { to: { name: 'overview' }, label: '总览', match: ['overview'] },
@@ -25,7 +28,14 @@ const items = computed(() => [
   { to: { name: 'nodes' }, label: '节点', match: ['nodes', 'node'] },
   { to: { name: 'machines' }, label: '机器', match: ['machines'] },
   { to: { name: 'plans' }, label: '套餐', match: ['plans'] },
+  { to: { name: 'rules' }, label: '分流规则', match: ['rules'] },
   { to: { name: 'users' }, label: '用户', match: ['users'] },
+  { to: { name: 'orders' }, label: '订单', match: ['orders'] },
+  { to: { name: 'tickets' }, label: '工单', match: ['tickets', 'ticket'], count: ticketCount.value },
+  { to: { name: 'coupons' }, label: '优惠券', match: ['coupons'] },
+  { to: { name: 'referrals' }, label: '邀请返佣', match: ['referrals'] },
+  { to: { name: 'reports' }, label: '报表', match: ['reports'] },
+  { to: { name: 'integrations' }, label: '集成', match: ['integrations'] },
   { to: { name: 'audit' }, label: '审计日志', match: ['audit'] },
 ])
 

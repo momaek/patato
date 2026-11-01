@@ -83,7 +83,7 @@ func TestGeneral(t *testing.T) {
 }
 
 func TestClashIsValidYAML(t *testing.T) {
-	b, err := Clash(servers())
+	b, err := Clash(servers(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,7 +104,7 @@ func TestClashIsValidYAML(t *testing.T) {
 }
 
 func TestSingBoxIsValidJSON(t *testing.T) {
-	b, err := SingBox(servers())
+	b, err := SingBox(servers(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}

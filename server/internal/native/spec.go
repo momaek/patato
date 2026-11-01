@@ -42,7 +42,8 @@ func BuildNode(n db.Node) (nodeapi.Node, error) {
 		if s.Int("tls") == 2 {
 			out.TLS = realityOf(s)
 		} else {
-			out.TLS = tlsOf(s, "tls_settings", n.Address)
+			out.TLS = &nodeapi.TLS{Mode: "tls", ServerName: s.TrojanSNI()}
+			out.TLS.Cert = certOf(s, firstNonEmpty(out.TLS.ServerName, n.Address))
 		}
 		out.Transport = transportOf(s)
 	case "shadowsocks":

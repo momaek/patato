@@ -104,6 +104,50 @@ func (q *Queries) CountUsersOfHost(ctx context.Context, host string) (int64, err
 	return count, err
 }
 
+const enrollMachineByAttestation = `-- name: EnrollMachineByAttestation :one
+UPDATE machines SET token_hash = $1, enroll_hash = NULL, enroll_cipher = NULL, enroll_expires_at = NULL,
+    hostname = $2, agent_version = $3, enrolled_at = now(), last_seen_at = now(),
+    updated_at = now(), version = version + 1
+WHERE id = $4 AND (token_hash IS NOT NULL OR enroll_expires_at > now())
+RETURNING id, host, token_hash, enroll_hash, enroll_cipher, enroll_expires_at, hostname, agent_version, kernel, enrolled_at, last_seen_at, created_at, updated_at, version
+`
+
+type EnrollMachineByAttestationParams struct {
+	TokenHash    []byte
+	Hostname     string
+	AgentVersion string
+	ID           int64
+}
+
+// 凭 tolato 的机器身份证明接入：只接受正在接入的机器（换发 token），或安装窗口还开着的机器
+// （生成安装命令时打开，一小时内有效）。吊销后要重新生成安装命令才能再接入。
+func (q *Queries) EnrollMachineByAttestation(ctx context.Context, arg EnrollMachineByAttestationParams) (Machine, error) {
+	row := q.db.QueryRow(ctx, enrollMachineByAttestation,
+		arg.TokenHash,
+		arg.Hostname,
+		arg.AgentVersion,
+		arg.ID,
+	)
+	var i Machine
+	err := row.Scan(
+		&i.ID,
+		&i.Host,
+		&i.TokenHash,
+		&i.EnrollHash,
+		&i.EnrollCipher,
+		&i.EnrollExpiresAt,
+		&i.Hostname,
+		&i.AgentVersion,
+		&i.Kernel,
+		&i.EnrolledAt,
+		&i.LastSeenAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Version,
+	)
+	return i, err
+}
+
 const ensureMachine = `-- name: EnsureMachine :one
 INSERT INTO machines (host) VALUES ($1)
 ON CONFLICT (host) DO UPDATE SET host = EXCLUDED.host
@@ -226,7 +270,7 @@ func (q *Queries) ListMachines(ctx context.Context) ([]Machine, error) {
 }
 
 const listNativeNodesOfHost = `-- name: ListNativeNodesOfHost :many
-SELECT id, code, name, template_id, host, address, region, protocol, port, server_port, settings, rate, state, tags, sort, key_hash, key_cipher, allow_legacy_token, last_heartbeat_at, last_push_at, load, created_at, updated_at, version, backend, runtime FROM nodes WHERE host = $1 AND backend = 'native' ORDER BY id
+SELECT id, code, name, template_id, host, address, region, protocol, port, server_port, settings, rate, state, tags, sort, key_hash, key_cipher, allow_legacy_token, last_heartbeat_at, last_push_at, load, created_at, updated_at, version, backend, runtime, monthly_cost FROM nodes WHERE host = $1 AND backend = 'native' ORDER BY id
 `
 
 func (q *Queries) ListNativeNodesOfHost(ctx context.Context, host string) ([]Node, error) {
@@ -265,6 +309,7 @@ func (q *Queries) ListNativeNodesOfHost(ctx context.Context, host string) ([]Nod
 			&i.Version,
 			&i.Backend,
 			&i.Runtime,
+			&i.MonthlyCost,
 		); err != nil {
 			return nil, err
 		}

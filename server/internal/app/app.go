@@ -13,14 +13,17 @@ import (
 	"github.com/momaek/patato/server/internal/api"
 	"github.com/momaek/patato/server/internal/approval"
 	"github.com/momaek/patato/server/internal/auth"
+	"github.com/momaek/patato/server/internal/automation"
 	"github.com/momaek/patato/server/internal/billing"
 	"github.com/momaek/patato/server/internal/change"
+	"github.com/momaek/patato/server/internal/commerce"
 	"github.com/momaek/patato/server/internal/config"
 	"github.com/momaek/patato/server/internal/events"
 	"github.com/momaek/patato/server/internal/jobs"
 	"github.com/momaek/patato/server/internal/native"
 	"github.com/momaek/patato/server/internal/notify"
 	"github.com/momaek/patato/server/internal/ops"
+	"github.com/momaek/patato/server/internal/rules"
 	"github.com/momaek/patato/server/internal/secret"
 	"github.com/momaek/patato/server/internal/store"
 	"github.com/momaek/patato/server/internal/store/db"
@@ -42,6 +45,9 @@ type App struct {
 	Tolato    *tolato.Client
 	Jobs      *jobs.Runner
 	Native    *native.Handler
+	Commerce  *commerce.Service
+	Automate  *automation.Dispatcher
+	Rules     *rules.Service
 	HTTP      *api.Server
 	Log       *slog.Logger
 }
@@ -71,12 +77,25 @@ func New(ctx context.Context, cfg *config.Config, log *slog.Logger) (*App, error
 	a.Events = events.NewRecorder(st, log)
 	a.Engine = change.NewEngine(st, change.Thresholds{Users: cfg.Risk.UserThreshold, Nodes: cfg.Risk.NodeThreshold},
 		cfg.Change.PlanTTL.D(), cfg.Change.ApprovalTTL.D(), log)
-	deps := &ops.Deps{Box: box, Loc: loc}
+	a.Engine.SetPolicy(cfg.Approval.Policy)
+	a.Rules = rules.NewService(st, log)
+	deps := &ops.Deps{Box: box, Loc: loc, Events: a.Events, Operations: a.Engine.Kinds, Rules: a.Rules}
 	if cfg.Tolato.URL != "" && cfg.Tolato.APIKey != "" {
 		a.Tolato = tolato.New(cfg.Tolato.URL, cfg.Tolato.APIKey)
 		deps.Machines = a.Tolato
 	}
 	a.Engine.Register(ops.All(deps)...)
+	var gateways []commerce.Gateway
+	for _, m := range cfg.Payment.Methods {
+		name := m.Name
+		if name == "" {
+			name = m.Code
+		}
+		gateways = append(gateways, commerce.NewEPay(m.Code, name, m.URL, m.PID, m.Key, m.Type))
+	}
+	a.Commerce = commerce.NewService(st, a.Events, commerce.Config{
+		OrderTimeout: cfg.Payment.OrderTimeout.D(), NotifyBase: cfg.PublicURL, ReturnBase: cfg.PortalURL, Loc: loc,
+	}, gateways, log)
 	a.Approvals = approval.New(st, a.Engine, log)
 	if a.Auth, err = auth.New(st, cfg, log); err != nil {
 		st.Close()
@@ -92,11 +111,18 @@ func New(ctx context.Context, cfg *config.Config, log *slog.Logger) (*App, error
 		}
 	}
 
+	var mailer notify.Mailer = &notify.LogMailer{Log: log}
+	if cfg.SMTP.Host != "" {
+		mailer = &notify.SMTPMailer{Host: cfg.SMTP.Host, Port: cfg.SMTP.Port, Username: cfg.SMTP.Username, Password: cfg.SMTP.Password, From: cfg.SMTP.From}
+	}
+	a.Automate = automation.New(st, box, a.Engine, mailer, automation.Config{ServiceName: cfg.ServiceName, PortalURL: cfg.PortalURL}, log)
+
 	var sender jobs.Sender
 	if a.Telegram != nil {
 		sender = &telegramSender{tg: a.Telegram, st: st}
+		a.Approvals.SetCodeSender(a.Telegram)
 	}
-	a.Jobs, err = jobs.New(st.Pool, a.tasks(), sender, log)
+	a.Jobs, err = jobs.New(st.Pool, a.tasks(), sender, a.Automate, log)
 	if err != nil {
 		st.Close()
 		return nil, err
@@ -104,14 +130,13 @@ func New(ctx context.Context, cfg *config.Config, log *slog.Logger) (*App, error
 	a.Events.SetNotifier(a.Jobs)
 	a.Engine.SetNotifier(a.Jobs)
 	a.Approvals.SetNotifier(a.Jobs)
-
-	var mailer notify.Mailer = &notify.LogMailer{Log: log}
-	if cfg.SMTP.Host != "" {
-		mailer = &notify.SMTPMailer{Host: cfg.SMTP.Host, Port: cfg.SMTP.Port, Username: cfg.SMTP.Username, Password: cfg.SMTP.Password, From: cfg.SMTP.From}
-	}
 	a.Native = native.New(st, native.Config{
 		ReportInterval: cfg.Node.PushInterval, SyncInterval: cfg.Node.PullInterval, DeviceTTL: cfg.Node.DeviceTTL.D(),
+		PublicURL: func() string { return cfg.PublicURL },
 	}, a.Events, log)
+	if cfg.Tolato.AttestEnroll && a.Tolato != nil {
+		a.Native.SetAttestor(tolatoAttestor{a.Tolato})
+	}
 	var binder api.TelegramBinder
 	if a.Telegram != nil {
 		binder = a.Telegram
@@ -122,9 +147,9 @@ func New(ctx context.Context, cfg *config.Config, log *slog.Logger) (*App, error
 			PushInterval: cfg.Node.PushInterval, PullInterval: cfg.Node.PullInterval,
 			LegacyToken: cfg.Node.LegacyToken, DeviceTTL: cfg.Node.DeviceTTL.D(),
 		}, a.Events, log),
-		Subscribe: subscribe.New(st, subscribe.Config{ServiceName: cfg.ServiceName, Path: cfg.SubscribePath, Loc: loc}, log),
+		Subscribe: subscribe.New(st, subscribe.Config{ServiceName: cfg.ServiceName, Path: cfg.SubscribePath, BaseURL: cfg.SubscribeURL, Loc: loc}, a.Rules, log),
 		Native:    a.Native,
-		Mailer:    mailer, Telegram: binder, Log: log,
+		Mailer:    mailer, Telegram: binder, Commerce: a.Commerce, Events: a.Events, Rules: a.Rules, Log: log,
 	})
 	return a, nil
 }
@@ -140,6 +165,8 @@ func (a *App) tasks() []jobs.Task {
 			return err
 		}},
 		{Name: "expiry", Every: time.Minute, Run: a.Billing.CheckExpired},
+		// 分流规则模板和规则文件：每小时检查一次，超过 6 小时的重新拉取
+		{Name: "rules_refresh", Every: time.Hour, Run: a.Rules.Refresh},
 		{Name: "nodes_offline", Every: 30 * time.Second, Run: func(ctx context.Context) error {
 			return a.Billing.CheckNodesOffline(ctx, a.Cfg.Node.OfflineAfter.D())
 		}},
@@ -148,6 +175,20 @@ func (a *App) tasks() []jobs.Task {
 			return a.Billing.Cleanup(ctx, a.Cfg.Node.DeviceTTL.D())
 		}},
 		{Name: "panel_host", Every: a.Cfg.Tolato.PollEvery.D(), Run: a.checkPanelHost},
+		{Name: "orders_expire", Every: time.Minute, Run: func(ctx context.Context) error {
+			_, err := a.Commerce.ExpireDue(ctx)
+			return err
+		}},
+		{Name: "commissions_settle", Every: 10 * time.Minute, Run: func(ctx context.Context) error {
+			_, err := a.Commerce.SettleDue(ctx)
+			return err
+		}},
+		{Name: "expiring", Every: time.Hour, Run: func(ctx context.Context) error {
+			return a.Billing.CheckExpiring(ctx, a.Cfg.Anomaly.ExpiringDays)
+		}},
+		{Name: "anomalies", Every: time.Hour, Run: func(ctx context.Context) error {
+			return a.Billing.CheckAnomalies(ctx, a.Cfg.Anomaly.Factor, billing.GB(a.Cfg.Anomaly.MinGB))
+		}},
 	}
 }
 
@@ -225,12 +266,23 @@ func (a *App) Run(ctx context.Context) error {
 	return nil
 }
 
+// tolatoAttestor 把 tolato 客户端接到原生节点协议的接入流程上。
+type tolatoAttestor struct{ c *tolato.Client }
+
+func (t tolatoAttestor) VerifyAttestation(ctx context.Context, token, audience string) ([]string, error) {
+	n, err := t.c.VerifyAttestation(ctx, token, audience)
+	if err != nil {
+		return nil, err
+	}
+	return n.Names(), nil
+}
+
 type telegramSender struct {
 	tg *notify.Telegram
 	st *store.Store
 }
 
-// SendEvent 只推送需要人关注的事件（告警、注意）以及节点恢复。
+// SendEvent 只推送需要人关注的事件（告警、注意）、节点恢复和新工单。
 func (s *telegramSender) SendEvent(ctx context.Context, id int64) error {
 	e, err := s.st.GetEvent(ctx, id)
 	if err != nil {
@@ -239,7 +291,7 @@ func (s *telegramSender) SendEvent(ctx context.Context, id int64) error {
 	if e.NotifiedAt != nil {
 		return nil
 	}
-	if e.Severity == "info" && e.Kind != events.NodeOnline {
+	if e.Severity == "info" && e.Kind != events.NodeOnline && e.Kind != events.TicketCreated {
 		return nil
 	}
 	if err := s.tg.Send(ctx, notify.EventText(e)); err != nil {

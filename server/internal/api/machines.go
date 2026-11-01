@@ -140,6 +140,16 @@ func (s *Server) patatoNodeInstall(c *gin.Context, host string) (InstallCmd, err
 	if err != nil {
 		return InstallCmd{}, err
 	}
+	if s.d.Cfg.Tolato.AttestEnroll {
+		// 经 tolato 接入：命令里不带任何密钥，只打开一小时的安装窗口，patato-node 凭本机 tolato-agent 的证明接入。
+		expires := time.Now().Add(enrollTTL)
+		if err := s.d.Store.SetMachineEnrollment(c, db.SetMachineEnrollmentParams{
+			ID: m.ID, EnrollHash: secret.Hash(secret.Token("pe")), EnrollExpiresAt: &expires,
+		}); err != nil {
+			return InstallCmd{}, err
+		}
+		return PatatoNodeInstall(s.d.Cfg.PublicURL, s.d.Cfg.Node.BinaryURL, host, "", expires, m.TokenHash != nil), nil
+	}
 	var code string
 	if m.EnrollCipher != nil && m.EnrollExpiresAt != nil && time.Until(*m.EnrollExpiresAt) > 10*time.Minute {
 		if b, err := s.d.Box.Open(m.EnrollCipher); err == nil {
@@ -169,16 +179,28 @@ func PatatoNodeInstall(panelURL, binaryURL, host, code string, expires time.Time
 		`case "$(uname -m)" in x86_64|amd64) arch=amd64 ;; aarch64|arm64) arch=arm64 ;; *) echo "unsupported arch $(uname -m)" >&2; exit 1 ;; esac`,
 		fmt.Sprintf(`curl -fsSL -o /usr/local/bin/patato-node.new "%s"`, url),
 		"chmod 755 /usr/local/bin/patato-node.new && mv /usr/local/bin/patato-node.new /usr/local/bin/patato-node",
-		fmt.Sprintf("/usr/local/bin/patato-node enroll --panel %s --code %s", shellQuote(panelURL), shellQuote(code)),
+		enrollLine(panelURL, code),
 		"/usr/local/bin/patato-node install-service",
 	}, "\n")
 	note := fmt.Sprintf("在 %s 上原样执行。注册码 %s 前有效且只能用一次；接入后，这台机器上 backend 为 native 的节点会自动启动。",
 		host, expires.Format(time.RFC3339))
+	if code == "" {
+		note = fmt.Sprintf("在 %s 上原样执行。patato-node 凭本机 tolato-agent 的身份证明接入，命令里不含密钥；%s 前有效。接入后，这台机器上 backend 为 native 的节点会自动启动。",
+			host, expires.Format(time.RFC3339))
+	}
 	if reenroll {
 		note += "这台机器已经接入过，重新执行会换发机器 token，旧 token 立即失效。"
 	}
 	cfg, _ := json.Marshal(map[string]any{"panel": panelURL, "machine": host})
 	return InstallCmd{Backend: "patato-node", Command: cmd, Config: json.RawMessage(cfg), Note: note}
+}
+
+// enrollLine 是安装命令里的接入一步：没有注册码时凭 tolato 身份证明接入。
+func enrollLine(panelURL, code string) string {
+	if code == "" {
+		return fmt.Sprintf("/usr/local/bin/patato-node enroll --panel %s --tolato", shellQuote(panelURL))
+	}
+	return fmt.Sprintf("/usr/local/bin/patato-node enroll --panel %s --code %s", shellQuote(panelURL), shellQuote(code))
 }
 
 func shellQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'" }

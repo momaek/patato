@@ -72,3 +72,49 @@ tolato:
   # Patato 所在主机在 tolato 里的名称；有针对它的远程执行就告警
   panel_host: ""
   poll_every: 1m
+  # 为 true 时 patato-node 凭本机 tolato-agent 签发的身份证明接入，安装命令里不带注册码。
+  # 需要 tolato 提供 /api/v1/attestations/verify 和 tolato-agent --attest，并配置 url、api_key。
+  attest_enroll: false
+
+# 只采信这些反向代理传来的 X-Forwarded-For；注册限流和返佣风控按客户端 IP 判断。
+# 默认本机和内网（Caddy 所在的 Docker 网络），一般不用改。
+# trusted_proxies: ["127.0.0.1/8", "::1/128", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "fc00::/7"]
+
+# 二期：在线支付。没有配置支付方式时，用户侧不显示购买入口，续费仍由管理员手动处理。
+payment:
+  # 待支付订单的有效期，超时自动取消并退回占用的余额和优惠码
+  order_timeout: 30m
+  methods: []
+  # 易支付（彩虹易支付及兼容接口）。回调地址是 {public_url}/api/v1/payment/{code}/notify，支付后跳回 {portal_url}/orders/{订单号}
+  # - code: alipay
+  #   name: 支付宝
+  #   driver: epay
+  #   url: "https://pay.example.com/"
+  #   pid: "1001"
+  #   key: "商户密钥"
+  #   type: alipay   # alipay、wxpay；留空由收银台选择
+
+# 用户侧注册。关闭时只有迁移来的老用户和管理员创建的用户能登录。
+registration:
+  enabled: false
+  # 只允许凭邀请码注册
+  require_invite: false
+
+# 敏感操作的审批要求
+approval:
+  # 默认需要几名运营者批准
+  required: 1
+  # 按操作覆盖人数，例如退款要两个人批
+  required_for: {}
+  #   order.refund: 2
+  # 这些操作批准时除了 passkey，还要输入经 Telegram 私聊下发的一次性码（需要配置 telegram 并绑定账号）
+  code_for: []
+  #   - order.refund
+
+# 事件检测
+anomaly:
+  # 某天用量超过前 7 天日均的 factor 倍、且不少于 min_gb 时发出流量异常告警；factor 为 0 时不检测
+  factor: 5
+  min_gb: 20
+  # 这么多天内到期的用户发出「即将到期」事件，可以配合自动处置规则发提醒邮件；0 表示不发
+  expiring_days: 3

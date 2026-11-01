@@ -3,6 +3,7 @@
 package tolato
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -96,6 +97,65 @@ func (c *Client) LookupMachine(ctx context.Context, name string) (*ops.Machine, 
 	}
 	return &ops.Machine{Name: n.Name, IP: n.IP, Country: n.CountryCode, City: n.City}, nil
 }
+
+// AttestedNode 是 tolato 核实过的机器身份。
+type AttestedNode struct {
+	ID    string
+	Name  string
+	Alias string
+	IP    string
+}
+
+// Names 是这台机器在 Patato 里可能用的机器名：名称、别名、IP。
+func (n AttestedNode) Names() []string {
+	out := []string{n.Name}
+	if n.Alias != "" {
+		out = append(out, n.Alias)
+	}
+	if n.IP != "" {
+		out = append(out, n.IP)
+	}
+	return out
+}
+
+// VerifyAttestation 让 tolato 核实 patato-node 交来的机器身份证明。证明只对 audience（面板的 API 地址）有效，
+// 核实后即作废。证明无效、过期、已用过，或 API key 看不到这台机器时返回 ErrAttestationInvalid。
+func (c *Client) VerifyAttestation(ctx context.Context, token, audience string) (*AttestedNode, error) {
+	body, _ := json.Marshal(map[string]string{"token": token, "audience": audience})
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.base+"/api/v1/attestations/verify", bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+c.apiKey)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("tolato: %w", err)
+	}
+	defer resp.Body.Close()
+	switch {
+	case resp.StatusCode == http.StatusNotFound:
+		return nil, ErrAttestationInvalid
+	case resp.StatusCode == http.StatusMethodNotAllowed:
+		return nil, ErrUnsupported
+	case resp.StatusCode >= 300:
+		return nil, fmt.Errorf("tolato: verify attestation: %s", resp.Status)
+	}
+	var out struct {
+		Node node `json:"node"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil || out.Node.ID == "" {
+		return nil, fmt.Errorf("tolato: unexpected attestation response")
+	}
+	n := &AttestedNode{ID: out.Node.ID, Name: out.Node.Name, IP: out.Node.IP}
+	if out.Node.Alias != nil {
+		n.Alias = *out.Node.Alias
+	}
+	return n, nil
+}
+
+// ErrAttestationInvalid 表示 tolato 不认这份证明。
+var ErrAttestationInvalid = errors.New("tolato attestation invalid, expired or already used")
 
 // Command 是 tolato 在某台机器上执行过的一条命令。
 type Command struct {

@@ -1,3 +1,8 @@
 @import "tailwindcss";
 @import "@patato/ui/styles.css";
 @source "../../packages/ui/src";
+
+/* 下拉框、多行文本等原生表单控件的统一外观（单行输入框用 @patato/ui 的 Field） */
+@utility field-input {
+  @apply min-h-10 rounded-lg border border-control bg-card px-3 text-[14px] outline-none focus:border-accent focus:ring-2 focus:ring-accent/20;
+}

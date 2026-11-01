@@ -5,12 +5,19 @@ import { toast } from 'vue-sonner'
 import { errorText, fmt } from '@patato/api'
 import { Alert, Badge, Card, LoadState, Progress, StatusDot, type Tone } from '@patato/ui'
 import AppShell from '../components/AppShell.vue'
+import RulePicker from '../components/RulePicker.vue'
 import SubscriptionLink from '../components/SubscriptionLink.vue'
-import { useSubscription } from '../session'
+import { api } from '@patato/api'
+import { useAuthed, usePortalConfig, useSubscription } from '../session'
 import { clients } from '../clients'
 
 const { t } = useI18n()
 const { data: sub, isPending, error, refetch, serviceName } = useSubscription()
+
+const config = usePortalConfig()
+const usage = useAuthed(['me', 'traffic'], () => api.get<{ items: { day: string; bytes: number }[] }>('/api/v1/me/traffic'))
+const usageMax = computed(() => Math.max(1, ...(usage.data.value?.items ?? []).map((d) => d.bytes)))
+const usageTotal = computed(() => (usage.data.value?.items ?? []).reduce((s, d) => s + d.bytes, 0))
 
 const stateTone: Record<string, Tone> = { active: 'ok', expired: 'bad', over_quota: 'warn', banned: 'bad' }
 
@@ -48,6 +55,9 @@ function copyFor(name: string) {
               <Badge :tone="stateTone[sub.state]">{{ t(`home.state.${sub.state}`) }}</Badge>
             </div>
             <Alert v-if="sub.state !== 'active'" :tone="sub.state === 'over_quota' ? 'warn' : 'bad'">{{ t(`home.stateHint.${sub.state}`) }}</Alert>
+            <RouterLink v-if="config.data.value?.payment" :to="{ name: 'buy' }" class="self-start no-underline">
+              <span class="inline-flex min-h-10 items-center rounded-lg bg-accent px-4 font-medium text-white hover:bg-accent-strong">{{ sub.plan ? t('home.renew') : t('home.buyPlan') }}</span>
+            </RouterLink>
             <div class="flex flex-col gap-2">
               <div class="flex flex-wrap items-baseline justify-between gap-2">
                 <span class="text-muted">{{ t('home.traffic') }}</span>
@@ -114,6 +124,26 @@ function copyFor(name: string) {
               <li v-if="sub.nodes.length === 0" class="px-4 py-3 text-muted">{{ t('home.noNodes') }}</li>
             </Card>
           </section>
+
+          <section v-if="usage.data.value" aria-labelledby="usage-h" class="flex flex-col gap-3">
+            <div class="flex items-baseline justify-between gap-2">
+              <h2 id="usage-h" class="text-lg font-semibold">{{ t('usage.title') }}</h2>
+              <span class="text-[13px] text-muted tabular">{{ t('usage.total', { amount: fmt.bytes(usageTotal) }) }}</span>
+            </div>
+            <Card class="p-4">
+              <div class="flex h-20 items-end gap-[2px]" role="img" :aria-label="t('usage.title')">
+                <div
+                  v-for="d in usage.data.value.items"
+                  :key="d.day"
+                  class="flex-1 rounded-t-[4px] bg-accent"
+                  :style="{ height: d.bytes > 0 ? `max(2px, ${(d.bytes / usageMax) * 100}%)` : '0' }"
+                  :title="`${d.day}：${fmt.bytes(d.bytes)}`"
+                />
+              </div>
+            </Card>
+          </section>
+
+          <RulePicker />
 
           <Card as="section" aria-labelledby="reset-h" class="flex flex-col gap-2 p-4">
             <h2 id="reset-h" class="font-semibold">{{ t('home.leaked') }}</h2>

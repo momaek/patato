@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/momaek/patato/server/internal/auth"
+	"github.com/momaek/patato/server/internal/rules"
 	"github.com/momaek/patato/server/internal/secret"
 	"github.com/momaek/patato/server/internal/store/db"
 	"github.com/momaek/patato/server/internal/subscribe"
@@ -146,6 +147,10 @@ func (s *Server) meSubscription(c *gin.Context) {
 			}
 		}
 	}
+	var ruleProfile gin.H
+	if rp, err := rules.ProfileFor(c, s.d.Store.Queries, u); err == nil && rp != nil {
+		ruleProfile = gin.H{"code": rp.Code, "name": rp.Name}
+	}
 	state := userState(u, now)
 	var daysLeft *int
 	if u.ExpiresAt != nil {
@@ -169,6 +174,7 @@ func (s *Server) meSubscription(c *gin.Context) {
 		"device_limit":     deviceLimit,
 		"subscription_url": subscribe.URL(s.d.Cfg.SubscribeURL, s.d.Cfg.SubscribePath, u.SubToken),
 		"nodes":            nodes,
+		"rule_profile":     ruleProfile,
 		"service_name":     s.d.Cfg.ServiceName,
 	})
 }

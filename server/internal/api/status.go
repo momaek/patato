@@ -70,6 +70,20 @@ func (s *Server) status(c *gin.Context) {
 		todos = append(todos, todo{Kind: e.Kind, Severity: e.Severity, Title: e.Message, Ref: e.Subject, At: e.CreatedAt})
 	}
 
+	yes := true
+	needs, err := s.d.Store.ListTickets(c, db.ListTicketsParams{NeedsHuman: &yes, RowLimit: 20})
+	if err != nil {
+		fail(c, err)
+		return
+	}
+	for _, t := range needs {
+		if t.Status == "closed" {
+			continue
+		}
+		todos = append(todos, todo{Kind: "ticket", Severity: "warning", Title: fmt.Sprintf("工单 #%d「%s」等你处理", t.ID, t.Subject),
+			Detail: t.NeedsHumanReason, Ref: fmt.Sprintf("t_%d", t.ID), At: t.LastMessageAt})
+	}
+
 	nodes, err := s.d.Store.ListNodes(c)
 	if err != nil {
 		fail(c, err)
@@ -94,6 +108,16 @@ func (s *Server) status(c *gin.Context) {
 	todayBytes, _ := s.d.Store.TotalTrafficOnDay(c, s.today())
 	online, _ := s.d.Store.CountOnlineUsers(c, now.Add(-s.d.Cfg.Node.DeviceTTL.D()))
 
+	tickets, _ := s.d.Store.TicketCounts(c)
+	start := time.Date(now.In(s.loc).Year(), now.In(s.loc).Month(), now.In(s.loc).Day(), 0, 0, 0, 0, s.loc)
+	var revenue, paid int64
+	if rows, err := s.d.Store.DailyRevenue(c, db.DailyRevenueParams{Tz: s.loc.String(), Since: start}); err == nil {
+		for _, r := range rows {
+			revenue += r.Revenue
+			paid += r.Orders
+		}
+	}
+
 	panel := PanelHostStatus{Status: "not_configured", Message: "未配置 tolato.panel_host"}
 	if raw, err := s.d.Store.GetSetting(c, PanelHostKey); err == nil {
 		_ = json.Unmarshal(raw, &panel)
@@ -109,6 +133,8 @@ func (s *Server) status(c *gin.Context) {
 			"days_7": count(7 * 24 * time.Hour),
 		},
 		"usage":      gin.H{"today_bytes": todayBytes, "online_users": online},
+		"tickets":    gin.H{"open": tickets.Open, "needs_human": tickets.NeedsHuman},
+		"sales":      gin.H{"today_revenue": revenue, "today_orders": paid},
 		"panel_host": panel,
 		"updated_at": now,
 	})

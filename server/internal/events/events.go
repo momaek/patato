@@ -17,7 +17,20 @@ const (
 	UserOverQuota = "user_over_quota"
 	PanelHostExec = "panel_host_exec"
 	ApprovalNew   = "approval_created"
+
+	UserExpiring        = "user_expiring"
+	TrafficAnomaly      = "traffic_anomaly"
+	OrderPaid           = "order_paid"
+	OrderRefunded       = "order_refunded"
+	OrderNeedsAttention = "order_needs_attention"
+	ReferralFrozen      = "referral_frozen"
+	TicketCreated       = "ticket_created"
+	TicketReplied       = "ticket_replied"
 )
+
+// Kinds 是全部事件类型，供 Webhook 和自动处置规则校验。
+var Kinds = []string{NodeOffline, NodeOnline, UserExpired, UserOverQuota, PanelHostExec, UserExpiring, TrafficAnomaly,
+	OrderPaid, OrderRefunded, OrderNeedsAttention, ReferralFrozen, TicketCreated, TicketReplied}
 
 // Notifier 在事件写入后被调用，负责推送到 Telegram 等渠道。
 type Notifier interface {

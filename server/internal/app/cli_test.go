@@ -94,7 +94,7 @@ func TestCLI(t *testing.T) {
 
 	approve := func(id string) {
 		t.Helper()
-		if _, err := h.a.Approvals.Approve(ctx, id, h.op, approval.ViaCLI); err != nil {
+		if _, err := h.a.Approvals.Approve(ctx, id, h.op, approval.ViaCLI, ""); err != nil {
 			t.Fatal(err)
 		}
 	}

@@ -28,15 +28,24 @@ type Config struct {
 	ReportInterval int
 	SyncInterval   int
 	DeviceTTL      time.Duration
+	// PublicURL 返回面板的 API 地址，tolato 机器身份证明只对它有效。
+	PublicURL func() string
+}
+
+// Attestor 核实 tolato-agent 签发的机器身份证明，返回这台机器在 tolato 里的名称、别名和 IP。
+// 未开启经 tolato 接入时为 nil。
+type Attestor interface {
+	VerifyAttestation(ctx context.Context, token, audience string) (names []string, err error)
 }
 
 type Handler struct {
-	st     *store.Store
-	cfg    Config
-	events *events.Recorder
-	log    *slog.Logger
-	users  *userCache
-	hub    *Hub
+	st       *store.Store
+	cfg      Config
+	attestor Attestor
+	events   *events.Recorder
+	log      *slog.Logger
+	users    *userCache
+	hub      *Hub
 }
 
 func New(st *store.Store, cfg Config, ev *events.Recorder, log *slog.Logger) *Handler {
@@ -44,6 +53,9 @@ func New(st *store.Store, cfg Config, ev *events.Recorder, log *slog.Logger) *Ha
 	h.hub = newHub(h)
 	return h
 }
+
+// SetAttestor 开启经 tolato-agent 引导身份的接入。
+func (h *Handler) SetAttestor(a Attestor) { h.attestor = a }
 
 // Hub 返回推送中心，由 app 启动它的后台循环。
 func (h *Handler) Hub() *Hub { return h.hub }
@@ -76,8 +88,12 @@ func (h *Handler) Auth(c *gin.Context) {
 // Enroll 凭一次性注册码换取机器 token。
 func (h *Handler) Enroll(c *gin.Context) {
 	var req nodeapi.EnrollRequest
-	if err := c.ShouldBindJSON(&req); err != nil || req.Code == "" {
-		fail(c, apierr.BadRequest("invalid_params", "缺少注册码"))
+	if err := c.ShouldBindJSON(&req); err != nil || (req.Code == "" && req.Attestation == "") {
+		fail(c, apierr.BadRequest("invalid_params", "缺少注册码或 tolato 机器身份证明"))
+		return
+	}
+	if req.Attestation != "" {
+		h.enrollByAttestation(c, req)
 		return
 	}
 	token := secret.Token("mt")
@@ -95,6 +111,60 @@ func (h *Handler) Enroll(c *gin.Context) {
 		return
 	}
 	h.log.Info("machine enrolled", "machine", m.Host, "hostname", m.Hostname)
+	c.JSON(http.StatusOK, nodeapi.EnrollResponse{Machine: m.Host, Token: token})
+}
+
+// enrollByAttestation 凭本机 tolato-agent 签发的身份证明接入：向 tolato 核实证明，
+// 按 tolato 里的名称、别名或 IP 找到 Patato 的机器。只接受正在接入的机器（换发 token），
+// 或安装窗口还开着的机器（生成安装命令时打开），吊销后不会被自动接回。
+func (h *Handler) enrollByAttestation(c *gin.Context, req nodeapi.EnrollRequest) {
+	if h.attestor == nil {
+		fail(c, apierr.BadRequest("attestation_disabled", "面板没有开启经 tolato 接入").
+			WithHint("在服务端配置 tolato.url、tolato.api_key 并打开 tolato.attest_enroll，或改用安装命令里的注册码"))
+		return
+	}
+	names, err := h.attestor.VerifyAttestation(c, req.Attestation, h.cfg.PublicURL())
+	if err != nil {
+		h.log.Warn("attestation rejected", "err", err)
+		fail(c, apierr.New(http.StatusUnauthorized, "invalid_attestation", "tolato 不认这份机器身份证明").
+			WithHint("证明 5 分钟内有效且只能用一次，只对 %s 有效；重新执行 patato-node enroll --tolato", h.cfg.PublicURL()))
+		return
+	}
+	var m db.Machine
+	found := false
+	for _, n := range names {
+		if row, err := h.st.GetMachineByHost(c, n); err == nil {
+			m, found = row, true
+			break
+		} else if !store.IsNotFound(err) {
+			fail(c, err)
+			return
+		}
+	}
+	notOpen := apierr.New(http.StatusForbidden, "enroll_not_open", "机器 %s 没有待接入的安装窗口", names[0]).
+		WithHint("用 patato machine install-cmd %s 生成安装命令后一小时内接入；已吊销的机器也要这样重新接入", names[0])
+	if !found {
+		fail(c, notOpen)
+		return
+	}
+	token := secret.Token("mt")
+	m, err = h.st.EnrollMachineByAttestation(c, db.EnrollMachineByAttestationParams{
+		ID: m.ID, TokenHash: secret.Hash(token), Hostname: truncate(req.Hostname, 255), AgentVersion: truncate(req.Version, 64),
+	})
+	if store.IsNotFound(err) {
+		fail(c, notOpen)
+		return
+	}
+	if err != nil {
+		fail(c, err)
+		return
+	}
+	detail, _ := json.Marshal(map[string]any{"summary": "patato-node 凭 tolato 机器身份证明接入", "tolato_names": names})
+	if err := h.st.InsertAudit(c, db.InsertAuditParams{SubjectKind: "system", SubjectLabel: "patato-node " + m.Host, Entry: "system",
+		Action: "machine.enroll", Target: fmt.Sprintf("machine:%d", m.ID), Risk: "normal", Result: "success", Detail: detail}); err != nil {
+		h.log.Error("audit machine enroll", "err", err)
+	}
+	h.log.Info("machine enrolled via tolato attestation", "machine", m.Host, "hostname", m.Hostname)
 	c.JSON(http.StatusOK, nodeapi.EnrollResponse{Machine: m.Host, Token: token})
 }
 

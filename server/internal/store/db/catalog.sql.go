@@ -129,7 +129,7 @@ const createNode = `-- name: CreateNode :one
 INSERT INTO nodes (code, name, template_id, host, address, region, protocol, port, server_port,
                    settings, rate, state, tags, key_hash, key_cipher, backend)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
-RETURNING id, code, name, template_id, host, address, region, protocol, port, server_port, settings, rate, state, tags, sort, key_hash, key_cipher, allow_legacy_token, last_heartbeat_at, last_push_at, load, created_at, updated_at, version, backend, runtime
+RETURNING id, code, name, template_id, host, address, region, protocol, port, server_port, settings, rate, state, tags, sort, key_hash, key_cipher, allow_legacy_token, last_heartbeat_at, last_push_at, load, created_at, updated_at, version, backend, runtime, monthly_cost
 `
 
 type CreateNodeParams struct {
@@ -198,6 +198,7 @@ func (q *Queries) CreateNode(ctx context.Context, arg CreateNodeParams) (Node, e
 		&i.Version,
 		&i.Backend,
 		&i.Runtime,
+		&i.MonthlyCost,
 	)
 	return i, err
 }
@@ -205,7 +206,7 @@ func (q *Queries) CreateNode(ctx context.Context, arg CreateNodeParams) (Node, e
 const createPlan = `-- name: CreatePlan :one
 INSERT INTO plans (code, name, transfer_bytes, reset_method, device_limit, speed_limit_mbps, prices, sellable)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-RETURNING id, code, name, transfer_bytes, reset_method, device_limit, speed_limit_mbps, prices, sellable, created_at, updated_at, version
+RETURNING id, code, name, transfer_bytes, reset_method, device_limit, speed_limit_mbps, prices, sellable, created_at, updated_at, version, rollout_prices, rollout_percent, rule_profile
 `
 
 type CreatePlanParams struct {
@@ -244,6 +245,9 @@ func (q *Queries) CreatePlan(ctx context.Context, arg CreatePlanParams) (Plan, e
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Version,
+		&i.RolloutPrices,
+		&i.RolloutPercent,
+		&i.RuleProfile,
 	)
 	return i, err
 }
@@ -330,7 +334,7 @@ func (q *Queries) DetachNode(ctx context.Context, arg DetachNodeParams) (int64, 
 }
 
 const getNode = `-- name: GetNode :one
-SELECT id, code, name, template_id, host, address, region, protocol, port, server_port, settings, rate, state, tags, sort, key_hash, key_cipher, allow_legacy_token, last_heartbeat_at, last_push_at, load, created_at, updated_at, version, backend, runtime FROM nodes WHERE id = $1
+SELECT id, code, name, template_id, host, address, region, protocol, port, server_port, settings, rate, state, tags, sort, key_hash, key_cipher, allow_legacy_token, last_heartbeat_at, last_push_at, load, created_at, updated_at, version, backend, runtime, monthly_cost FROM nodes WHERE id = $1
 `
 
 func (q *Queries) GetNode(ctx context.Context, id int64) (Node, error) {
@@ -363,12 +367,13 @@ func (q *Queries) GetNode(ctx context.Context, id int64) (Node, error) {
 		&i.Version,
 		&i.Backend,
 		&i.Runtime,
+		&i.MonthlyCost,
 	)
 	return i, err
 }
 
 const getNodeByCode = `-- name: GetNodeByCode :one
-SELECT id, code, name, template_id, host, address, region, protocol, port, server_port, settings, rate, state, tags, sort, key_hash, key_cipher, allow_legacy_token, last_heartbeat_at, last_push_at, load, created_at, updated_at, version, backend, runtime FROM nodes WHERE code = $1
+SELECT id, code, name, template_id, host, address, region, protocol, port, server_port, settings, rate, state, tags, sort, key_hash, key_cipher, allow_legacy_token, last_heartbeat_at, last_push_at, load, created_at, updated_at, version, backend, runtime, monthly_cost FROM nodes WHERE code = $1
 `
 
 func (q *Queries) GetNodeByCode(ctx context.Context, code string) (Node, error) {
@@ -401,12 +406,13 @@ func (q *Queries) GetNodeByCode(ctx context.Context, code string) (Node, error) 
 		&i.Version,
 		&i.Backend,
 		&i.Runtime,
+		&i.MonthlyCost,
 	)
 	return i, err
 }
 
 const getNodeByKeyHash = `-- name: GetNodeByKeyHash :one
-SELECT id, code, name, template_id, host, address, region, protocol, port, server_port, settings, rate, state, tags, sort, key_hash, key_cipher, allow_legacy_token, last_heartbeat_at, last_push_at, load, created_at, updated_at, version, backend, runtime FROM nodes WHERE key_hash = $1
+SELECT id, code, name, template_id, host, address, region, protocol, port, server_port, settings, rate, state, tags, sort, key_hash, key_cipher, allow_legacy_token, last_heartbeat_at, last_push_at, load, created_at, updated_at, version, backend, runtime, monthly_cost FROM nodes WHERE key_hash = $1
 `
 
 func (q *Queries) GetNodeByKeyHash(ctx context.Context, keyHash []byte) (Node, error) {
@@ -439,12 +445,13 @@ func (q *Queries) GetNodeByKeyHash(ctx context.Context, keyHash []byte) (Node, e
 		&i.Version,
 		&i.Backend,
 		&i.Runtime,
+		&i.MonthlyCost,
 	)
 	return i, err
 }
 
 const getPlan = `-- name: GetPlan :one
-SELECT id, code, name, transfer_bytes, reset_method, device_limit, speed_limit_mbps, prices, sellable, created_at, updated_at, version FROM plans WHERE id = $1
+SELECT id, code, name, transfer_bytes, reset_method, device_limit, speed_limit_mbps, prices, sellable, created_at, updated_at, version, rollout_prices, rollout_percent, rule_profile FROM plans WHERE id = $1
 `
 
 func (q *Queries) GetPlan(ctx context.Context, id int64) (Plan, error) {
@@ -463,12 +470,15 @@ func (q *Queries) GetPlan(ctx context.Context, id int64) (Plan, error) {
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Version,
+		&i.RolloutPrices,
+		&i.RolloutPercent,
+		&i.RuleProfile,
 	)
 	return i, err
 }
 
 const getPlanByCode = `-- name: GetPlanByCode :one
-SELECT id, code, name, transfer_bytes, reset_method, device_limit, speed_limit_mbps, prices, sellable, created_at, updated_at, version FROM plans WHERE code = $1
+SELECT id, code, name, transfer_bytes, reset_method, device_limit, speed_limit_mbps, prices, sellable, created_at, updated_at, version, rollout_prices, rollout_percent, rule_profile FROM plans WHERE code = $1
 `
 
 func (q *Queries) GetPlanByCode(ctx context.Context, code string) (Plan, error) {
@@ -487,6 +497,9 @@ func (q *Queries) GetPlanByCode(ctx context.Context, code string) (Plan, error) 
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Version,
+		&i.RolloutPrices,
+		&i.RolloutPercent,
+		&i.RuleProfile,
 	)
 	return i, err
 }
@@ -556,7 +569,7 @@ func (q *Queries) IsNodeAttached(ctx context.Context, arg IsNodeAttachedParams) 
 }
 
 const listNodePlans = `-- name: ListNodePlans :many
-SELECT p.id, p.code, p.name, p.transfer_bytes, p.reset_method, p.device_limit, p.speed_limit_mbps, p.prices, p.sellable, p.created_at, p.updated_at, p.version FROM plans p JOIN plan_nodes pn ON pn.plan_id = p.id
+SELECT p.id, p.code, p.name, p.transfer_bytes, p.reset_method, p.device_limit, p.speed_limit_mbps, p.prices, p.sellable, p.created_at, p.updated_at, p.version, p.rollout_prices, p.rollout_percent, p.rule_profile FROM plans p JOIN plan_nodes pn ON pn.plan_id = p.id
 WHERE pn.node_id = $1 ORDER BY p.id
 `
 
@@ -582,6 +595,9 @@ func (q *Queries) ListNodePlans(ctx context.Context, nodeID int64) ([]Plan, erro
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.Version,
+			&i.RolloutPrices,
+			&i.RolloutPercent,
+			&i.RuleProfile,
 		); err != nil {
 			return nil, err
 		}
@@ -595,7 +611,7 @@ func (q *Queries) ListNodePlans(ctx context.Context, nodeID int64) ([]Plan, erro
 
 const listNodes = `-- name: ListNodes :many
 
-SELECT id, code, name, template_id, host, address, region, protocol, port, server_port, settings, rate, state, tags, sort, key_hash, key_cipher, allow_legacy_token, last_heartbeat_at, last_push_at, load, created_at, updated_at, version, backend, runtime FROM nodes ORDER BY sort, id
+SELECT id, code, name, template_id, host, address, region, protocol, port, server_port, settings, rate, state, tags, sort, key_hash, key_cipher, allow_legacy_token, last_heartbeat_at, last_push_at, load, created_at, updated_at, version, backend, runtime, monthly_cost FROM nodes ORDER BY sort, id
 `
 
 // 节点 -------------------------------------------------------------------
@@ -635,6 +651,7 @@ func (q *Queries) ListNodes(ctx context.Context) ([]Node, error) {
 			&i.Version,
 			&i.Backend,
 			&i.Runtime,
+			&i.MonthlyCost,
 		); err != nil {
 			return nil, err
 		}
@@ -685,7 +702,7 @@ func (q *Queries) ListPlanNodePairs(ctx context.Context) ([]ListPlanNodePairsRow
 }
 
 const listPlanNodes = `-- name: ListPlanNodes :many
-SELECT n.id, n.code, n.name, n.template_id, n.host, n.address, n.region, n.protocol, n.port, n.server_port, n.settings, n.rate, n.state, n.tags, n.sort, n.key_hash, n.key_cipher, n.allow_legacy_token, n.last_heartbeat_at, n.last_push_at, n.load, n.created_at, n.updated_at, n.version, n.backend, n.runtime FROM nodes n JOIN plan_nodes pn ON pn.node_id = n.id
+SELECT n.id, n.code, n.name, n.template_id, n.host, n.address, n.region, n.protocol, n.port, n.server_port, n.settings, n.rate, n.state, n.tags, n.sort, n.key_hash, n.key_cipher, n.allow_legacy_token, n.last_heartbeat_at, n.last_push_at, n.load, n.created_at, n.updated_at, n.version, n.backend, n.runtime, n.monthly_cost FROM nodes n JOIN plan_nodes pn ON pn.node_id = n.id
 WHERE pn.plan_id = $1 ORDER BY n.sort, n.id
 `
 
@@ -725,6 +742,7 @@ func (q *Queries) ListPlanNodes(ctx context.Context, planID int64) ([]Node, erro
 			&i.Version,
 			&i.Backend,
 			&i.Runtime,
+			&i.MonthlyCost,
 		); err != nil {
 			return nil, err
 		}
@@ -738,7 +756,7 @@ func (q *Queries) ListPlanNodes(ctx context.Context, planID int64) ([]Node, erro
 
 const listPlans = `-- name: ListPlans :many
 
-SELECT p.id, p.code, p.name, p.transfer_bytes, p.reset_method, p.device_limit, p.speed_limit_mbps, p.prices, p.sellable, p.created_at, p.updated_at, p.version,
+SELECT p.id, p.code, p.name, p.transfer_bytes, p.reset_method, p.device_limit, p.speed_limit_mbps, p.prices, p.sellable, p.created_at, p.updated_at, p.version, p.rollout_prices, p.rollout_percent, p.rule_profile,
        (SELECT count(*) FROM users u WHERE u.plan_id = p.id) AS user_count,
        (SELECT count(*) FROM plan_nodes pn WHERE pn.plan_id = p.id) AS node_count
 FROM plans p ORDER BY p.id
@@ -757,6 +775,9 @@ type ListPlansRow struct {
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
 	Version        int64
+	RolloutPrices  json.RawMessage
+	RolloutPercent int32
+	RuleProfile    *string
 	UserCount      int64
 	NodeCount      int64
 }
@@ -784,6 +805,9 @@ func (q *Queries) ListPlans(ctx context.Context) ([]ListPlansRow, error) {
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.Version,
+			&i.RolloutPrices,
+			&i.RolloutPercent,
+			&i.RuleProfile,
 			&i.UserCount,
 			&i.NodeCount,
 		); err != nil {
@@ -965,7 +989,7 @@ UPDATE nodes SET
     name = $2, address = $3, port = $4, server_port = $5, rate = $6, tags = $7, settings = $8,
     sort = $9, backend = $10, updated_at = now(), version = version + 1
 WHERE id = $1
-RETURNING id, code, name, template_id, host, address, region, protocol, port, server_port, settings, rate, state, tags, sort, key_hash, key_cipher, allow_legacy_token, last_heartbeat_at, last_push_at, load, created_at, updated_at, version, backend, runtime
+RETURNING id, code, name, template_id, host, address, region, protocol, port, server_port, settings, rate, state, tags, sort, key_hash, key_cipher, allow_legacy_token, last_heartbeat_at, last_push_at, load, created_at, updated_at, version, backend, runtime, monthly_cost
 `
 
 type UpdateNodeParams struct {
@@ -1022,6 +1046,7 @@ func (q *Queries) UpdateNode(ctx context.Context, arg UpdateNodeParams) (Node, e
 		&i.Version,
 		&i.Backend,
 		&i.Runtime,
+		&i.MonthlyCost,
 	)
 	return i, err
 }
@@ -1032,7 +1057,7 @@ UPDATE plans SET
     speed_limit_mbps = $6, prices = $7, sellable = $8,
     updated_at = now(), version = version + 1
 WHERE id = $1
-RETURNING id, code, name, transfer_bytes, reset_method, device_limit, speed_limit_mbps, prices, sellable, created_at, updated_at, version
+RETURNING id, code, name, transfer_bytes, reset_method, device_limit, speed_limit_mbps, prices, sellable, created_at, updated_at, version, rollout_prices, rollout_percent, rule_profile
 `
 
 type UpdatePlanParams struct {
@@ -1071,6 +1096,9 @@ func (q *Queries) UpdatePlan(ctx context.Context, arg UpdatePlanParams) (Plan, e
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Version,
+		&i.RolloutPrices,
+		&i.RolloutPercent,
+		&i.RuleProfile,
 	)
 	return i, err
 }

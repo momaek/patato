@@ -78,7 +78,7 @@ const createUser = `-- name: CreateUser :one
 INSERT INTO users (email, password_hash, password_algo, uuid, sub_token, plan_id, transfer_bytes,
                    expires_at, device_limit, speed_limit_mbps, reset_anchor, next_reset_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-RETURNING id, email, password_hash, password_algo, password_salt, uuid, sub_token, plan_id, banned, transfer_bytes, used_up, used_down, expires_at, device_limit, speed_limit_mbps, reset_anchor, next_reset_at, last_reset_at, token_reset_at, last_active_at, over_quota_at, created_at, updated_at, version
+RETURNING id, email, password_hash, password_algo, password_salt, uuid, sub_token, plan_id, banned, transfer_bytes, used_up, used_down, expires_at, device_limit, speed_limit_mbps, reset_anchor, next_reset_at, last_reset_at, token_reset_at, last_active_at, over_quota_at, created_at, updated_at, version, balance, invite_code, invited_by, register_ip, rule_profile
 `
 
 type CreateUserParams struct {
@@ -137,6 +137,11 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Version,
+		&i.Balance,
+		&i.InviteCode,
+		&i.InvitedBy,
+		&i.RegisterIp,
+		&i.RuleProfile,
 	)
 	return i, err
 }
@@ -178,7 +183,7 @@ func (q *Queries) DueTrafficResets(ctx context.Context, limit int32) ([]int64, e
 }
 
 const getUser = `-- name: GetUser :one
-SELECT id, email, password_hash, password_algo, password_salt, uuid, sub_token, plan_id, banned, transfer_bytes, used_up, used_down, expires_at, device_limit, speed_limit_mbps, reset_anchor, next_reset_at, last_reset_at, token_reset_at, last_active_at, over_quota_at, created_at, updated_at, version FROM users WHERE id = $1
+SELECT id, email, password_hash, password_algo, password_salt, uuid, sub_token, plan_id, banned, transfer_bytes, used_up, used_down, expires_at, device_limit, speed_limit_mbps, reset_anchor, next_reset_at, last_reset_at, token_reset_at, last_active_at, over_quota_at, created_at, updated_at, version, balance, invite_code, invited_by, register_ip, rule_profile FROM users WHERE id = $1
 `
 
 func (q *Queries) GetUser(ctx context.Context, id int64) (User, error) {
@@ -209,12 +214,17 @@ func (q *Queries) GetUser(ctx context.Context, id int64) (User, error) {
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Version,
+		&i.Balance,
+		&i.InviteCode,
+		&i.InvitedBy,
+		&i.RegisterIp,
+		&i.RuleProfile,
 	)
 	return i, err
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, email, password_hash, password_algo, password_salt, uuid, sub_token, plan_id, banned, transfer_bytes, used_up, used_down, expires_at, device_limit, speed_limit_mbps, reset_anchor, next_reset_at, last_reset_at, token_reset_at, last_active_at, over_quota_at, created_at, updated_at, version FROM users WHERE lower(email) = lower($1)
+SELECT id, email, password_hash, password_algo, password_salt, uuid, sub_token, plan_id, banned, transfer_bytes, used_up, used_down, expires_at, device_limit, speed_limit_mbps, reset_anchor, next_reset_at, last_reset_at, token_reset_at, last_active_at, over_quota_at, created_at, updated_at, version, balance, invite_code, invited_by, register_ip, rule_profile FROM users WHERE lower(email) = lower($1)
 `
 
 func (q *Queries) GetUserByEmail(ctx context.Context, lower string) (User, error) {
@@ -245,12 +255,17 @@ func (q *Queries) GetUserByEmail(ctx context.Context, lower string) (User, error
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Version,
+		&i.Balance,
+		&i.InviteCode,
+		&i.InvitedBy,
+		&i.RegisterIp,
+		&i.RuleProfile,
 	)
 	return i, err
 }
 
 const getUserBySubToken = `-- name: GetUserBySubToken :one
-SELECT id, email, password_hash, password_algo, password_salt, uuid, sub_token, plan_id, banned, transfer_bytes, used_up, used_down, expires_at, device_limit, speed_limit_mbps, reset_anchor, next_reset_at, last_reset_at, token_reset_at, last_active_at, over_quota_at, created_at, updated_at, version FROM users WHERE sub_token = $1
+SELECT id, email, password_hash, password_algo, password_salt, uuid, sub_token, plan_id, banned, transfer_bytes, used_up, used_down, expires_at, device_limit, speed_limit_mbps, reset_anchor, next_reset_at, last_reset_at, token_reset_at, last_active_at, over_quota_at, created_at, updated_at, version, balance, invite_code, invited_by, register_ip, rule_profile FROM users WHERE sub_token = $1
 `
 
 func (q *Queries) GetUserBySubToken(ctx context.Context, subToken string) (User, error) {
@@ -281,12 +296,17 @@ func (q *Queries) GetUserBySubToken(ctx context.Context, subToken string) (User,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Version,
+		&i.Balance,
+		&i.InviteCode,
+		&i.InvitedBy,
+		&i.RegisterIp,
+		&i.RuleProfile,
 	)
 	return i, err
 }
 
 const listUsers = `-- name: ListUsers :many
-SELECT u.id, u.email, u.password_hash, u.password_algo, u.password_salt, u.uuid, u.sub_token, u.plan_id, u.banned, u.transfer_bytes, u.used_up, u.used_down, u.expires_at, u.device_limit, u.speed_limit_mbps, u.reset_anchor, u.next_reset_at, u.last_reset_at, u.token_reset_at, u.last_active_at, u.over_quota_at, u.created_at, u.updated_at, u.version,
+SELECT u.id, u.email, u.password_hash, u.password_algo, u.password_salt, u.uuid, u.sub_token, u.plan_id, u.banned, u.transfer_bytes, u.used_up, u.used_down, u.expires_at, u.device_limit, u.speed_limit_mbps, u.reset_anchor, u.next_reset_at, u.last_reset_at, u.token_reset_at, u.last_active_at, u.over_quota_at, u.created_at, u.updated_at, u.version, u.balance, u.invite_code, u.invited_by, u.register_ip, u.rule_profile,
        (CASE WHEN u.banned THEN 'banned'
              WHEN u.expires_at IS NOT NULL AND u.expires_at <= now() THEN 'expired'
              WHEN u.used_up + u.used_down >= u.transfer_bytes THEN 'over_quota'
@@ -343,6 +363,11 @@ type ListUsersRow struct {
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
 	Version        int64
+	Balance        int64
+	InviteCode     *string
+	InvitedBy      *int64
+	RegisterIp     string
+	RuleProfile    *string
 	State          string
 	PlanCode       *string
 	PlanName       *string
@@ -389,6 +414,11 @@ func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]ListUse
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.Version,
+			&i.Balance,
+			&i.InviteCode,
+			&i.InvitedBy,
+			&i.RegisterIp,
+			&i.RuleProfile,
 			&i.State,
 			&i.PlanCode,
 			&i.PlanName,
@@ -482,7 +512,7 @@ UPDATE users SET
     speed_limit_mbps = $6, banned = $7, reset_anchor = $8, next_reset_at = $9,
     updated_at = now(), version = version + 1
 WHERE id = $1
-RETURNING id, email, password_hash, password_algo, password_salt, uuid, sub_token, plan_id, banned, transfer_bytes, used_up, used_down, expires_at, device_limit, speed_limit_mbps, reset_anchor, next_reset_at, last_reset_at, token_reset_at, last_active_at, over_quota_at, created_at, updated_at, version
+RETURNING id, email, password_hash, password_algo, password_salt, uuid, sub_token, plan_id, banned, transfer_bytes, used_up, used_down, expires_at, device_limit, speed_limit_mbps, reset_anchor, next_reset_at, last_reset_at, token_reset_at, last_active_at, over_quota_at, created_at, updated_at, version, balance, invite_code, invited_by, register_ip, rule_profile
 `
 
 type UpdateUserAdminParams struct {
@@ -535,6 +565,11 @@ func (q *Queries) UpdateUserAdmin(ctx context.Context, arg UpdateUserAdminParams
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Version,
+		&i.Balance,
+		&i.InviteCode,
+		&i.InvitedBy,
+		&i.RegisterIp,
+		&i.RuleProfile,
 	)
 	return i, err
 }

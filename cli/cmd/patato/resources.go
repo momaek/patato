@@ -165,6 +165,7 @@ func (a *app) nodeUpdate(args []string) error {
 	sort := c.fs.Int("sort", 0, "排序")
 	backend := c.fs.String("backend", "", "native 或 uniproxy")
 	settings := c.fs.String("settings", "", "协议设置，完整 JSON 或 @文件")
+	cost := c.fs.String("monthly-cost", "", "每月成本（元），只用于成本报表")
 	w := c.writeFlags()
 	if err := c.parse(args); err != nil {
 		return err
@@ -177,6 +178,13 @@ func (a *app) nodeUpdate(args []string) error {
 	c.copy(body, map[string]any{"name": *nm, "address": *address, "port": *port, "rate": *rate, "sort": *sort, "backend": *backend})
 	if c.set["tag"] {
 		body["tags"] = append([]string{}, tags...)
+	}
+	if c.set["monthly-cost"] {
+		cents, err := parseYuan(*cost)
+		if err != nil {
+			return fmt.Errorf("--monthly-cost %w", err)
+		}
+		body["monthly_cost"] = cents
 	}
 	if c.set["settings"] {
 		v, err := jsonArg(*settings)
@@ -445,10 +453,13 @@ func (a *app) plan(args []string) error {
 		kv(a.out, [][2]string{{"套餐", fmt.Sprintf("%s（%s）", p.Name, p.Code)}, {"流量", gbText(p.TransferGB)},
 			{"重置", label(resetNames, p.ResetMethod)}, {"设备数", limit(p.DeviceLimit, "台")}, {"限速", limit(p.SpeedLimitMbps, "Mbps")},
 			{"价格（元）", pricesText(p.Prices)}, {"对外售卖", map[bool]string{true: "是", false: "否"}[p.Sellable]},
+			{"分流规则", ruleText(p.RuleProfile)},
 			{"用户", strconv.FormatInt(p.UserCount, 10)}, {"节点", orDash(strings.Join(nodes, "、"))}, {"版本", fmt.Sprintf("v%d", p.Version)}})
 		return nil
 	case "create", "update":
 		return a.planWrite(sub, rest)
+	case "history":
+		return a.planHistory(rest)
 	case "delete", "rm":
 		return a.nodeRef(rest, "plan delete", "patato plan delete <套餐>\n\n删除套餐（敏感操作，需要审批）。", "DELETE", epPlan)
 	}
@@ -471,19 +482,41 @@ func (a *app) planWrite(verb string, args []string) error {
 	c.fs.Var(&prices, "price", "价格，周期=元，可重复；update 时给出的是完整价格表")
 	sellable := c.fs.Bool("sellable", false, "对外售卖")
 	apply := c.fs.Bool("apply-to-users", false, "update：把新的流量额度同步给这个套餐下的所有用户")
+	var rollout multi
+	c.fs.Var(&rollout, "rollout-price", "灰度价格，周期=元，可重复；落在灰度范围内的用户按它下单")
+	percent := c.fs.Int("rollout-percent", 0, "灰度比例（0–100）")
+	promote := c.fs.Bool("promote-rollout", false, "update：把灰度价格转为正式价格并结束灰度")
+	endRollout := c.fs.Bool("end-rollout", false, "update：结束灰度，恢复原价")
+	rule := c.fs.String("rule-profile", "", "默认分流规则（代号）；update 时传空字符串改回内置规则")
 	w := c.writeFlags()
 	if err := c.parse(args); err != nil {
 		return err
 	}
 	body := map[string]any{}
 	c.copy(body, map[string]any{"name": *nm, "transfer_gb": *transfer, "reset_method": *reset, "device_limit": *devices,
-		"speed_limit_mbps": *speed, "sellable": *sellable})
+		"speed_limit_mbps": *speed, "sellable": *sellable, "rule_profile": *rule})
 	if c.set["price"] {
 		p, err := parsePrices(prices)
 		if err != nil {
 			return err
 		}
 		body["prices"] = p
+	}
+	if c.set["rollout-price"] {
+		p, err := parsePrices(rollout)
+		if err != nil {
+			return err
+		}
+		body["rollout_prices"] = p
+	}
+	if c.set["rollout-percent"] {
+		body["rollout_percent"] = *percent
+	}
+	if *promote {
+		body["promote_rollout"] = true
+	}
+	if *endRollout {
+		body["end_rollout"] = true
 	}
 	if verb == "create" {
 		c.copy(body, map[string]any{"code": *code})
@@ -497,6 +530,13 @@ func (a *app) planWrite(verb string, args []string) error {
 		return err
 	}
 	return a.mutate("PATCH", client.Path(epPlan, ref), body, w)
+}
+
+func ruleText(code *string) string {
+	if code == nil {
+		return "内置规则"
+	}
+	return *code
 }
 
 // ---- user ---------------------------------------------------------------
@@ -631,6 +671,7 @@ func (a *app) userWrite(verb string, args []string) error {
 	devices := c.fs.Int("device-limit", 0, "单独设置设备数")
 	speed := c.fs.Int("speed-limit", 0, "单独设置限速（Mbps）")
 	banned := c.fs.Bool("banned", false, "update：封禁（--banned=false 解封）")
+	rule := c.fs.String("rule-profile", "", "update：替用户选分流规则（代号）；传空字符串改回跟随套餐")
 	w := c.writeFlags()
 	if err := c.parse(args); err != nil {
 		return err
@@ -648,7 +689,7 @@ func (a *app) userWrite(verb string, args []string) error {
 		c.copy(body, map[string]any{"email": *email, "password": *password, "days": *days})
 		return a.mutate("POST", epUsers, body, w)
 	}
-	c.copy(body, map[string]any{"extend_days": *extend, "never_expire": *never, "banned": *banned})
+	c.copy(body, map[string]any{"extend_days": *extend, "never_expire": *never, "banned": *banned, "rule_profile": *rule})
 	ref, err := c.arg(0, "用户")
 	if err != nil {
 		return err

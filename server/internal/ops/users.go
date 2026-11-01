@@ -142,6 +142,8 @@ type userUpdateParams struct {
 	DeviceLimit    *int       `json:"device_limit"`
 	SpeedLimitMbps *int       `json:"speed_limit_mbps"`
 	Banned         *bool      `json:"banned"`
+	// RuleProfile 为空字符串时清除用户自选的分流规则，改回跟随套餐。
+	RuleProfile *string `json:"rule_profile"`
 }
 
 type userState struct {
@@ -154,12 +156,14 @@ type userState struct {
 	Banned         bool       `json:"banned"`
 	ResetAnchor    *time.Time `json:"-"`
 	NextResetAt    *time.Time `json:"next_reset_at"`
+	RuleProfile    *string    `json:"rule_profile"`
 }
 
 // next 计算修改后的用户状态。续期从当前到期日接着算，已过期则从现在算。
 func (o *UserUpdate) next(ctx context.Context, q *db.Queries, p *userUpdateParams, u db.User) (userState, userState, error) {
 	cur := userState{PlanID: u.PlanID, ExpiresAt: u.ExpiresAt, TransferBytes: u.TransferBytes, DeviceLimit: u.DeviceLimit,
-		SpeedLimitMbps: u.SpeedLimitMbps, Banned: u.Banned, ResetAnchor: u.ResetAnchor, NextResetAt: u.NextResetAt}
+		SpeedLimitMbps: u.SpeedLimitMbps, Banned: u.Banned, ResetAnchor: u.ResetAnchor, NextResetAt: u.NextResetAt,
+		RuleProfile: u.RuleProfile}
 	if u.PlanID != nil {
 		if pl, err := q.GetPlan(ctx, *u.PlanID); err == nil {
 			cur.PlanCode = pl.Code
@@ -207,6 +211,16 @@ func (o *UserUpdate) next(ctx context.Context, q *db.Queries, p *userUpdateParam
 	}
 	if p.Banned != nil {
 		nxt.Banned = *p.Banned
+	}
+	if p.RuleProfile != nil {
+		nxt.RuleProfile = nil
+		if *p.RuleProfile != "" {
+			rp, err := findRuleProfile(ctx, q, Ref(*p.RuleProfile))
+			if err != nil {
+				return cur, nxt, err
+			}
+			nxt.RuleProfile = &rp.Code
+		}
 	}
 	return cur, nxt, nil
 }
@@ -264,6 +278,11 @@ func (o *UserUpdate) Apply(ctx context.Context, q *db.Queries, raw json.RawMessa
 	})
 	if err != nil {
 		return nil, err
+	}
+	if !equalPtr(u.RuleProfile, s.RuleProfile) {
+		if err := q.SetUserRuleProfile(ctx, db.SetUserRuleProfileParams{ID: u.ID, RuleProfile: s.RuleProfile}); err != nil {
+			return nil, err
+		}
 	}
 	return map[string]any{"user_id": updated.ID, "expires_at": updated.ExpiresAt, "version": updated.Version}, nil
 }

@@ -26,6 +26,15 @@ UPDATE machines SET token_hash = sqlc.arg(token_hash), enroll_hash = NULL, enrol
 WHERE enroll_hash = sqlc.arg(enroll_hash) AND enroll_expires_at > now()
 RETURNING *;
 
+-- name: EnrollMachineByAttestation :one
+-- 凭 tolato 的机器身份证明接入：只接受正在接入的机器（换发 token），或安装窗口还开着的机器
+-- （生成安装命令时打开，一小时内有效）。吊销后要重新生成安装命令才能再接入。
+UPDATE machines SET token_hash = sqlc.arg(token_hash), enroll_hash = NULL, enroll_cipher = NULL, enroll_expires_at = NULL,
+    hostname = sqlc.arg(hostname), agent_version = sqlc.arg(agent_version), enrolled_at = now(), last_seen_at = now(),
+    updated_at = now(), version = version + 1
+WHERE id = sqlc.arg(id) AND (token_hash IS NOT NULL OR enroll_expires_at > now())
+RETURNING *;
+
 -- name: RevokeMachine :exec
 UPDATE machines SET token_hash = NULL, enroll_hash = NULL, enroll_cipher = NULL, enroll_expires_at = NULL,
     updated_at = now(), version = version + 1
