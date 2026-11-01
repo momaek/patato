@@ -3,6 +3,7 @@
 package api
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -13,12 +14,16 @@ import (
 	"github.com/momaek/patato/server/internal/approval"
 	"github.com/momaek/patato/server/internal/auth"
 	"github.com/momaek/patato/server/internal/change"
+	"github.com/momaek/patato/server/internal/commerce"
 	"github.com/momaek/patato/server/internal/config"
+	"github.com/momaek/patato/server/internal/events"
 	"github.com/momaek/patato/server/internal/frontend"
 	"github.com/momaek/patato/server/internal/native"
 	"github.com/momaek/patato/server/internal/notify"
+	"github.com/momaek/patato/server/internal/rules"
 	"github.com/momaek/patato/server/internal/secret"
 	"github.com/momaek/patato/server/internal/store"
+	"github.com/momaek/patato/server/internal/store/db"
 	"github.com/momaek/patato/server/internal/subscribe"
 	"github.com/momaek/patato/server/internal/uniproxy"
 	"github.com/momaek/patato/web"
@@ -41,7 +46,15 @@ type Deps struct {
 	Native    *native.Handler
 	Mailer    notify.Mailer
 	Telegram  TelegramBinder
+	Commerce  *commerce.Service
+	Events    EventEmitter
+	Rules     *rules.Service
 	Log       *slog.Logger
+}
+
+// EventEmitter 记录事件，由 events.Recorder 实现。
+type EventEmitter interface {
+	Emit(ctx context.Context, q *db.Queries, e events.Event)
 }
 
 type Server struct {
@@ -56,6 +69,10 @@ func New(d Deps) *Server {
 	e := gin.New()
 	e.Use(gin.Recovery(), requestLog(d.Log))
 	e.HandleMethodNotAllowed = true
+	if err := e.SetTrustedProxies(d.Cfg.TrustedProxies); err != nil {
+		d.Log.Warn("invalid trusted_proxies, trusting none", "err", err)
+		_ = e.SetTrustedProxies(nil)
+	}
 	s := &Server{d: d, engine: e, loc: d.Cfg.Location()}
 	admin, portal := web.Assets()
 	s.frontend = frontend.New(d.Cfg.AdminURL, d.Cfg.PortalURL, admin, portal)

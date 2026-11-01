@@ -8,7 +8,7 @@ import { Alert, Badge, Button, Card, Code, Dialog, LoadState, Section } from '@p
 import PageHeader from '../components/PageHeader.vue'
 import Table from '../components/Table.vue'
 import { approve, passkeyError, supported } from '../lib/passkey'
-import { approvalStates, entries, fields, risks, show, subjectKinds } from '../lib/labels'
+import { approvalStates, entries, fieldName, fields, risks, show, subjectKinds } from '../lib/labels'
 
 const route = useRoute()
 const qc = useQueryClient()
@@ -29,16 +29,32 @@ const a = computed(() => q.data.value)
 const expired = computed(() => !!a.value && a.value.status === 'pending' && new Date(a.value.expires_at) < new Date())
 const status = computed(() => (expired.value ? 'expired' : a.value?.status ?? 'pending'))
 const escalated = computed(() => a.value && a.value.change.declared_risk !== a.value.change.risk)
+// 多人审批：已批准的人；需要一次性码的审批，码经 Telegram 私聊发给自己
+const votes = computed(() => a.value?.votes ?? [])
+const code = ref('')
+const codeSent = ref('')
+async function sendCode() {
+  error.value = ''
+  try {
+    const r = await api.post<{ expires_at: string; note: string }>('/api/v1/approvals/{id}:send-code', { params: { id: id.value } })
+    codeSent.value = r.note
+    toast.success('一次性码已发到你的 Telegram')
+  } catch (e) {
+    error.value = errorText(e)
+  }
+}
 
 async function doApprove() {
   error.value = ''
   busy.value = 'approve'
   try {
-    const d = await approve(id.value, fromCLI.value ? 'cli_passkey' : 'web')
+    const d = await approve(id.value, fromCLI.value ? 'cli_passkey' : 'web', a.value?.needs_code ? code.value.trim() : undefined)
     qc.setQueryData(['approval', id], d)
     qc.invalidateQueries({ queryKey: ['approvals'] })
     qc.invalidateQueries({ queryKey: ['status'] })
-    toast.success(d.change.status === 'applied' ? '已批准并执行' : '已批准')
+    code.value = ''
+    if (d.status === 'pending') toast.success(`已记下你的批准（${d.votes.length}/${d.required}），还需要其他运营者批准`)
+    else toast.success(d.change.status === 'applied' ? '已批准并执行' : '已批准')
   } catch (e) {
     error.value = passkeyError(e) ?? errorText(e)
     q.refetch()
@@ -64,7 +80,7 @@ async function doReject() {
 }
 
 function targetText(t: { type: string; id: number; version: number }) {
-  return `${{ plan: '套餐', node: '节点', user: '用户', template: '模板', machine: '机器' }[t.type] ?? t.type} #${t.id}，版本 ${t.version}`
+  return `${{ plan: '套餐', node: '节点', user: '用户', template: '模板', machine: '机器', order: '订单', coupon: '优惠券', ticket: '工单', webhook: 'Webhook', automation: '规则', setting: '设置' }[t.type] ?? t.type} #${t.id}，版本 ${t.version}`
 }
 </script>
 
@@ -99,7 +115,7 @@ function targetText(t: { type: string; id: number; version: number }) {
               <thead><tr><th scope="col">字段</th><th scope="col">现在</th><th scope="col">批准后</th></tr></thead>
               <tbody>
                 <tr v-for="d in a.change.diff ?? []" :key="d.field">
-                  <th scope="row" class="w-36 !border-b-0 !text-[14px] !font-medium !text-ink">{{ d.field }}</th>
+                  <th scope="row" class="w-36 !border-b-0 !text-[14px] !font-medium !text-ink">{{ fieldName(d.field) }}</th>
                   <td v-for="(v, i) in [d.before, d.after]" :key="i" :class="i === 0 ? 'text-muted' : ''">
                     <dl v-if="fields(v)" class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5">
                       <template v-for="[k, x] in fields(v)" :key="k"><dt class="text-muted">{{ k }}</dt><dd>{{ x }}</dd></template>
@@ -137,12 +153,25 @@ function targetText(t: { type: string; id: number; version: number }) {
             <template v-if="status === 'pending'">
               <Alert v-if="fromCLI" tone="accent">这是 patato CLI 拉起的确认页。批准后回到终端，CLI 会自动继续。</Alert>
               <Alert v-if="!supported()" tone="warn">这个浏览器不支持 passkey，用 Telegram 卡片批准。</Alert>
+              <div v-if="a.required > 1" class="flex flex-col gap-1 rounded-lg bg-bg px-3 py-2 text-[13px]">
+                <p class="font-medium">需要 {{ a.required }} 名运营者批准，已批准 {{ votes.length }} 名</p>
+                <p v-for="v in votes" :key="v.operator" class="text-muted">{{ v.operator }}，经{{ entries[v.via] ?? v.via }}，{{ fmt.dateTime(v.at) }}</p>
+              </div>
+              <div v-if="a.needs_code" class="flex flex-col gap-2 rounded-lg border border-warn/30 bg-warn-soft/40 px-3 py-3">
+                <p class="text-[13px]">这类操作除了 passkey，还要输入私聊发到你 Telegram 的一次性码。码只在这里输入，不要告诉任何人或 Agent。</p>
+                <div class="flex gap-2">
+                  <label class="sr-only" for="otp">一次性码</label>
+                  <input id="otp" v-model="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6 位数字" class="field-input min-w-0 flex-1 font-mono tracking-widest" />
+                  <Button @click="sendCode">发送一次性码</Button>
+                </div>
+                <p v-if="codeSent" class="text-[13px] text-muted">{{ codeSent }}</p>
+              </div>
               <Alert v-if="error">{{ error }}</Alert>
-              <Button variant="primary" size="lg" block :loading="busy === 'approve'" :disabled="!!busy || !supported()" @click="doApprove">用 passkey 批准</Button>
+              <Button variant="primary" size="lg" block :loading="busy === 'approve'" :disabled="!!busy || !supported() || (a.needs_code && code.trim().length !== 6)" @click="doApprove">用 passkey 批准</Button>
               <Button size="lg" block :disabled="!!busy" @click="rejectOpen = true">拒绝</Button>
               <p class="text-[13px] text-muted">这次批准只对这一个变更有效。执行时如果相关对象已被改过，批准会作废，需要重新发起。</p>
               <div class="flex flex-col gap-1.5 border-t border-line-soft pt-3 text-[13px] text-muted">
-                <p>不在电脑前？Telegram 里的审批卡片同样可以批准。在终端里也可以运行：</p>
+                <p>{{ a.needs_code ? '这类审批不能在 Telegram 卡片里批准。' : '不在电脑前？Telegram 里的审批卡片同样可以批准。' }}在终端里也可以运行：</p>
                 <Code :text="`patato approval approve ${a.approval_id}`" block />
               </div>
             </template>

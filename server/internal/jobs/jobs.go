@@ -88,13 +88,66 @@ func (w *notifyWorker) Work(ctx context.Context, job *river.Job[NotifyArgs]) err
 	return nil
 }
 
-type Runner struct {
-	client *river.Client[pgx.Tx]
-	log    *slog.Logger
+// Dispatcher 处理事件的自动动作：执行自动处置规则，推送 Webhook。
+type Dispatcher interface {
+	Dispatch(ctx context.Context, eventID int64) ([]int64, error)
+	Deliver(ctx context.Context, webhookID, eventID int64) error
 }
 
-// New 创建任务调度器。sender 为 nil 时不推送通知（未配置 Telegram）。
-func New(pool *pgxpool.Pool, tasks []Task, sender Sender, log *slog.Logger) (*Runner, error) {
+// DispatchArgs 对一个事件执行自动处置规则，并为每个匹配的 Webhook 排一个推送任务。
+type DispatchArgs struct {
+	EventID int64 `json:"event_id"`
+}
+
+func (DispatchArgs) Kind() string { return "dispatch" }
+
+// DeliverArgs 把一个事件推送到一个 Webhook，失败时重试。
+type DeliverArgs struct {
+	WebhookID int64 `json:"webhook_id"`
+	EventID   int64 `json:"event_id"`
+}
+
+func (DeliverArgs) Kind() string { return "deliver" }
+
+type dispatchWorker struct {
+	river.WorkerDefaults[DispatchArgs]
+	d      Dispatcher
+	runner *Runner
+}
+
+func (w *dispatchWorker) Work(ctx context.Context, job *river.Job[DispatchArgs]) error {
+	ids, err := w.d.Dispatch(ctx, job.Args.EventID)
+	if err != nil {
+		return err
+	}
+	for _, id := range ids {
+		if _, err := w.runner.client.Insert(ctx, DeliverArgs{WebhookID: id, EventID: job.Args.EventID}, &river.InsertOpts{MaxAttempts: 8}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+type deliverWorker struct {
+	river.WorkerDefaults[DeliverArgs]
+	d Dispatcher
+}
+
+func (w *deliverWorker) Work(ctx context.Context, job *river.Job[DeliverArgs]) error {
+	return w.d.Deliver(ctx, job.Args.WebhookID, job.Args.EventID)
+}
+
+func (w *deliverWorker) Timeout(*river.Job[DeliverArgs]) time.Duration { return 30 * time.Second }
+
+type Runner struct {
+	client     *river.Client[pgx.Tx]
+	dispatcher Dispatcher
+	log        *slog.Logger
+}
+
+// New 创建任务调度器。sender 为 nil 时不推送通知（未配置 Telegram）；dispatcher 为 nil 时不执行自动动作。
+func New(pool *pgxpool.Pool, tasks []Task, sender Sender, dispatcher Dispatcher, log *slog.Logger) (*Runner, error) {
+	runner := &Runner{dispatcher: dispatcher, log: log}
 	workers := river.NewWorkers()
 	byName := map[string]Task{}
 	var periodic []*river.PeriodicJob
@@ -114,6 +167,10 @@ func New(pool *pgxpool.Pool, tasks []Task, sender Sender, log *slog.Logger) (*Ru
 		sender = noopSender{}
 	}
 	river.AddWorker(workers, &notifyWorker{sender: sender})
+	if dispatcher != nil {
+		river.AddWorker(workers, &dispatchWorker{d: dispatcher, runner: runner})
+		river.AddWorker(workers, &deliverWorker{d: dispatcher})
+	}
 	client, err := river.NewClient(riverpgxv5.New(pool), &river.Config{
 		Logger:       log,
 		Queues:       map[string]river.QueueConfig{river.QueueDefault: {MaxWorkers: 10}},
@@ -123,21 +180,27 @@ func New(pool *pgxpool.Pool, tasks []Task, sender Sender, log *slog.Logger) (*Ru
 	if err != nil {
 		return nil, err
 	}
-	return &Runner{client: client, log: log}, nil
+	runner.client = client
+	return runner, nil
 }
 
 func (r *Runner) Start(ctx context.Context) error { return r.client.Start(ctx) }
 
 func (r *Runner) Stop(ctx context.Context) error { return r.client.Stop(ctx) }
 
-func (r *Runner) enqueue(ctx context.Context, args NotifyArgs) {
+func (r *Runner) enqueue(ctx context.Context, args river.JobArgs) {
 	if _, err := r.client.Insert(ctx, args, &river.InsertOpts{MaxAttempts: 5}); err != nil {
-		r.log.Error("enqueue notification", "err", err)
+		r.log.Error("enqueue job", "kind", args.Kind(), "err", err)
 	}
 }
 
-// EventCreated 实现 events.Notifier。
-func (r *Runner) EventCreated(ctx context.Context, id int64) { r.enqueue(ctx, NotifyArgs{EventID: id}) }
+// EventCreated 实现 events.Notifier：推送通知，并触发自动动作。
+func (r *Runner) EventCreated(ctx context.Context, id int64) {
+	r.enqueue(ctx, NotifyArgs{EventID: id})
+	if r.dispatcher != nil {
+		r.enqueue(ctx, DispatchArgs{EventID: id})
+	}
+}
 
 // ApprovalCreated 实现 change.ApprovalNotifier。
 func (r *Runner) ApprovalCreated(ctx context.Context, id string) {

@@ -47,6 +47,9 @@ type Config struct {
 	Timezone string `yaml:"timezone"`
 	// MetricsToken 非空时开放 /metrics（Prometheus），抓取时带 Authorization: Bearer <token>。
 	MetricsToken string `yaml:"metrics_token"`
+	// TrustedProxies 是可信的反向代理地址：只有来自它们的 X-Forwarded-For 才被采信，
+	// 注册限流和返佣风控按客户端 IP 判断。默认本机和内网（Caddy 所在的 Docker 网络）。
+	TrustedProxies []string `yaml:"trusted_proxies"`
 
 	Node     NodeConfig     `yaml:"node"`
 	Risk     RiskConfig     `yaml:"risk"`
@@ -56,6 +59,70 @@ type Config struct {
 	Telegram TelegramConfig `yaml:"telegram"`
 	SMTP     SMTPConfig     `yaml:"smtp"`
 	Tolato   TolatoConfig   `yaml:"tolato"`
+
+	Payment      PaymentConfig      `yaml:"payment"`
+	Registration RegistrationConfig `yaml:"registration"`
+	Approval     ApprovalConfig     `yaml:"approval"`
+	Anomaly      AnomalyConfig      `yaml:"anomaly"`
+}
+
+type PaymentConfig struct {
+	// OrderTimeout 是待支付订单的有效期，超时自动取消。
+	OrderTimeout Duration        `yaml:"order_timeout"`
+	Methods      []PaymentMethod `yaml:"methods"`
+}
+
+// PaymentMethod 是一种支付方式。driver 目前支持 epay（易支付及兼容接口）。
+type PaymentMethod struct {
+	Code   string `yaml:"code"`
+	Name   string `yaml:"name"`
+	Driver string `yaml:"driver"`
+	URL    string `yaml:"url"`
+	PID    string `yaml:"pid"`
+	Key    string `yaml:"key"`
+	// Type 是易支付的渠道（alipay、wxpay），为空时由收银台选择。
+	Type string `yaml:"type"`
+}
+
+type RegistrationConfig struct {
+	// Enabled 为 true 时用户侧开放注册。
+	Enabled bool `yaml:"enabled"`
+	// RequireInvite 为 true 时只能凭邀请码注册。
+	RequireInvite bool `yaml:"require_invite"`
+}
+
+type ApprovalConfig struct {
+	// Required 是敏感操作默认需要几名运营者批准。
+	Required int `yaml:"required"`
+	// RequiredFor 按操作覆盖人数，例如 order.refund: 2。
+	RequiredFor map[string]int `yaml:"required_for"`
+	// CodeFor 列出批准时除 passkey 外还要输入一次性码（经 Telegram 私聊下发）的操作。
+	CodeFor []string `yaml:"code_for"`
+}
+
+// Policy 返回某种操作的审批要求。
+func (a ApprovalConfig) Policy(kind string) (int, bool) {
+	n := a.Required
+	if v, ok := a.RequiredFor[kind]; ok {
+		n = v
+	}
+	if n < 1 {
+		n = 1
+	}
+	for _, k := range a.CodeFor {
+		if k == kind {
+			return n, true
+		}
+	}
+	return n, false
+}
+
+type AnomalyConfig struct {
+	// 用户某天的用量超过前 7 天日均的 Factor 倍、且不少于 MinGB 时发出流量异常事件。Factor 为 0 时不检测。
+	Factor int     `yaml:"factor"`
+	MinGB  float64 `yaml:"min_gb"`
+	// ExpiringDays 天内到期的用户发出「即将到期」事件，可用于自动发提醒邮件。0 表示不发。
+	ExpiringDays int `yaml:"expiring_days"`
 }
 
 type NodeConfig struct {
@@ -112,6 +179,9 @@ type TolatoConfig struct {
 	// PanelHost 是 Patato 所在主机在 tolato 里的名称，用于面板主机执行告警。
 	PanelHost string   `yaml:"panel_host"`
 	PollEvery Duration `yaml:"poll_every"`
+	// AttestEnroll 为 true 时，patato-node 经本机 tolato-agent 签发的身份证明接入，安装命令里不再带注册码。
+	// 需要 tolato 提供 /api/v1/attestations/verify。
+	AttestEnroll bool `yaml:"attest_enroll"`
 }
 
 // Load 读取配置文件；path 为空时只用默认值和环境变量。
@@ -136,9 +206,10 @@ func Load(path string) (*Config, error) {
 
 func Default() *Config {
 	return &Config{
-		Listen:      ":8080",
-		ServiceName: "Patato",
-		Timezone:    "Asia/Shanghai",
+		Listen:         ":8080",
+		ServiceName:    "Patato",
+		TrustedProxies: []string{"127.0.0.1/8", "::1/128", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "fc00::/7"},
+		Timezone:       "Asia/Shanghai",
 		Node: NodeConfig{
 			PushInterval: 60,
 			PullInterval: 60,
@@ -152,8 +223,11 @@ func Default() *Config {
 		WebAuthn: WebAuthnConfig{
 			RPName: "Patato",
 		},
-		SMTP:   SMTPConfig{Port: 587},
-		Tolato: TolatoConfig{PollEvery: Duration(time.Minute)},
+		SMTP:     SMTPConfig{Port: 587},
+		Tolato:   TolatoConfig{PollEvery: Duration(time.Minute)},
+		Payment:  PaymentConfig{OrderTimeout: Duration(30 * time.Minute)},
+		Approval: ApprovalConfig{Required: 1},
+		Anomaly:  AnomalyConfig{Factor: 5, MinGB: 20, ExpiringDays: 3},
 	}
 }
 
@@ -240,6 +314,26 @@ func (c *Config) Validate() error {
 	}
 	if c.Risk.UserThreshold <= 0 || c.Risk.NodeThreshold <= 0 {
 		errs = append(errs, errors.New("risk thresholds must be positive"))
+	}
+	seen := map[string]bool{}
+	for i, m := range c.Payment.Methods {
+		switch {
+		case m.Code == "" || strings.ContainsAny(m.Code, "/?# "):
+			errs = append(errs, fmt.Errorf("payment.methods[%d].code is required and must be a plain word", i))
+		case seen[m.Code]:
+			errs = append(errs, fmt.Errorf("payment.methods[%d].code %q is duplicated", i, m.Code))
+		case m.Driver != "epay":
+			errs = append(errs, fmt.Errorf("payment.methods[%d].driver %q is not supported (epay)", i, m.Driver))
+		case m.URL == "" || m.PID == "" || m.Key == "":
+			errs = append(errs, fmt.Errorf("payment.methods[%d] needs url, pid and key", i))
+		}
+		seen[m.Code] = true
+	}
+	if c.Tolato.AttestEnroll && (c.Tolato.URL == "" || c.Tolato.APIKey == "") {
+		errs = append(errs, errors.New("tolato.attest_enroll needs tolato.url and tolato.api_key"))
+	}
+	if c.Approval.Required < 1 {
+		errs = append(errs, errors.New("approval.required must be at least 1"))
 	}
 	return errors.Join(errs...)
 }

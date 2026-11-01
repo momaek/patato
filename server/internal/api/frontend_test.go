@@ -23,7 +23,7 @@ func TestEmbeddedFrontends(t *testing.T) {
 	s := New(Deps{
 		Cfg: cfg, Log: log,
 		UniProxy:  uniproxy.New(nil, uniproxy.Config{}, nil, log),
-		Subscribe: subscribe.New(nil, subscribe.Config{}, log),
+		Subscribe: subscribe.New(nil, subscribe.Config{}, nil, log),
 	})
 	assetPattern := regexp.MustCompile(`(?:src|href)="(/assets/[^"]+)"`)
 	for _, tc := range []struct{ host, path, title string }{

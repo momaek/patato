@@ -39,6 +39,20 @@ func Hash(token string) []byte {
 // HexToken 生成 n 字节的十六进制随机串，订阅 token 沿用 Xboard 的 32 位十六进制格式。
 func HexToken(n int) string { return hex.EncodeToString(randBytes(n)) }
 
+// NumericCode 生成 n 位数字码，例如审批用的一次性码。
+func NumericCode(n int) string {
+	out := make([]byte, 0, n)
+	for len(out) < n {
+		for _, c := range randBytes(n) {
+			// 丢掉 250 以上的值，避免取模带来的偏差
+			if c < 250 && len(out) < n {
+				out = append(out, '0'+c%10)
+			}
+		}
+	}
+	return string(out)
+}
+
 // UserCode 是给人看的短码，格式 XXXX-XXXX，去掉了容易混淆的字符。
 func UserCode() string {
 	const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"

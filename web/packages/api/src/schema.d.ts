@@ -1001,6 +1001,817 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/audit/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 导出审计日志（CSV 或 JSON，支持按时间、动作筛选） */
+        get: operations["get_audit_export"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/reports/traffic": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 流量报表：每日流量与用量最多的用户 */
+        get: operations["get_reports_traffic"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/reports/revenue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 收入报表：每日收入、退款、按套餐汇总 */
+        get: operations["get_reports_revenue"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/reports/nodes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 节点成本报表：流量、成本与每 GB 成本 */
+        get: operations["get_reports_nodes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/plans/{id}/revisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 套餐历史版本 */
+        get: operations["get_plans_id_revisions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/rule-profiles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 分流规则列表 */
+        get: operations["get_rule_profiles"];
+        put?: never;
+        /** 新建分流规则（ini 地址或内容，或用 preset 导入内置模板） */
+        post: operations["post_rule_profiles"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/rule-profiles/presets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 可一键导入的 ACL4SSR 模板 */
+        get: operations["get_rule_profiles_presets"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/rule-profiles/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 分流规则详情：ini 内容、策略组、规则文件缓存状态 */
+        get: operations["get_rule_profiles_id"];
+        put?: never;
+        post?: never;
+        /** 删除分流规则 */
+        delete: operations["delete_rule_profiles_id"];
+        options?: never;
+        head?: never;
+        /** 修改分流规则 */
+        patch: operations["patch_rule_profiles_id"];
+        trace?: never;
+    };
+    "/api/v1/rule-profiles/{id}:refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 立即重新拉取分流规则 */
+        post: operations["post_rule_profiles_id_refresh"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 订单列表 */
+        get: operations["get_orders"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/orders/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 订单详情：支付回调、返佣、审计 */
+        get: operations["get_orders_id"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/orders/{id}:refund": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 退款：扣回套餐时长、退回余额、撤销返佣 */
+        post: operations["post_orders_id_refund"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/orders/{id}:mark-paid": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 支付回调丢失时手动确认收款并开通 */
+        post: operations["post_orders_id_mark_paid"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/orders/{id}:cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 取消待支付订单 */
+        post: operations["post_orders_id_cancel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/coupons": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 优惠券列表 */
+        get: operations["get_coupons"];
+        put?: never;
+        /** 新建优惠券 */
+        post: operations["post_coupons"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/coupons/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 优惠券详情 */
+        get: operations["get_coupons_id"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** 修改优惠券（只停用时为常规，其余为敏感） */
+        patch: operations["patch_coupons_id"];
+        trace?: never;
+    };
+    "/api/v1/referrals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 返佣明细与汇总，可按状态（frozen 等）和邀请人筛选 */
+        get: operations["get_referrals"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/referrals/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 返佣规则 */
+        get: operations["get_referrals_settings"];
+        /** 修改返佣规则 */
+        put: operations["put_referrals_settings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/referrals/{id}:release": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 解冻邀请人被冻结的返佣 */
+        post: operations["post_referrals_id_release"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tickets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 工单列表 */
+        get: operations["get_tickets"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tickets/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 工单详情：对话、草稿，以及用户状态、订单、节点状态 */
+        get: operations["get_tickets_id"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tickets/{id}:draft": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 保存回复草稿（不会发给用户），或标为「等你处理」 */
+        post: operations["post_tickets_id_draft"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tickets/{id}:reply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 发送回复 */
+        post: operations["post_tickets_id_reply"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tickets/{id}:close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 关闭工单 */
+        post: operations["post_tickets_id_close"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/webhooks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Webhook 列表 */
+        get: operations["get_webhooks"];
+        put?: never;
+        /** 新建 Webhook：把事件推送到外部地址 */
+        post: operations["post_webhooks"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/webhooks/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** 删除 Webhook */
+        delete: operations["delete_webhooks_id"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/webhooks/{id}/secret": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Webhook 签名密钥 */
+        get: operations["get_webhooks_id_secret"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/automations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 自动处置规则列表 */
+        get: operations["get_automations"];
+        put?: never;
+        /** 新建自动处置规则 */
+        post: operations["post_automations"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/automations/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** 删除自动处置规则 */
+        delete: operations["delete_automations_id"];
+        options?: never;
+        head?: never;
+        /** 修改自动处置规则（只停用时为常规，其余为敏感） */
+        patch: operations["patch_automations_id"];
+        trace?: never;
+    };
+    "/api/v1/approvals/{id}:send-code": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 把一次性码私聊发到绑定的 Telegram */
+        post: operations["post_approvals_id_send_code"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/traffic": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 最近 30 天每日用量 */
+        get: operations["get_me_traffic"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/rule-profiles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 可以自选的分流规则与当前生效的规则 */
+        get: operations["get_me_rule_profiles"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/rule-profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** 选择分流规则（空字符串为跟随套餐默认） */
+        put: operations["put_me_rule_profile"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 用户侧设置：是否开放注册、是否开通在线支付 */
+        get: operations["get_me_config"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/register": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 注册（服务端开放注册时可用） */
+        post: operations["post_me_register"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 在售套餐、价格、支付方式与余额 */
+        get: operations["get_me_plans"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/orders:quote": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 试算价格（优惠码、余额抵扣） */
+        post: operations["post_me_orders_quote"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 我的订单 */
+        get: operations["get_me_orders"];
+        put?: never;
+        /** 下单（续费、购买、换套餐、流量重置包） */
+        post: operations["post_me_orders"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/orders/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 订单详情 */
+        get: operations["get_me_orders_id"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/orders/{id}:pay": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 获取付款链接 */
+        post: operations["post_me_orders_id_pay"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/orders/{id}:cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 取消待支付订单 */
+        post: operations["post_me_orders_id_cancel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/tickets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 我的工单 */
+        get: operations["get_me_tickets"];
+        put?: never;
+        /** 提交工单 */
+        post: operations["post_me_tickets"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/tickets/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 工单详情 */
+        get: operations["get_me_tickets_id"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/tickets/{id}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 回复工单 */
+        post: operations["post_me_tickets_id_messages"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/tickets/{id}:close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 关闭工单 */
+        post: operations["post_me_tickets_id_close"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/referral": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 邀请链接、返佣明细与余额 */
+        get: operations["get_me_referral"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/payment/{method}/notify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 支付平台异步回调 */
+        get: operations["get_payment_method_notify"];
+        put?: never;
+        /** 支付平台异步回调 */
+        post: operations["post_payment_method_notify"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2008,6 +2819,8 @@ export interface operations {
                     sort?: number;
                     /** @enum {string} */
                     backend?: "native" | "uniproxy";
+                    /** @description 每月成本（分），只用于成本报表 */
+                    monthly_cost?: number;
                 };
             };
         };
@@ -2641,6 +3454,14 @@ export interface operations {
                         [key: string]: number;
                     };
                     sellable?: boolean;
+                    /** @description 灰度价格（分），落在灰度范围内的用户按它下单 */
+                    rollout_prices?: {
+                        [key: string]: number;
+                    };
+                    /** @description 灰度比例 0–100 */
+                    rollout_percent?: number;
+                    /** @description 默认分流规则代号；不填用内置规则 */
+                    rule_profile?: string;
                 };
             };
         };
@@ -2794,6 +3615,18 @@ export interface operations {
                     sellable?: boolean;
                     /** @description 把新的流量额度同步给这个套餐下的所有用户 */
                     apply_to_users?: boolean;
+                    /** @description 灰度价格（分），落在灰度范围内的用户按它下单 */
+                    rollout_prices?: {
+                        [key: string]: number;
+                    };
+                    /** @description 灰度比例 0–100 */
+                    rollout_percent?: number;
+                    /** @description 把灰度价格转为正式价格并结束灰度 */
+                    promote_rollout?: boolean;
+                    /** @description 结束灰度，恢复原价 */
+                    end_rollout?: boolean;
+                    /** @description 默认分流规则代号；空字符串清除，改用内置规则 */
+                    rule_profile?: string;
                 };
             };
         };
@@ -3037,6 +3870,8 @@ export interface operations {
                     device_limit?: number;
                     speed_limit_mbps?: number;
                     banned?: boolean;
+                    /** @description 用户自选的分流规则代号；空字符串清除，改回跟随套餐 */
+                    rule_profile?: string;
                 };
             };
         };
@@ -3571,6 +4406,2360 @@ export interface operations {
             query?: never;
             header?: never;
             path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    get_audit_export: {
+        parameters: {
+            query?: {
+                q?: string;
+                entry?: string;
+                result?: string;
+                target?: string;
+                action?: string;
+                since?: string;
+                until?: string;
+                format?: string;
+            };
+            header?: {
+                /** @description 调用方自报的身份（例如某个 Agent 会话），只写入审计，不参与权限判断 */
+                "X-Actor"?: components["parameters"]["XActor"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    get_reports_traffic: {
+        parameters: {
+            query?: {
+                days?: string;
+            };
+            header?: {
+                /** @description 调用方自报的身份（例如某个 Agent 会话），只写入审计，不参与权限判断 */
+                "X-Actor"?: components["parameters"]["XActor"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    get_reports_revenue: {
+        parameters: {
+            query?: {
+                days?: string;
+            };
+            header?: {
+                /** @description 调用方自报的身份（例如某个 Agent 会话），只写入审计，不参与权限判断 */
+                "X-Actor"?: components["parameters"]["XActor"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    get_reports_nodes: {
+        parameters: {
+            query?: {
+                days?: string;
+            };
+            header?: {
+                /** @description 调用方自报的身份（例如某个 Agent 会话），只写入审计，不参与权限判断 */
+                "X-Actor"?: components["parameters"]["XActor"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    get_plans_id_revisions: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description 调用方自报的身份（例如某个 Agent 会话），只写入审计，不参与权限判断 */
+                "X-Actor"?: components["parameters"]["XActor"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    get_rule_profiles: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description 调用方自报的身份（例如某个 Agent 会话），只写入审计，不参与权限判断 */
+                "X-Actor"?: components["parameters"]["XActor"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    post_rule_profiles: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description 调用方自报的身份（例如某个 Agent 会话），只写入审计，不参与权限判断 */
+                "X-Actor"?: components["parameters"]["XActor"];
+                /** @description 同一个 key 重复提交返回首次结果；换了请求内容返回 422 */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @description 为 true 时只预演，返回变更计划 */
+                    dry_run?: boolean;
+                    /** @description 用户的原始指令，显示在审批卡片上 */
+                    instruction?: string;
+                    code?: string;
+                    /** @description 内置模板代号（见 /api/v1/rule-profiles/presets）；没填的 code、name、description、source_url 取预设的值 */
+                    preset?: string;
+                    name?: string;
+                    description?: string;
+                    /** @description ini 模板地址，服务端每 6 小时重新拉取 */
+                    source_url?: string;
+                    /** @description 直接粘贴的 ini 内容（与 source_url 二选一） */
+                    content?: string;
+                    /** @description 是否允许用户在用户侧自选，默认允许 */
+                    user_selectable?: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description 预演结果或已执行的变更计划 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangePlan"];
+                };
+            };
+            /** @description 敏感操作，已生成审批 */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangePlan"];
+                };
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    get_rule_profiles_presets: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description 调用方自报的身份（例如某个 Agent 会话），只写入审计，不参与权限判断 */
+                "X-Actor"?: components["parameters"]["XActor"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    get_rule_profiles_id: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description 调用方自报的身份（例如某个 Agent 会话），只写入审计，不参与权限判断 */
+                "X-Actor"?: components["parameters"]["XActor"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    delete_rule_profiles_id: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description 调用方自报的身份（例如某个 Agent 会话），只写入审计，不参与权限判断 */
+                "X-Actor"?: components["parameters"]["XActor"];
+                /** @description 同一个 key 重复提交返回首次结果；换了请求内容返回 422 */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @description 为 true 时只预演，返回变更计划 */
+                    dry_run?: boolean;
+                    /** @description 用户的原始指令，显示在审批卡片上 */
+                    instruction?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 预演结果或已执行的变更计划 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangePlan"];
+                };
+            };
+            /** @description 敏感操作，已生成审批 */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangePlan"];
+                };
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    patch_rule_profiles_id: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description 调用方自报的身份（例如某个 Agent 会话），只写入审计，不参与权限判断 */
+                "X-Actor"?: components["parameters"]["XActor"];
+                /** @description 同一个 key 重复提交返回首次结果；换了请求内容返回 422 */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @description 为 true 时只预演，返回变更计划 */
+                    dry_run?: boolean;
+                    /** @description 用户的原始指令，显示在审批卡片上 */
+                    instruction?: string;
+                    name?: string;
+                    description?: string;
+                    /** @description ini 模板地址，服务端每 6 小时重新拉取 */
+                    source_url?: string;
+                    /** @description 直接粘贴的 ini 内容（与 source_url 二选一） */
+                    content?: string;
+                    /** @description 是否允许用户在用户侧自选，默认允许 */
+                    user_selectable?: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description 预演结果或已执行的变更计划 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangePlan"];
+                };
+            };
+            /** @description 敏感操作，已生成审批 */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangePlan"];
+                };
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    post_rule_profiles_id_refresh: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description 调用方自报的身份（例如某个 Agent 会话），只写入审计，不参与权限判断 */
+                "X-Actor"?: components["parameters"]["XActor"];
+                /** @description 同一个 key 重复提交返回首次结果；换了请求内容返回 422 */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @description 为 true 时只预演，返回变更计划 */
+                    dry_run?: boolean;
+                    /** @description 用户的原始指令，显示在审批卡片上 */
+                    instruction?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 预演结果或已执行的变更计划 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangePlan"];
+                };
+            };
+            /** @description 敏感操作，已生成审批 */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangePlan"];
+                };
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    get_orders: {
+        parameters: {
+            query?: {
+                status?: string;
+                q?: string;
+                user?: string;
+                cursor?: string;
+                limit?: string;
+            };
+            header?: {
+                /** @description 调用方自报的身份（例如某个 Agent 会话），只写入审计，不参与权限判断 */
+                "X-Actor"?: components["parameters"]["XActor"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    get_orders_id: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description 调用方自报的身份（例如某个 Agent 会话），只写入审计，不参与权限判断 */
+                "X-Actor"?: components["parameters"]["XActor"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    post_orders_id_refund: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description 调用方自报的身份（例如某个 Agent 会话），只写入审计，不参与权限判断 */
+                "X-Actor"?: components["parameters"]["XActor"];
+                /** @description 同一个 key 重复提交返回首次结果；换了请求内容返回 422 */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @description 为 true 时只预演，返回变更计划 */
+                    dry_run?: boolean;
+                    /** @description 用户的原始指令，显示在审批卡片上 */
+                    instruction?: string;
+                    /** @description 退款金额（分），默认实付全额 */
+                    amount?: number;
+                    /** @description 扣回的天数，默认订单顺延的天数 */
+                    deduct_days?: number;
+                    /** @description 为 true 时订阅立即到期 */
+                    expire_now?: boolean;
+                    /** @description 为 true 时不退回下单时抵扣的余额 */
+                    keep_balance?: boolean;
+                    reason?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 预演结果或已执行的变更计划 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangePlan"];
+                };
+            };
+            /** @description 敏感操作，已生成审批 */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangePlan"];
+                };
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    post_orders_id_mark_paid: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description 调用方自报的身份（例如某个 Agent 会话），只写入审计，不参与权限判断 */
+                "X-Actor"?: components["parameters"]["XActor"];
+                /** @description 同一个 key 重复提交返回首次结果；换了请求内容返回 422 */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @description 为 true 时只预演，返回变更计划 */
+                    dry_run?: boolean;
+                    /** @description 用户的原始指令，显示在审批卡片上 */
+                    instruction?: string;
+                    /** @description 支付平台流水号 */
+                    gateway_trade_no?: string;
+                    note?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 预演结果或已执行的变更计划 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangePlan"];
+                };
+            };
+            /** @description 敏感操作，已生成审批 */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangePlan"];
+                };
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    post_orders_id_cancel: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description 调用方自报的身份（例如某个 Agent 会话），只写入审计，不参与权限判断 */
+                "X-Actor"?: components["parameters"]["XActor"];
+                /** @description 同一个 key 重复提交返回首次结果；换了请求内容返回 422 */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @description 为 true 时只预演，返回变更计划 */
+                    dry_run?: boolean;
+                    /** @description 用户的原始指令，显示在审批卡片上 */
+                    instruction?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 预演结果或已执行的变更计划 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangePlan"];
+                };
+            };
+            /** @description 敏感操作，已生成审批 */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangePlan"];
+                };
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    get_coupons: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description 调用方自报的身份（例如某个 Agent 会话），只写入审计，不参与权限判断 */
+                "X-Actor"?: components["parameters"]["XActor"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    post_coupons: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description 调用方自报的身份（例如某个 Agent 会话），只写入审计，不参与权限判断 */
+                "X-Actor"?: components["parameters"]["XActor"];
+                /** @description 同一个 key 重复提交返回首次结果；换了请求内容返回 422 */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @description 为 true 时只预演，返回变更计划 */
+                    dry_run?: boolean;
+                    /** @description 用户的原始指令，显示在审批卡片上 */
+                    instruction?: string;
+                    code: string;
+                    name: string;
+                    /**
+                     * @description amount（减免金额）或 percent（减免百分比）
+                     * @enum {string}
+                     */
+                    kind: "amount" | "percent";
+                    /** @description amount 时为分，percent 时为 1–100 */
+                    value: number;
+                    /** @description 限定套餐（ID 或代号），为空表示全部 */
+                    plans?: string[];
+                    /** @description 限定周期，为空表示全部 */
+                    periods?: string[];
+                    /** @description 总次数，0 不限 */
+                    max_uses?: number;
+                    /** @description 每人次数，0 不限 */
+                    per_user?: number;
+                    /** Format: date-time */
+                    starts_at?: string;
+                    /** Format: date-time */
+                    ends_at?: string;
+                    enabled?: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description 预演结果或已执行的变更计划 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangePlan"];
+                };
+            };
+            /** @description 敏感操作，已生成审批 */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangePlan"];
+                };
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    get_coupons_id: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description 调用方自报的身份（例如某个 Agent 会话），只写入审计，不参与权限判断 */
+                "X-Actor"?: components["parameters"]["XActor"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    patch_coupons_id: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description 调用方自报的身份（例如某个 Agent 会话），只写入审计，不参与权限判断 */
+                "X-Actor"?: components["parameters"]["XActor"];
+                /** @description 同一个 key 重复提交返回首次结果；换了请求内容返回 422 */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @description 为 true 时只预演，返回变更计划 */
+                    dry_run?: boolean;
+                    /** @description 用户的原始指令，显示在审批卡片上 */
+                    instruction?: string;
+                    name?: string;
+                    kind?: string;
+                    value?: number;
+                    plans?: string[];
+                    periods?: string[];
+                    max_uses?: number;
+                    per_user?: number;
+                    /** Format: date-time */
+                    starts_at?: string;
+                    /** Format: date-time */
+                    ends_at?: string;
+                    enabled?: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description 预演结果或已执行的变更计划 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangePlan"];
+                };
+            };
+            /** @description 敏感操作，已生成审批 */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangePlan"];
+                };
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    get_referrals: {
+        parameters: {
+            query?: {
+                status?: string;
+                inviter?: string;
+                cursor?: string;
+                limit?: string;
+            };
+            header?: {
+                /** @description 调用方自报的身份（例如某个 Agent 会话），只写入审计，不参与权限判断 */
+                "X-Actor"?: components["parameters"]["XActor"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    get_referrals_settings: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description 调用方自报的身份（例如某个 Agent 会话），只写入审计，不参与权限判断 */
+                "X-Actor"?: components["parameters"]["XActor"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    put_referrals_settings: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description 调用方自报的身份（例如某个 Agent 会话），只写入审计，不参与权限判断 */
+                "X-Actor"?: components["parameters"]["XActor"];
+                /** @description 同一个 key 重复提交返回首次结果；换了请求内容返回 422 */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @description 为 true 时只预演，返回变更计划 */
+                    dry_run?: boolean;
+                    /** @description 用户的原始指令，显示在审批卡片上 */
+                    instruction?: string;
+                    enabled?: boolean;
+                    /** @description 返佣比例，按实付金额 */
+                    rate_percent?: number;
+                    /** @description 多少天内没有退款才入账 */
+                    wait_days?: number;
+                    /** @description 只对首单返佣 */
+                    first_order_only?: boolean;
+                    /** @description 24 小时内同网段被邀请人超过这个数时冻结返佣，0 不检查 */
+                    subnet_limit?: number;
+                };
+            };
+        };
+        responses: {
+            /** @description 预演结果或已执行的变更计划 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangePlan"];
+                };
+            };
+            /** @description 敏感操作，已生成审批 */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangePlan"];
+                };
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    post_referrals_id_release: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description 调用方自报的身份（例如某个 Agent 会话），只写入审计，不参与权限判断 */
+                "X-Actor"?: components["parameters"]["XActor"];
+                /** @description 同一个 key 重复提交返回首次结果；换了请求内容返回 422 */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @description 为 true 时只预演，返回变更计划 */
+                    dry_run?: boolean;
+                    /** @description 用户的原始指令，显示在审批卡片上 */
+                    instruction?: string;
+                    /** @description 只解冻这一笔，默认全部 */
+                    commission?: number;
+                };
+            };
+        };
+        responses: {
+            /** @description 预演结果或已执行的变更计划 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangePlan"];
+                };
+            };
+            /** @description 敏感操作，已生成审批 */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangePlan"];
+                };
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    get_tickets: {
+        parameters: {
+            query?: {
+                status?: string;
+                needs_human?: string;
+                user?: string;
+                cursor?: string;
+                limit?: string;
+            };
+            header?: {
+                /** @description 调用方自报的身份（例如某个 Agent 会话），只写入审计，不参与权限判断 */
+                "X-Actor"?: components["parameters"]["XActor"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    get_tickets_id: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description 调用方自报的身份（例如某个 Agent 会话），只写入审计，不参与权限判断 */
+                "X-Actor"?: components["parameters"]["XActor"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    post_tickets_id_draft: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description 调用方自报的身份（例如某个 Agent 会话），只写入审计，不参与权限判断 */
+                "X-Actor"?: components["parameters"]["XActor"];
+                /** @description 同一个 key 重复提交返回首次结果；换了请求内容返回 422 */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @description 为 true 时只预演，返回变更计划 */
+                    dry_run?: boolean;
+                    /** @description 用户的原始指令，显示在审批卡片上 */
+                    instruction?: string;
+                    /** @description 草稿内容 */
+                    body?: string;
+                    /** @description 草稿依据了哪些数据 */
+                    basis?: string[];
+                    /** @description 回答不了时标为「等你处理」 */
+                    needs_human?: boolean;
+                    needs_human_reason?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 预演结果或已执行的变更计划 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangePlan"];
+                };
+            };
+            /** @description 敏感操作，已生成审批 */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangePlan"];
+                };
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    post_tickets_id_reply: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    body: string;
+                    /** @description 基于草稿发送时为 true，审计里记下草稿由谁草拟 */
+                    from_draft?: boolean;
+                    /** @description 发送后关闭工单 */
+                    close?: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    post_tickets_id_close: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description 调用方自报的身份（例如某个 Agent 会话），只写入审计，不参与权限判断 */
+                "X-Actor"?: components["parameters"]["XActor"];
+                /** @description 同一个 key 重复提交返回首次结果；换了请求内容返回 422 */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @description 为 true 时只预演，返回变更计划 */
+                    dry_run?: boolean;
+                    /** @description 用户的原始指令，显示在审批卡片上 */
+                    instruction?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 预演结果或已执行的变更计划 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangePlan"];
+                };
+            };
+            /** @description 敏感操作，已生成审批 */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangePlan"];
+                };
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    get_webhooks: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description 调用方自报的身份（例如某个 Agent 会话），只写入审计，不参与权限判断 */
+                "X-Actor"?: components["parameters"]["XActor"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    post_webhooks: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description 调用方自报的身份（例如某个 Agent 会话），只写入审计，不参与权限判断 */
+                "X-Actor"?: components["parameters"]["XActor"];
+                /** @description 同一个 key 重复提交返回首次结果；换了请求内容返回 422 */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @description 为 true 时只预演，返回变更计划 */
+                    dry_run?: boolean;
+                    /** @description 用户的原始指令，显示在审批卡片上 */
+                    instruction?: string;
+                    name: string;
+                    url: string;
+                    /** @description 事件类型，为空表示全部 */
+                    kinds?: string[];
+                };
+            };
+        };
+        responses: {
+            /** @description 预演结果或已执行的变更计划 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangePlan"];
+                };
+            };
+            /** @description 敏感操作，已生成审批 */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangePlan"];
+                };
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    delete_webhooks_id: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description 调用方自报的身份（例如某个 Agent 会话），只写入审计，不参与权限判断 */
+                "X-Actor"?: components["parameters"]["XActor"];
+                /** @description 同一个 key 重复提交返回首次结果；换了请求内容返回 422 */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @description 为 true 时只预演，返回变更计划 */
+                    dry_run?: boolean;
+                    /** @description 用户的原始指令，显示在审批卡片上 */
+                    instruction?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 预演结果或已执行的变更计划 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangePlan"];
+                };
+            };
+            /** @description 敏感操作，已生成审批 */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangePlan"];
+                };
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    get_webhooks_id_secret: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    get_automations: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description 调用方自报的身份（例如某个 Agent 会话），只写入审计，不参与权限判断 */
+                "X-Actor"?: components["parameters"]["XActor"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    post_automations: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description 调用方自报的身份（例如某个 Agent 会话），只写入审计，不参与权限判断 */
+                "X-Actor"?: components["parameters"]["XActor"];
+                /** @description 同一个 key 重复提交返回首次结果；换了请求内容返回 422 */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @description 为 true 时只预演，返回变更计划 */
+                    dry_run?: boolean;
+                    /** @description 用户的原始指令，显示在审批卡片上 */
+                    instruction?: string;
+                    name: string;
+                    /** @description 事件类型，例如 node_offline、user_expiring */
+                    event: string;
+                    /**
+                     * @description email_user、operation 或 replace_offline_node
+                     * @enum {string}
+                     */
+                    action: "email_user" | "operation" | "replace_offline_node";
+                    /** @description 动作参数 */
+                    params?: Record<string, never>;
+                    enabled?: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description 预演结果或已执行的变更计划 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangePlan"];
+                };
+            };
+            /** @description 敏感操作，已生成审批 */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangePlan"];
+                };
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    delete_automations_id: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description 调用方自报的身份（例如某个 Agent 会话），只写入审计，不参与权限判断 */
+                "X-Actor"?: components["parameters"]["XActor"];
+                /** @description 同一个 key 重复提交返回首次结果；换了请求内容返回 422 */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @description 为 true 时只预演，返回变更计划 */
+                    dry_run?: boolean;
+                    /** @description 用户的原始指令，显示在审批卡片上 */
+                    instruction?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 预演结果或已执行的变更计划 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangePlan"];
+                };
+            };
+            /** @description 敏感操作，已生成审批 */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangePlan"];
+                };
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    patch_automations_id: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description 调用方自报的身份（例如某个 Agent 会话），只写入审计，不参与权限判断 */
+                "X-Actor"?: components["parameters"]["XActor"];
+                /** @description 同一个 key 重复提交返回首次结果；换了请求内容返回 422 */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @description 为 true 时只预演，返回变更计划 */
+                    dry_run?: boolean;
+                    /** @description 用户的原始指令，显示在审批卡片上 */
+                    instruction?: string;
+                    name?: string;
+                    params?: Record<string, never>;
+                    enabled?: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description 预演结果或已执行的变更计划 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangePlan"];
+                };
+            };
+            /** @description 敏感操作，已生成审批 */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangePlan"];
+                };
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    post_approvals_id_send_code: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    get_me_traffic: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    get_me_rule_profiles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    put_me_rule_profile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @description 分流规则代号；空字符串表示跟随套餐默认 */
+                    rule_profile: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    get_me_config: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    post_me_register: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    email: string;
+                    password: string;
+                    invite_code?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    get_me_plans: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    post_me_orders_quote: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @description ID 或代号 */
+                    plan: string;
+                    period: string;
+                    coupon?: string;
+                    use_balance?: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    get_me_orders: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    post_me_orders: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @description ID 或代号 */
+                    plan: string;
+                    period: string;
+                    coupon?: string;
+                    use_balance?: boolean;
+                    /** @description 支付方式代号 */
+                    method?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    get_me_orders_id: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    post_me_orders_id_pay: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    method?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    post_me_orders_id_cancel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    get_me_tickets: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    post_me_tickets: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    subject: string;
+                    body: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    get_me_tickets_id: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    post_me_tickets_id_messages: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    body: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    post_me_tickets_id_close: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    get_me_referral: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    get_payment_method_notify: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                method: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    post_payment_method_notify: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                method: string;
+            };
             cookie?: never;
         };
         requestBody?: never;

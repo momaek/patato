@@ -10,6 +10,7 @@ import (
 	"github.com/momaek/patato/server/internal/apierr"
 	"github.com/momaek/patato/server/internal/billing"
 	"github.com/momaek/patato/server/internal/change"
+	"github.com/momaek/patato/server/internal/commerce"
 	"github.com/momaek/patato/server/internal/store/db"
 )
 
@@ -186,6 +187,11 @@ type planFields struct {
 	SpeedLimitMbps int              `json:"speed_limit_mbps"`
 	Prices         map[string]int64 `json:"prices"`
 	Sellable       bool             `json:"sellable"`
+	// 灰度调价：RolloutPercent% 的用户看到 RolloutPrices（覆盖同周期原价），其余用户仍是原价。
+	RolloutPrices  map[string]int64 `json:"rollout_prices,omitempty"`
+	RolloutPercent int              `json:"rollout_percent"`
+	// RuleProfile 是默认分流规则的代号，为空时用内置规则；用户可以在用户侧另选。
+	RuleProfile string `json:"rule_profile"`
 }
 
 func (f *planFields) validate() error {
@@ -207,22 +213,60 @@ func (f *planFields) validate() error {
 	if f.DeviceLimit < 0 || f.SpeedLimitMbps < 0 {
 		return apierr.BadRequest("invalid_limit", "设备数和限速不能为负数")
 	}
-	for k, v := range f.Prices {
-		if v < 0 {
-			return apierr.BadRequest("invalid_price", "价格 %s 不能为负数", k)
-		}
+	if err := commerce.ValidatePrices(f.Prices); err != nil {
+		return err
+	}
+	if err := commerce.ValidatePrices(f.RolloutPrices); err != nil {
+		return err
+	}
+	if f.RolloutPercent < 0 || f.RolloutPercent > 100 {
+		return apierr.BadRequest("invalid_rollout", "灰度比例应在 0–100 之间")
+	}
+	if f.RolloutPercent > 0 && len(f.RolloutPrices) == 0 {
+		return apierr.BadRequest("invalid_rollout", "设置灰度比例时要同时给出 rollout_prices")
 	}
 	if f.Prices == nil {
 		f.Prices = map[string]int64{}
+	}
+	if len(f.RolloutPrices) == 0 {
+		f.RolloutPrices, f.RolloutPercent = nil, 0
 	}
 	return nil
 }
 
 func planFieldsOf(p db.Plan) planFields {
 	f := planFields{Name: p.Name, TransferGB: billing.ToGB(p.TransferBytes), ResetMethod: p.ResetMethod,
-		DeviceLimit: int(p.DeviceLimit), SpeedLimitMbps: int(p.SpeedLimitMbps), Sellable: p.Sellable, Prices: map[string]int64{}}
+		DeviceLimit: int(p.DeviceLimit), SpeedLimitMbps: int(p.SpeedLimitMbps), Sellable: p.Sellable, Prices: map[string]int64{},
+		RolloutPercent: int(p.RolloutPercent)}
 	_ = json.Unmarshal(p.Prices, &f.Prices)
+	if len(p.RolloutPrices) > 0 {
+		_ = json.Unmarshal(p.RolloutPrices, &f.RolloutPrices)
+	}
+	if len(f.RolloutPrices) == 0 {
+		f.RolloutPrices = nil
+	}
+	if p.RuleProfile != nil {
+		f.RuleProfile = *p.RuleProfile
+	}
 	return f
+}
+
+// saveRuleProfile 写入套餐的默认分流规则。
+func saveRuleProfile(ctx context.Context, q *db.Queries, planID int64, f planFields) error {
+	var code *string
+	if f.RuleProfile != "" {
+		code = &f.RuleProfile
+	}
+	return q.SetPlanRuleProfile(ctx, db.SetPlanRuleProfileParams{ID: planID, RuleProfile: code})
+}
+
+// saveRollout 写入灰度价格；没有灰度时清空。
+func saveRollout(ctx context.Context, q *db.Queries, planID int64, f planFields) error {
+	var raw json.RawMessage
+	if len(f.RolloutPrices) > 0 {
+		raw = mustJSON(f.RolloutPrices)
+	}
+	return q.SetPlanRollout(ctx, db.SetPlanRolloutParams{ID: planID, RolloutPrices: raw, RolloutPercent: int32(f.RolloutPercent)})
 }
 
 type PlanCreate struct{ d *Deps }
@@ -246,6 +290,9 @@ func (o *PlanCreate) Plan(ctx context.Context, q *db.Queries, raw json.RawMessag
 	if err := p.validate(); err != nil {
 		return nil, err
 	}
+	if p.RuleProfile, err = resolveRuleProfile(ctx, q, p.RuleProfile); err != nil {
+		return nil, err
+	}
 	if _, err := q.GetPlanByCode(ctx, p.Code); err == nil {
 		return nil, apierr.Conflict("plan_exists", "套餐 %s 已存在", p.Code)
 	}
@@ -255,7 +302,7 @@ func (o *PlanCreate) Plan(ctx context.Context, q *db.Queries, raw json.RawMessag
 		Diff:     []change.DiffEntry{{Field: "套餐", Before: nil, After: p}},
 		Resolved: p,
 	}
-	if len(p.Prices) > 0 {
+	if len(p.Prices) > 0 || len(p.RolloutPrices) > 0 {
 		d.Escalate = "涉及价格，固定为敏感操作"
 	}
 	return d, nil
@@ -274,6 +321,12 @@ func (o *PlanCreate) Apply(ctx context.Context, q *db.Queries, raw json.RawMessa
 		if isUniqueViolation(err) {
 			return nil, apierr.Conflict("plan_exists", "套餐 %s 已存在", p.Code)
 		}
+		return nil, err
+	}
+	if err := saveRollout(ctx, q, pl.ID, p.planFields); err != nil {
+		return nil, err
+	}
+	if err := saveRuleProfile(ctx, q, pl.ID, p.planFields); err != nil {
 		return nil, err
 	}
 	return map[string]any{"plan_id": pl.ID, "code": pl.Code}, nil
@@ -295,6 +348,13 @@ type planUpdateParams struct {
 	Sellable       *bool            `json:"sellable"`
 	// ApplyToUsers 为 true 时把新的流量额度同步给这个套餐下的所有用户。
 	ApplyToUsers bool `json:"apply_to_users"`
+	// 灰度调价：先让一部分用户看到新价格；PromoteRollout 把灰度价格转为正式价格并结束灰度。
+	RolloutPrices  map[string]int64 `json:"rollout_prices"`
+	RolloutPercent *int             `json:"rollout_percent"`
+	PromoteRollout bool             `json:"promote_rollout"`
+	EndRollout     bool             `json:"end_rollout"`
+	// RuleProfile 为空字符串时清除默认分流规则，改用内置规则。
+	RuleProfile *string `json:"rule_profile"`
 }
 
 func (o *PlanUpdate) merged(ctx context.Context, q *db.Queries, raw json.RawMessage) (*planUpdateParams, db.Plan, planFields, planFields, error) {
@@ -329,6 +389,33 @@ func (o *PlanUpdate) merged(ctx context.Context, q *db.Queries, raw json.RawMess
 	if p.Sellable != nil {
 		after.Sellable = *p.Sellable
 	}
+	if p.RolloutPrices != nil {
+		after.RolloutPrices = p.RolloutPrices
+	}
+	if p.RolloutPercent != nil {
+		after.RolloutPercent = *p.RolloutPercent
+	}
+	if p.RuleProfile != nil {
+		if after.RuleProfile, err = resolveRuleProfile(ctx, q, *p.RuleProfile); err != nil {
+			return p, pl, before, after, err
+		}
+	}
+	switch {
+	case p.PromoteRollout:
+		if len(after.RolloutPrices) == 0 {
+			return p, pl, before, after, apierr.Conflict("no_rollout", "套餐 %s 没有进行中的灰度调价", pl.Name)
+		}
+		merged := map[string]int64{}
+		for k, v := range after.Prices {
+			merged[k] = v
+		}
+		for k, v := range after.RolloutPrices {
+			merged[k] = v
+		}
+		after.Prices, after.RolloutPrices, after.RolloutPercent = merged, nil, 0
+	case p.EndRollout:
+		after.RolloutPrices, after.RolloutPercent = nil, 0
+	}
 	return p, pl, before, after, after.validate()
 }
 
@@ -349,6 +436,23 @@ func (o *PlanUpdate) Plan(ctx context.Context, q *db.Queries, raw json.RawMessag
 	if p.ApplyToUsers && before.TransferGB != after.TransferGB {
 		steps = append(steps, fmt.Sprintf("把 %d 名用户的流量额度改为 %.0f GB", users, after.TransferGB))
 	}
+	if after.RolloutPercent > 0 && (before.RolloutPercent != after.RolloutPercent || !reflect.DeepEqual(before.RolloutPrices, after.RolloutPrices)) {
+		steps = append(steps, fmt.Sprintf("灰度调价：约 %d%% 的用户下单时看到新价格（元）%s，其余用户不变", after.RolloutPercent, yuanPrices(after.RolloutPrices)))
+	}
+	if p.PromoteRollout {
+		steps = append(steps, "灰度价格转为正式价格，所有用户下单时按新价格")
+	}
+	if p.EndRollout {
+		steps = append(steps, "结束灰度调价，所有用户恢复原价")
+	}
+	if before.RuleProfile != after.RuleProfile {
+		rule := "内置规则"
+		if rp, err := q.GetRuleProfileByCode(ctx, after.RuleProfile); err == nil {
+			rule = "分流规则「" + rp.Name + "」"
+		}
+		steps = append(steps, fmt.Sprintf("没有自选规则的用户改用%s，客户端下次更新订阅时生效", rule))
+	}
+	steps = append(steps, "已付款订单不受影响；改动前的套餐设置保存为一个版本，可以在套餐历史里查看")
 	steps = append(steps, "限速、设备数在节点下次拉取用户时生效")
 	d := &change.Draft{
 		Summary: fmt.Sprintf("修改套餐 %s", pl.Name),
@@ -357,15 +461,33 @@ func (o *PlanUpdate) Plan(ctx context.Context, q *db.Queries, raw json.RawMessag
 		Impact:  change.Impact{Users: users},
 		Targets: []change.Target{planTarget(pl)},
 	}
-	if !reflect.DeepEqual(before.Prices, after.Prices) {
+	if !reflect.DeepEqual(before.Prices, after.Prices) || !reflect.DeepEqual(before.RolloutPrices, after.RolloutPrices) ||
+		before.RolloutPercent != after.RolloutPercent {
 		d.Escalate = "涉及价格，固定为敏感操作"
 	}
 	return d, nil
 }
 
+func yuanPrices(m map[string]int64) string {
+	parts := []string{}
+	for _, k := range commerce.SortedPeriods(m) {
+		parts = append(parts, fmt.Sprintf("%s %s", commerce.PeriodNames[k], commerce.Yuan(m[k])))
+	}
+	return strings.Join(parts, "、")
+}
+
 func (o *PlanUpdate) Apply(ctx context.Context, q *db.Queries, raw json.RawMessage) (any, error) {
 	p, pl, before, after, err := o.merged(ctx, q, raw)
 	if err != nil {
+		return nil, err
+	}
+	if err := q.InsertPlanRevision(ctx, db.InsertPlanRevisionParams{PlanID: pl.ID, Version: pl.Version, Snapshot: mustJSON(before)}); err != nil {
+		return nil, err
+	}
+	if err := saveRollout(ctx, q, pl.ID, after); err != nil {
+		return nil, err
+	}
+	if err := saveRuleProfile(ctx, q, pl.ID, after); err != nil {
 		return nil, err
 	}
 	u, err := q.UpdatePlan(ctx, db.UpdatePlanParams{

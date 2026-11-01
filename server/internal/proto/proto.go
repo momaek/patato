@@ -152,6 +152,20 @@ func UserPassword(protocol string, s Settings, uuid string) string {
 	return s.Str("server_key") + ":" + base64.StdEncoding.EncodeToString([]byte(u))
 }
 
+// TrojanSNI 是 Trojan 节点的 SNI。Xboard 把它放在顶层 server_name（V2bX 也从那里读），
+// 其他协议放在 tls_settings 下；两处都认，顶层优先。
+func (s Settings) TrojanSNI() string {
+	if v := s.Str("server_name"); v != "" {
+		return v
+	}
+	return s.Str("tls_settings.server_name")
+}
+
+// TrojanInsecure 是 Trojan 节点是否跳过证书校验，位置同 TrojanSNI。
+func (s Settings) TrojanInsecure() bool {
+	return s.Bool("allow_insecure") || s.Bool("tls_settings.allow_insecure")
+}
+
 // Fingerprint 把 utls 设置换成客户端指纹名，未启用时返回空串。
 func (s Settings) Fingerprint() string {
 	if !s.Bool("utls.enabled") {

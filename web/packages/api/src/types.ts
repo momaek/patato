@@ -59,6 +59,8 @@ export interface Status {
   expiring: { today: number; days_3: number; days_7: number }
   usage: { today_bytes: number; online_users: number }
   panel_host: { status: 'ok' | 'alert' | 'unsupported' | 'error' | 'not_configured'; checked_at: string; message: string }
+  tickets: { open: number; needs_human: number }
+  sales: { today_revenue: number; today_orders: number }
   updated_at: string
 }
 
@@ -99,6 +101,7 @@ export interface Node {
   runtime?: NodeRuntime
   settings?: Record<string, unknown>
   allow_legacy_token: boolean
+  monthly_cost: number
   version: number
   created_at: string
 }
@@ -126,12 +129,49 @@ export interface Plan {
   device_limit: number
   speed_limit_mbps: number
   prices: Record<string, number>
+  rollout_prices?: Record<string, number>
+  rollout_percent: number
   sellable: boolean
+  /** 默认分流规则代号；为空时用内置规则 */
+  rule_profile: string | null
   user_count: number
   node_count: number
   nodes?: Ref[]
   version: number
   updated_at: string
+}
+
+// ---- 分流规则 ------------------------------------------------------------
+
+export interface RuleProfile {
+  id: number
+  code: string
+  name: string
+  description: string
+  /** ini 模板地址；为空时是直接粘贴的内容 */
+  source_url: string
+  user_selectable: boolean
+  fetched_at: string | null
+  fetch_error?: string
+  groups: string[]
+  rule_count: number
+  list_count: number
+  warnings?: string[]
+  parse_error?: string
+  plan_count?: number
+  user_count?: number
+  /** 只在详情里返回 */
+  content?: string
+  lists?: { name: string; url: string; fetched_at: string | null; fetch_error?: string }[]
+  version: number
+  updated_at: string
+}
+
+export interface RulePreset {
+  code: string
+  name: string
+  description: string
+  source_url: string
 }
 
 // ---- 用户 --------------------------------------------------------------
@@ -154,6 +194,10 @@ export interface User {
   devices_online: number
   token_reset_at: string | null
   last_active_at: string | null
+  balance: number
+  invited_by: number | null
+  /** 用户自选的分流规则；为空时跟随套餐 */
+  rule_profile: string | null
   created_at: string
   version: number
 }
@@ -237,6 +281,184 @@ export interface ApprovalDetail {
   change: ChangePlan
   requester: { kind: string; label: string; actor_claim?: string; entry: string }
   instruction?: string
+  required: number
+  votes: { operator: string; via: string; at: string }[]
+  needs_code: boolean
+}
+
+export interface PlanRevision {
+  version: number
+  snapshot: { name: string; transfer_gb: number; prices: Record<string, number>; rollout_prices?: Record<string, number>; rollout_percent: number; sellable: boolean }
+  replaced_at: string
+}
+
+// ---- 售卖与运营（二期）---------------------------------------------------
+
+export type OrderStatus = 'pending' | 'paid' | 'refunded' | 'cancelled'
+
+export interface Order {
+  id: number
+  trade_no: string
+  user_id: number
+  email?: string
+  plan_id: number | null
+  plan_name: string
+  period: string
+  period_name: string
+  kind: 'new' | 'renew' | 'change' | 'reset_traffic'
+  amount: number
+  discount: number
+  balance_used: number
+  total: number
+  status: OrderStatus
+  refund_pending?: boolean
+  refund_approval_id?: string
+  method: string
+  gateway_trade_no?: string
+  days: number
+  refund_amount: number
+  refund_days: number
+  note?: string
+  source: 'portal' | 'admin' | 'xboard'
+  created_at: string
+  expires_at: string
+  paid_at: string | null
+  cancelled_at: string | null
+  refunded_at: string | null
+  version: number
+}
+
+export interface OrderDetail {
+  order: Order
+  coupon: { id: number; code: string; name: string } | null
+  commission: { id: number; inviter_id: number; amount: number; status: CommissionStatus; reason: string; release_at: string } | null
+  callbacks: { id: number; method: string; verified: boolean; result: string; received_at: string }[]
+  audit: Audit[]
+  user: { id: number; email: string; expires_at: string | null; balance: number }
+}
+
+export interface Coupon {
+  id: number
+  code: string
+  name: string
+  kind: 'amount' | 'percent'
+  value: number
+  plan_ids: number[]
+  periods: string[]
+  max_uses: number
+  per_user: number
+  used: number
+  starts_at: string | null
+  ends_at: string | null
+  enabled: boolean
+  state: 'active' | 'disabled' | 'expired' | 'scheduled' | 'used_up'
+  created_at: string
+  version: number
+}
+
+export type CommissionStatus = 'pending' | 'frozen' | 'settled' | 'cancelled'
+
+export interface Commission {
+  id: number
+  inviter_id: number
+  inviter_email: string
+  invitee_id: number | null
+  invitee_email: string
+  trade_no: string
+  amount: number
+  status: CommissionStatus
+  reason: string
+  release_at: string
+  settled_at: string | null
+  created_at: string
+}
+
+export interface ReferralRules {
+  enabled: boolean
+  rate_percent: number
+  wait_days: number
+  first_order_only: boolean
+  subnet_limit: number
+}
+
+export interface Ticket {
+  id: number
+  user_id?: number
+  email?: string
+  subject: string
+  status: 'open' | 'replied' | 'closed'
+  needs_human?: boolean
+  needs_human_reason?: string
+  has_draft?: boolean
+  created_at: string
+  last_message_at: string
+  closed_at: string | null
+  version?: number
+}
+
+export interface TicketMessage {
+  id: number
+  author: 'user' | 'operator'
+  operator?: string
+  drafted_by?: string
+  body: string
+  created_at: string
+}
+
+export interface TicketDetail {
+  ticket: Ticket
+  messages: TicketMessage[]
+  draft: { body: string; drafted_by: string; basis: string[] | null; updated_at: string } | null
+  context: { user: User; balance: number; orders: Order[]; plan_nodes: { code: string; name: string; state: NodeState }[] }
+}
+
+export interface Webhook {
+  id: number
+  name: string
+  url: string
+  kinds: string[]
+  enabled: boolean
+  last_status: string
+  last_delivery_at: string | null
+  created_at: string
+}
+
+export interface AutomationRule {
+  id: number
+  name: string
+  event: string
+  action: 'email_user' | 'operation' | 'replace_offline_node'
+  params: Record<string, unknown>
+  enabled: boolean
+  last_fired_at: string | null
+  last_result: string
+  created_at: string
+}
+
+export interface TrafficReport {
+  days: number
+  since: string
+  total_bytes: number
+  series: { day: string; up: number; down: number; bytes: number }[]
+  top_users: { user_id: number; email: string; bytes: number }[]
+}
+
+export interface RevenueReport {
+  days: number
+  since: string
+  revenue: number
+  refunds: number
+  net: number
+  orders: number
+  series: { day: string; orders: number; revenue: number; refunds: number; balance_used: number; discount: number }[]
+  by_plan: { plan: string; orders: number; revenue: number }[]
+}
+
+export interface NodeCostReport {
+  days: number
+  total_cost: number
+  total_bytes: number
+  items: { id: number; code: string; name: string; region: string; state: NodeState; monthly_cost: number; cost: number; bytes: number; cost_per_gb: number | null; users: number }[]
 }
 
 // ---- 用户侧 ------------------------------------------------------------
@@ -255,5 +477,99 @@ export interface MySubscription {
   device_limit: number
   subscription_url: string
   nodes: { name: string; region: string; status: string }[]
+  /** 当前生效的分流规则；为空时用内置规则 */
+  rule_profile: { code: string; name: string } | null
   service_name: string
+}
+
+export interface MyRuleProfile {
+  code: string
+  name: string
+  description: string
+  groups: string[]
+}
+
+export interface MyRuleProfiles {
+  /** 用户自选的规则代号；为空时跟随套餐 */
+  selected: string | null
+  plan_default: MyRuleProfile | null
+  effective: MyRuleProfile | null
+  items: MyRuleProfile[]
+}
+
+export interface PortalConfig {
+  service_name: string
+  registration: boolean
+  registration_invite: boolean
+  payment: boolean
+  tickets: boolean
+}
+
+export interface PlanPrice {
+  period: string
+  name: string
+  price: number
+  days: number
+}
+
+export interface MyPlans {
+  items: {
+    code: string
+    name: string
+    transfer_bytes: number
+    reset_method: Plan['reset_method']
+    device_limit: number
+    speed_limit_mbps: number
+    prices: PlanPrice[]
+    current: boolean
+  }[]
+  methods: { code: string; name: string }[]
+  balance: number
+}
+
+export interface Quote {
+  plan: string
+  plan_name: string
+  period: string
+  kind: Order['kind']
+  amount: number
+  discount: number
+  balance_used: number
+  total: number
+  days: number
+  coupon?: string
+  notes: string[]
+}
+
+export interface MyOrder {
+  trade_no: string
+  plan_name: string
+  period: string
+  period_name: string
+  kind: Order['kind']
+  amount: number
+  discount: number
+  balance_used: number
+  total: number
+  status: OrderStatus
+  method: string
+  days: number
+  refund_amount: number
+  created_at: string
+  expires_at: string
+  paid_at: string | null
+  refunded_at: string | null
+}
+
+export interface MyReferral {
+  invite_code: string
+  invite_url: string
+  enabled: boolean
+  rate_percent: number
+  wait_days: number
+  invited: number
+  balance: number
+  pending: number
+  settled: number
+  items: Commission[]
 }

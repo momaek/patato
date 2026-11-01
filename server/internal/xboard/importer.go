@@ -1,7 +1,8 @@
-// Package xboard 从 Xboard 的数据库导入套餐、节点和用户。
+// Package xboard 从 Xboard 的数据库导入套餐、节点、用户，以及已完成的订单、邀请关系和余额。
 //
 // 导入保持原 ID：节点后端的 node_id、流量上报里的用户 ID 都不用改；
 // 订阅 token、UUID、密码哈希原样保留，老用户的订阅链接和密码照常可用。
+// 订单只导入已完成的（用于对账和报表），金额沿用 Xboard 的分；待支付、已取消的不导入。
 // 只支持 Xboard 2025 年之后的统一节点表（v2_server）。
 package xboard
 
@@ -42,6 +43,9 @@ type Report struct {
 	Nodes    int      `json:"nodes"`
 	Users    int      `json:"users"`
 	Attached int      `json:"plan_node_links"`
+	Orders   int      `json:"orders"`
+	Invites  int      `json:"invite_links"`
+	Balance  int64    `json:"balance_cents"`
 	Warnings []string `json:"warnings"`
 	DryRun   bool     `json:"dry_run"`
 }
@@ -172,6 +176,11 @@ func Import(ctx context.Context, st *store.Store, box *secret.Box, opt Options, 
 	}
 
 	rep := &Report{DryRun: opt.DryRun}
+	// 3 已完成、4 已折抵（换套餐时被折算的旧订单）都是收过钱的订单
+	orders, oerr := query(ctx, src, "SELECT * FROM "+opt.Prefix+"order WHERE status IN (3, 4) ORDER BY id")
+	if oerr != nil {
+		rep.warn("读取订单失败，跳过订单导入：%v", oerr)
+	}
 	tx, err := st.Pool.Begin(ctx)
 	if err != nil {
 		return nil, err
@@ -281,6 +290,7 @@ func Import(ctx context.Context, st *store.Store, box *secret.Box, opt Options, 
 	}
 
 	groupMismatch := 0
+	userIDs := map[int64]bool{}
 	for _, u := range users {
 		id := u.int("id")
 		var planID *int64
@@ -317,23 +327,77 @@ func Import(ctx context.Context, st *store.Store, box *secret.Box, opt Options, 
 		if algo == "" {
 			algo = "bcrypt"
 		}
+		// Xboard 的余额和佣金余额都是分，合并成 Patato 的余额，续费时抵扣
+		balance := u.int("balance") + u.int("commission_balance")
 		_, err := tx.Exec(ctx, `INSERT INTO users (id, email, password_hash, password_algo, password_salt, uuid, sub_token, plan_id,
 				banned, transfer_bytes, used_up, used_down, expires_at, device_limit, speed_limit_mbps, reset_anchor,
-				next_reset_at, last_reset_at, created_at)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, COALESCE($19, now()))`,
+				next_reset_at, last_reset_at, created_at, balance)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, COALESCE($19, now()), $20)`,
 			id, u.str("email"), u.str("password"), algo, u.str("password_salt"), u.str("uuid"), u.str("token"), planID,
 			u.boolean("banned"), u.int("transfer_enable"), u.int("u"), u.int("d"), expires, deviceLimit, speedLimit, anchor,
-			next, u.unix("last_reset_at"), u.unix("created_at"))
+			next, u.unix("last_reset_at"), u.unix("created_at"), balance)
 		if err != nil {
 			return nil, fmt.Errorf("insert user %d (%s): %w", id, u.str("email"), err)
 		}
 		rep.Users++
+		rep.Balance += balance
+		userIDs[id] = true
+	}
+	for _, u := range users {
+		inviter := u.int("invite_user_id")
+		if inviter <= 0 {
+			continue
+		}
+		if !userIDs[inviter] {
+			rep.warn("用户 %d 的邀请人 %d 不存在，没有导入邀请关系", u.int("id"), inviter)
+			continue
+		}
+		if _, err := tx.Exec(ctx, `UPDATE users SET invited_by = $2 WHERE id = $1`, u.int("id"), inviter); err != nil {
+			return nil, fmt.Errorf("link invite of user %d: %w", u.int("id"), err)
+		}
+		rep.Invites++
+	}
+
+	planNames := map[int64]string{}
+	for _, p := range plans {
+		planNames[p.int("id")] = p.str("name")
+	}
+	for _, o := range orders {
+		uid := o.int("user_id")
+		if !userIDs[uid] {
+			rep.warn("订单 %s 的用户 %d 不存在，跳过", o.str("trade_no"), uid)
+			continue
+		}
+		var planID *int64
+		pid := o.int("plan_id")
+		if _, ok := planGroup[pid]; ok {
+			planID = &pid
+		}
+		total, discount, bal := o.int("total_amount"), o.int("discount_amount"), o.int("balance_amount")
+		created := o.unix("created_at")
+		if created == nil {
+			now := time.Now()
+			created = &now
+		}
+		paid := o.unix("paid_at")
+		if paid == nil {
+			paid = o.unix("updated_at")
+		}
+		err := q.InsertImportedOrder(ctx, db.InsertImportedOrderParams{
+			TradeNo: o.str("trade_no"), UserID: uid, PlanID: planID, PlanName: firstNonEmptyStr(planNames[pid], fmt.Sprintf("Xboard 套餐 %d", pid)),
+			Period: xboardPeriod(o.str("period")), Kind: xboardOrderKind(o.int("type")), Amount: total + discount + bal, Discount: discount,
+			BalanceUsed: bal, Total: total, Method: "xboard", CreatedAt: *created, PaidAt: paid,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("insert order %s: %w", o.str("trade_no"), err)
+		}
+		rep.Orders++
 	}
 	if groupMismatch > 0 {
 		rep.warn("%d 名用户的权限组与其套餐的权限组不一致；Patato 按套餐决定可用节点", groupMismatch)
 	}
 
-	for _, t := range []string{"plans", "nodes", "users"} {
+	for _, t := range []string{"plans", "nodes", "users", "orders"} {
 		if _, err := tx.Exec(ctx, fmt.Sprintf("SELECT setval(pg_get_serial_sequence('%s', 'id'), GREATEST((SELECT COALESCE(max(id), 0) FROM %s), 1))", t, t)); err != nil {
 			return nil, err
 		}
@@ -349,6 +413,51 @@ func Import(ctx context.Context, st *store.Store, box *secret.Box, opt Options, 
 		return nil, err
 	}
 	return rep, nil
+}
+
+// xboardPeriod 把 Xboard 的周期换成 Patato 的周期键；老版本 Xboard 用 month_price 这类写法。
+func xboardPeriod(p string) string {
+	switch p {
+	case "month_price":
+		return "monthly"
+	case "quarter_price":
+		return "quarterly"
+	case "half_year_price":
+		return "half_yearly"
+	case "year_price":
+		return "yearly"
+	case "two_year_price":
+		return "two_yearly"
+	case "three_year_price":
+		return "three_yearly"
+	case "onetime_price":
+		return "onetime"
+	case "reset_price", "reset_traffic":
+		return "reset_traffic"
+	}
+	return p
+}
+
+// xboardOrderKind：Xboard 订单类型 1 新购、2 续费、3 升级（换套餐）、4 流量重置。
+func xboardOrderKind(t int64) string {
+	switch t {
+	case 2:
+		return "renew"
+	case 3:
+		return "change"
+	case 4:
+		return "reset_traffic"
+	}
+	return "new"
+}
+
+func firstNonEmptyStr(vs ...string) string {
+	for _, v := range vs {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 func recordAudit(ctx context.Context, q *db.Queries, rep *Report) error {

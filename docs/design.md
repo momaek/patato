@@ -595,4 +595,4 @@ MVP 按 1 名工程师加 AI 辅助编码估算约 8 周（1 周准备 + 7 周�
 - [ ] 审批人范围：只有自己，还是需要多人。
 - [ ] patato-node 首版内核：只用 sing-box（已覆盖 Reality、Hysteria2、TUIC、AnyTLS），还是同时支持 xray。
 - [ ] 二期售卖规则：退款时套餐时长如何扣回；换套餐时剩余时长如何折算；返佣入账前的等待天数；返佣是否支持提现。
-- [ ] tolato-agent 是否已有本机身份证明接口；没有则需在 tolato 中新增，这是 patato-node 免密钥接入的前提。
+- [x] tolato-agent 是否已有本机身份证明接口；没有则需在 tolato 中新增，这是 patato-node 免密钥接入的前提。已在 tolato 中新增：`tolato-agent --attest <服务地址>` 和 `POST /api/v1/attestations/verify`，见 [服务端说明](server.md)「经 tolato-agent 接入」。

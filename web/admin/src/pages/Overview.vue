@@ -16,6 +16,10 @@ const todoKinds: Record<string, { label: string; tone: Tone }> = {
   panel_host_exec: { label: '面板主机执行', tone: 'bad' },
   user_over_quota: { label: '超额', tone: 'warn' },
   user_expired: { label: '到期', tone: 'neutral' },
+  ticket: { label: '工单', tone: 'warn' },
+  referral_frozen: { label: '返佣冻结', tone: 'warn' },
+  traffic_anomaly: { label: '流量异常', tone: 'warn' },
+  order_needs_attention: { label: '订单', tone: 'bad' },
 }
 
 // 离线和待接入的排在前面
@@ -33,6 +37,9 @@ const panelLabel: Record<string, string> = { ok: '无远程执行', alert: '发�
 function todoLink(kind: string, ref: string) {
   if (kind === 'approval') return { name: 'approval', params: { id: ref } }
   if (ref.startsWith('node:')) return { name: 'node', params: { id: ref.slice(5) } }
+  if (kind === 'referral_frozen') return { name: 'referrals', query: { status: 'frozen' } }
+  if (ref.startsWith('t_')) return { name: 'ticket', params: { id: ref.slice(2) } }
+  if (ref.startsWith('order:')) return { name: 'orders' }
   if (ref.startsWith('user:')) return { name: 'users', query: { id: ref.slice(5) } }
   return { name: 'audit' }
 }
@@ -83,6 +90,15 @@ function todoLink(kind: string, ref: string) {
         </Section>
 
         <div class="flex min-w-0 flex-[1_1_300px] flex-col gap-7">
+          <Section v-if="status.data.value.sales" title="今日售卖">
+            <template #action><RouterLink :to="{ name: 'reports' }" class="font-medium">报表</RouterLink></template>
+            <Card as="dl" class="grid grid-cols-2 gap-x-4 gap-y-3 px-4.5 py-4">
+              <dt class="text-muted">收入</dt><dd class="text-right font-medium tabular">{{ fmt.money(status.data.value.sales.today_revenue) }}</dd>
+              <dt class="text-muted">订单</dt><dd class="text-right font-medium tabular">{{ fmt.num(status.data.value.sales.today_orders) }} 笔</dd>
+              <dt class="text-muted">待回复工单</dt>
+              <dd class="text-right font-medium tabular"><RouterLink :to="{ name: 'tickets' }">{{ fmt.num(status.data.value.tickets?.open ?? 0) }} 个</RouterLink></dd>
+            </Card>
+          </Section>
           <Section title="今日用量">
             <Card as="dl" class="grid grid-cols-2 gap-x-4 gap-y-3 px-4.5 py-4">
               <dt class="text-muted">总流量</dt><dd class="text-right font-medium tabular">{{ fmt.bytes(status.data.value.usage.today_bytes) }}</dd>

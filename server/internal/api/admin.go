@@ -119,6 +119,7 @@ type nodeView struct {
 	Runtime         json.RawMessage `json:"runtime,omitempty"`
 	Settings        map[string]any  `json:"settings,omitempty"`
 	LegacyToken     bool            `json:"allow_legacy_token"`
+	MonthlyCost     int64           `json:"monthly_cost"`
 	Version         int64           `json:"version"`
 	CreatedAt       time.Time       `json:"created_at"`
 }
@@ -179,7 +180,7 @@ func (s *Server) nodeViews(c *gin.Context, nodes []db.Node, detail bool) ([]node
 			ID: n.ID, Code: n.Code, Name: n.Name, Region: n.Region, Host: n.Host, Address: n.Address, Protocol: n.Protocol, Backend: n.Backend,
 			Port: n.Port, State: n.State, InSubscription: n.State != "pending", Rate: n.Rate, Tags: n.Tags,
 			Plans: nonNilRefs(plansByNode[n.ID]), OnlineUsers: online[n.ID], TodayBytes: today[n.ID],
-			LastHeartbeatAt: n.LastHeartbeatAt, LastPushAt: n.LastPushAt, LegacyToken: n.AllowLegacyToken,
+			LastHeartbeatAt: n.LastHeartbeatAt, LastPushAt: n.LastPushAt, LegacyToken: n.AllowLegacyToken, MonthlyCost: n.MonthlyCost,
 			Version: n.Version, CreatedAt: n.CreatedAt, Runtime: n.Runtime,
 		}
 		if detail {
@@ -349,7 +350,10 @@ type planView struct {
 	DeviceLimit    int32            `json:"device_limit"`
 	SpeedLimitMbps int32            `json:"speed_limit_mbps"`
 	Prices         map[string]int64 `json:"prices"`
+	RolloutPrices  map[string]int64 `json:"rollout_prices,omitempty"`
+	RolloutPercent int32            `json:"rollout_percent"`
 	Sellable       bool             `json:"sellable"`
+	RuleProfile    *string          `json:"rule_profile"`
 	UserCount      int64            `json:"user_count"`
 	NodeCount      int64            `json:"node_count"`
 	Nodes          []ref            `json:"nodes,omitempty"`
@@ -360,8 +364,11 @@ type planView struct {
 func planViewOf(p db.Plan, users, nodes int64) planView {
 	v := planView{ID: p.ID, Code: p.Code, Name: p.Name, TransferGB: billing.ToGB(p.TransferBytes), ResetMethod: p.ResetMethod,
 		DeviceLimit: p.DeviceLimit, SpeedLimitMbps: p.SpeedLimitMbps, Sellable: p.Sellable, UserCount: users, NodeCount: nodes,
-		Version: p.Version, UpdatedAt: p.UpdatedAt, Prices: map[string]int64{}}
+		Version: p.Version, UpdatedAt: p.UpdatedAt, Prices: map[string]int64{}, RolloutPercent: p.RolloutPercent, RuleProfile: p.RuleProfile}
 	_ = json.Unmarshal(p.Prices, &v.Prices)
+	if len(p.RolloutPrices) > 0 {
+		_ = json.Unmarshal(p.RolloutPrices, &v.RolloutPrices)
+	}
 	return v
 }
 
@@ -375,7 +382,7 @@ func (s *Server) planList(c *gin.Context) {
 	for _, r := range rows {
 		p := db.Plan{ID: r.ID, Code: r.Code, Name: r.Name, TransferBytes: r.TransferBytes, ResetMethod: r.ResetMethod,
 			DeviceLimit: r.DeviceLimit, SpeedLimitMbps: r.SpeedLimitMbps, Prices: r.Prices, Sellable: r.Sellable,
-			Version: r.Version, UpdatedAt: r.UpdatedAt}
+			RolloutPrices: r.RolloutPrices, RolloutPercent: r.RolloutPercent, RuleProfile: r.RuleProfile, Version: r.Version, UpdatedAt: r.UpdatedAt}
 		items = append(items, planViewOf(p, r.UserCount, r.NodeCount))
 	}
 	ok(c, gin.H{"items": items})
@@ -430,6 +437,9 @@ type userView struct {
 	DevicesOnline  int32      `json:"devices_online"`
 	TokenResetAt   *time.Time `json:"token_reset_at"`
 	LastActiveAt   *time.Time `json:"last_active_at"`
+	Balance        int64      `json:"balance"`
+	InvitedBy      *int64     `json:"invited_by"`
+	RuleProfile    *string    `json:"rule_profile"`
 	CreatedAt      time.Time  `json:"created_at"`
 	Version        int64      `json:"version"`
 }
@@ -450,7 +460,7 @@ func userViewOf(u db.User, plan *ref) userView {
 	return userView{ID: u.ID, Email: u.Email, Plan: plan, State: userState(u, time.Now()), TransferBytes: u.TransferBytes,
 		UsedBytes: u.UsedUp + u.UsedDown, UsedUp: u.UsedUp, UsedDown: u.UsedDown, ExpiresAt: u.ExpiresAt, NextResetAt: u.NextResetAt,
 		DeviceLimit: u.DeviceLimit, SpeedLimitMbps: u.SpeedLimitMbps, TokenResetAt: u.TokenResetAt, LastActiveAt: u.LastActiveAt,
-		CreatedAt: u.CreatedAt, Version: u.Version}
+		Balance: u.Balance, InvitedBy: u.InvitedBy, RuleProfile: u.RuleProfile, CreatedAt: u.CreatedAt, Version: u.Version}
 }
 
 func (s *Server) userList(c *gin.Context) {
@@ -488,7 +498,8 @@ func (s *Server) userList(c *gin.Context) {
 	for _, r := range rows {
 		u := db.User{ID: r.ID, Email: r.Email, PlanID: r.PlanID, Banned: r.Banned, TransferBytes: r.TransferBytes,
 			UsedUp: r.UsedUp, UsedDown: r.UsedDown, ExpiresAt: r.ExpiresAt, NextResetAt: r.NextResetAt, DeviceLimit: r.DeviceLimit,
-			SpeedLimitMbps: r.SpeedLimitMbps, TokenResetAt: r.TokenResetAt, LastActiveAt: r.LastActiveAt, CreatedAt: r.CreatedAt, Version: r.Version}
+			SpeedLimitMbps: r.SpeedLimitMbps, TokenResetAt: r.TokenResetAt, LastActiveAt: r.LastActiveAt, Balance: r.Balance,
+			InvitedBy: r.InvitedBy, CreatedAt: r.CreatedAt, Version: r.Version}
 		var plan *ref
 		if r.PlanID != nil && r.PlanCode != nil {
 			plan = &ref{ID: *r.PlanID, Code: *r.PlanCode, Name: deref(r.PlanName)}
@@ -603,6 +614,7 @@ func (s *Server) approve(c *gin.Context) {
 		ChallengeID string          `json:"challenge_id"`
 		Credential  json.RawMessage `json:"credential"`
 		Via         string          `json:"via"`
+		Code        string          `json:"code"`
 	}
 	if err := bindJSON(c, &req); err != nil {
 		fail(c, err)
@@ -618,7 +630,7 @@ func (s *Server) approve(c *gin.Context) {
 	if req.Via == "cli_passkey" {
 		via = "cli_passkey"
 	}
-	d, err := s.d.Approvals.Approve(c, id, op, via)
+	d, err := s.d.Approvals.Approve(c, id, op, via, req.Code)
 	if err != nil {
 		fail(c, err)
 		return

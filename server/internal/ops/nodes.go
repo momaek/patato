@@ -14,6 +14,7 @@ import (
 
 	"github.com/momaek/patato/server/internal/apierr"
 	"github.com/momaek/patato/server/internal/change"
+	"github.com/momaek/patato/server/internal/commerce"
 	"github.com/momaek/patato/server/internal/secret"
 	"github.com/momaek/patato/server/internal/store/db"
 )
@@ -242,6 +243,8 @@ type nodeUpdateParams struct {
 	Settings json.RawMessage `json:"settings"`
 	Sort     *int            `json:"sort"`
 	Backend  *string         `json:"backend"`
+	// MonthlyCost 是这个节点每月的成本（分），只用于成本报表，不影响用户。
+	MonthlyCost *int64 `json:"monthly_cost"`
 }
 
 func (o *NodeUpdate) Plan(ctx context.Context, q *db.Queries, raw json.RawMessage) (*change.Draft, error) {
@@ -288,6 +291,15 @@ func (o *NodeUpdate) Plan(ctx context.Context, q *db.Queries, raw json.RawMessag
 	if p.Sort != nil && int32(*p.Sort) != n.Sort {
 		add("sort", n.Sort, *p.Sort)
 	}
+	costOnly := len(diff) == 0 && p.Backend == nil
+	if p.MonthlyCost != nil && *p.MonthlyCost != n.MonthlyCost {
+		if *p.MonthlyCost < 0 {
+			return nil, apierr.BadRequest("invalid_cost", "成本不能为负数")
+		}
+		add("monthly_cost", n.MonthlyCost, *p.MonthlyCost)
+	} else {
+		costOnly = false
+	}
 	steps := []string{}
 	if p.Backend != nil && *p.Backend != n.Backend {
 		b, err := chooseBackend(ctx, q, n.Host, *p.Backend)
@@ -303,6 +315,15 @@ func (o *NodeUpdate) Plan(ctx context.Context, q *db.Queries, raw json.RawMessag
 	}
 	if len(diff) == 0 {
 		return nil, apierr.BadRequest("nothing_to_change", "没有任何字段需要修改")
+	}
+	if costOnly {
+		// 只改成本不影响用户和节点后端
+		return &change.Draft{
+			Summary: fmt.Sprintf("修改节点 %s 的成本", n.Name),
+			Steps:   []string{fmt.Sprintf("节点 %s 的月成本改为 %s 元，只用于成本报表", n.Name, commerce.Yuan(*p.MonthlyCost))},
+			Diff:    diff,
+			Targets: []change.Target{nodeTarget(n)},
+		}, nil
 	}
 	users, err := q.CountUsersOfNode(ctx, n.ID)
 	if err != nil {
@@ -353,6 +374,11 @@ func (o *NodeUpdate) Apply(ctx context.Context, q *db.Queries, raw json.RawMessa
 	}
 	if p.Sort != nil {
 		args.Sort = int32(*p.Sort)
+	}
+	if p.MonthlyCost != nil {
+		if err := q.SetNodeMonthlyCost(ctx, db.SetNodeMonthlyCostParams{ID: n.ID, MonthlyCost: *p.MonthlyCost}); err != nil {
+			return nil, err
+		}
 	}
 	updated, err := q.UpdateNode(ctx, args)
 	if err != nil {

@@ -38,6 +38,34 @@ const (
 	epChangeApply   = "/api/v1/changes/{id}:apply"
 	epApprovals     = "/api/v1/approvals"
 	epApproval      = "/api/v1/approvals/{id}"
+
+	epAuditExport      = "/api/v1/audit/export"
+	epPlanRevisions    = "/api/v1/plans/{id}/revisions"
+	epRuleProfiles     = "/api/v1/rule-profiles"
+	epRuleProfile      = "/api/v1/rule-profiles/{id}"
+	epRulePresets      = "/api/v1/rule-profiles/presets"
+	epRuleRefresh      = "/api/v1/rule-profiles/{id}:refresh"
+	epOrders           = "/api/v1/orders"
+	epOrder            = "/api/v1/orders/{id}"
+	epOrderRefund      = "/api/v1/orders/{id}:refund"
+	epOrderMarkPaid    = "/api/v1/orders/{id}:mark-paid"
+	epOrderCancel      = "/api/v1/orders/{id}:cancel"
+	epCoupons          = "/api/v1/coupons"
+	epCoupon           = "/api/v1/coupons/{id}"
+	epReferrals        = "/api/v1/referrals"
+	epReferralSettings = "/api/v1/referrals/settings"
+	epReferralRelease  = "/api/v1/referrals/{id}:release"
+	epTickets          = "/api/v1/tickets"
+	epTicket           = "/api/v1/tickets/{id}"
+	epTicketDraft      = "/api/v1/tickets/{id}:draft"
+	epTicketClose      = "/api/v1/tickets/{id}:close"
+	epReportTraffic    = "/api/v1/reports/traffic"
+	epReportRevenue    = "/api/v1/reports/revenue"
+	epReportNodes      = "/api/v1/reports/nodes"
+	epWebhooks         = "/api/v1/webhooks"
+	epWebhook          = "/api/v1/webhooks/{id}"
+	epAutomations      = "/api/v1/automations"
+	epAutomation       = "/api/v1/automations/{id}"
 )
 
 // usedEndpoints 是「方法 路径」，供契约测试检查。
@@ -49,10 +77,20 @@ var usedEndpoints = []string{
 	"POST " + epNodeAttach, "POST " + epNodeDetach, "POST " + epNodeRotate, "DELETE " + epNode,
 	"GET " + epMachines, "GET " + epMachine, "GET " + epMachineCmd, "POST " + epMachineRevoke,
 	"GET " + epPlans, "GET " + epPlan, "POST " + epPlans, "PATCH " + epPlan, "DELETE " + epPlan,
+	"GET " + epRuleProfiles, "GET " + epRuleProfile, "GET " + epRulePresets, "POST " + epRuleProfiles, "PATCH " + epRuleProfile,
+	"POST " + epRuleRefresh, "DELETE " + epRuleProfile,
 	"GET " + epUsers, "GET " + epUser, "POST " + epUsers, "PATCH " + epUser, "POST " + epUserTraffic,
 	"POST " + epUserToken, "DELETE " + epUser,
 	"GET " + epChange, "POST " + epChangeApply,
 	"GET " + epApprovals, "GET " + epApproval,
+	"GET " + epAuditExport, "GET " + epPlanRevisions,
+	"GET " + epOrders, "GET " + epOrder, "POST " + epOrderRefund, "POST " + epOrderMarkPaid, "POST " + epOrderCancel,
+	"GET " + epCoupons, "GET " + epCoupon, "POST " + epCoupons, "PATCH " + epCoupon,
+	"GET " + epReferrals, "GET " + epReferralSettings, "PUT " + epReferralSettings, "POST " + epReferralRelease,
+	"GET " + epTickets, "GET " + epTicket, "POST " + epTicketDraft, "POST " + epTicketClose,
+	"GET " + epReportTraffic, "GET " + epReportRevenue, "GET " + epReportNodes,
+	"GET " + epWebhooks, "POST " + epWebhooks, "DELETE " + epWebhook,
+	"GET " + epAutomations, "POST " + epAutomations, "PATCH " + epAutomation, "DELETE " + epAutomation,
 }
 
 // 下面是展示需要的字段，对应服务端的视图；完整内容用 --json 查看。
@@ -114,7 +152,14 @@ type approvalDetail struct {
 	Reason      string      `json:"reason"`
 	Change      *changePlan `json:"change"`
 	Instruction string      `json:"instruction"`
-	Requester   struct {
+	Required    int         `json:"required"`
+	NeedsCode   bool        `json:"needs_code"`
+	Votes       []struct {
+		Operator string    `json:"operator"`
+		Via      string    `json:"via"`
+		At       time.Time `json:"at"`
+	} `json:"votes"`
+	Requester struct {
 		Kind  string `json:"kind"`
 		Label string `json:"label"`
 		Claim string `json:"actor_claim"`
@@ -198,6 +243,7 @@ type plan struct {
 	SpeedLimitMbps int              `json:"speed_limit_mbps"`
 	Prices         map[string]int64 `json:"prices"`
 	Sellable       bool             `json:"sellable"`
+	RuleProfile    *string          `json:"rule_profile"`
 	UserCount      int64            `json:"user_count"`
 	NodeCount      int64            `json:"node_count"`
 	Nodes          []ref            `json:"nodes"`
@@ -247,8 +293,9 @@ var backendNames = map[string]string{"native": "patato-node", "uniproxy": "V2bX 
 var userStateNames = map[string]string{"active": "使用中", "expired": "已到期", "over_quota": "超额停用", "banned": "已封禁"}
 var riskNames = map[string]string{"read": "只读", "normal": "常规", "sensitive": "敏感", "forbidden": "禁止"}
 var resetNames = map[string]string{"purchase_day": "按购买日", "calendar_month": "按自然月", "never": "不重置"}
-var entryNames = map[string]string{"cli": "CLI", "web": "网页", "telegram": "Telegram", "cli_passkey": "CLI 拉起的 passkey", "portal": "用户侧", "system": "系统"}
-var resultNames = map[string]string{"success": "成功", "pending_approval": "等待审批", "rejected": "已拒绝", "voided": "已作废", "failed": "失败"}
+var entryNames = map[string]string{"cli": "CLI", "web": "网页", "telegram": "Telegram", "cli_passkey": "CLI 拉起的 passkey", "portal": "用户侧", "system": "系统",
+	"payment": "支付回调", "automation": "自动处置"}
+var resultNames = map[string]string{"success": "成功", "pending_approval": "等待审批", "rejected": "已拒绝", "voided": "已作废", "failed": "失败", "vote": "已批准一票"}
 var approvalNames = map[string]string{"pending": "待审批", "approved": "已批准", "rejected": "已拒绝", "expired": "已过期", "failed": "执行失败"}
 var machineNames = map[string]string{"enrolled": "已接入", "pending_enroll": "等待接入", "not_enrolled": "未接入", "revoked": "已吊销"}
 

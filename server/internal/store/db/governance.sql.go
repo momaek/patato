@@ -24,18 +24,26 @@ func (q *Queries) CountPendingApprovals(ctx context.Context) (int64, error) {
 
 const createApproval = `-- name: CreateApproval :one
 
-INSERT INTO approvals (id, change_id, expires_at) VALUES ($1, $2, $3) RETURNING id, change_id, status, expires_at, decided_by, decided_via, decided_at, reason, telegram_chat_id, telegram_message_id, created_at
+INSERT INTO approvals (id, change_id, expires_at, required, needs_code) VALUES ($1, $2, $3, $4, $5) RETURNING id, change_id, status, expires_at, decided_by, decided_via, decided_at, reason, telegram_chat_id, telegram_message_id, created_at, required, needs_code
 `
 
 type CreateApprovalParams struct {
 	ID        string
 	ChangeID  string
 	ExpiresAt time.Time
+	Required  int32
+	NeedsCode bool
 }
 
 // 审批 -------------------------------------------------------------------
 func (q *Queries) CreateApproval(ctx context.Context, arg CreateApprovalParams) (Approval, error) {
-	row := q.db.QueryRow(ctx, createApproval, arg.ID, arg.ChangeID, arg.ExpiresAt)
+	row := q.db.QueryRow(ctx, createApproval,
+		arg.ID,
+		arg.ChangeID,
+		arg.ExpiresAt,
+		arg.Required,
+		arg.NeedsCode,
+	)
 	var i Approval
 	err := row.Scan(
 		&i.ID,
@@ -49,6 +57,8 @@ func (q *Queries) CreateApproval(ctx context.Context, arg CreateApprovalParams) 
 		&i.TelegramChatID,
 		&i.TelegramMessageID,
 		&i.CreatedAt,
+		&i.Required,
+		&i.NeedsCode,
 	)
 	return i, err
 }
@@ -138,7 +148,7 @@ func (q *Queries) ExpireChangePlans(ctx context.Context) error {
 }
 
 const getApproval = `-- name: GetApproval :one
-SELECT id, change_id, status, expires_at, decided_by, decided_via, decided_at, reason, telegram_chat_id, telegram_message_id, created_at FROM approvals WHERE id = $1
+SELECT id, change_id, status, expires_at, decided_by, decided_via, decided_at, reason, telegram_chat_id, telegram_message_id, created_at, required, needs_code FROM approvals WHERE id = $1
 `
 
 func (q *Queries) GetApproval(ctx context.Context, id string) (Approval, error) {
@@ -156,12 +166,14 @@ func (q *Queries) GetApproval(ctx context.Context, id string) (Approval, error) 
 		&i.TelegramChatID,
 		&i.TelegramMessageID,
 		&i.CreatedAt,
+		&i.Required,
+		&i.NeedsCode,
 	)
 	return i, err
 }
 
 const getApprovalByChange = `-- name: GetApprovalByChange :one
-SELECT id, change_id, status, expires_at, decided_by, decided_via, decided_at, reason, telegram_chat_id, telegram_message_id, created_at FROM approvals WHERE change_id = $1
+SELECT id, change_id, status, expires_at, decided_by, decided_via, decided_at, reason, telegram_chat_id, telegram_message_id, created_at, required, needs_code FROM approvals WHERE change_id = $1
 `
 
 func (q *Queries) GetApprovalByChange(ctx context.Context, changeID string) (Approval, error) {
@@ -179,6 +191,8 @@ func (q *Queries) GetApprovalByChange(ctx context.Context, changeID string) (App
 		&i.TelegramChatID,
 		&i.TelegramMessageID,
 		&i.CreatedAt,
+		&i.Required,
+		&i.NeedsCode,
 	)
 	return i, err
 }
@@ -426,7 +440,7 @@ func (q *Queries) LatestEventID(ctx context.Context) (int64, error) {
 }
 
 const listApprovals = `-- name: ListApprovals :many
-SELECT a.id, a.change_id, a.status, a.expires_at, a.decided_by, a.decided_via, a.decided_at, a.reason, a.telegram_chat_id, a.telegram_message_id, a.created_at, c.summary, c.kind, c.risk, c.risk_reason, c.impact, c.subject_label, c.actor_claim, c.entry
+SELECT a.id, a.change_id, a.status, a.expires_at, a.decided_by, a.decided_via, a.decided_at, a.reason, a.telegram_chat_id, a.telegram_message_id, a.created_at, a.required, a.needs_code, c.summary, c.kind, c.risk, c.risk_reason, c.impact, c.subject_label, c.actor_claim, c.entry
 FROM approvals a JOIN change_plans c ON c.id = a.change_id
 WHERE ($2::text IS NULL OR a.status = $2::text)
 ORDER BY a.created_at DESC
@@ -450,6 +464,8 @@ type ListApprovalsRow struct {
 	TelegramChatID    *int64
 	TelegramMessageID *int64
 	CreatedAt         time.Time
+	Required          int32
+	NeedsCode         bool
 	Summary           string
 	Kind              string
 	Risk              string
@@ -481,6 +497,8 @@ func (q *Queries) ListApprovals(ctx context.Context, arg ListApprovalsParams) ([
 			&i.TelegramChatID,
 			&i.TelegramMessageID,
 			&i.CreatedAt,
+			&i.Required,
+			&i.NeedsCode,
 			&i.Summary,
 			&i.Kind,
 			&i.Risk,
@@ -638,7 +656,7 @@ func (q *Queries) ListOpenEvents(ctx context.Context, limit int32) ([]Event, err
 }
 
 const lockApproval = `-- name: LockApproval :one
-SELECT id, change_id, status, expires_at, decided_by, decided_via, decided_at, reason, telegram_chat_id, telegram_message_id, created_at FROM approvals WHERE id = $1 FOR UPDATE
+SELECT id, change_id, status, expires_at, decided_by, decided_via, decided_at, reason, telegram_chat_id, telegram_message_id, created_at, required, needs_code FROM approvals WHERE id = $1 FOR UPDATE
 `
 
 func (q *Queries) LockApproval(ctx context.Context, id string) (Approval, error) {
@@ -656,6 +674,8 @@ func (q *Queries) LockApproval(ctx context.Context, id string) (Approval, error)
 		&i.TelegramChatID,
 		&i.TelegramMessageID,
 		&i.CreatedAt,
+		&i.Required,
+		&i.NeedsCode,
 	)
 	return i, err
 }

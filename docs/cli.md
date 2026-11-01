@@ -29,9 +29,18 @@ patato plan list | show | create | update | delete
 patato user list | show | create | update | reset-traffic | reset-token | delete
 patato change show | apply
 patato approval list | show | approve
-patato audit log
+patato audit log | export
 patato events list | watch
 patato usage
+patato order list | show | refund | mark-paid | cancel          （二期）
+patato coupon list | show | create | update                     （二期）
+patato referral list | settings | release                       （二期）
+patato ticket list | show | draft | close                       （二期）
+patato report traffic | revenue | nodes                         （二期）
+patato webhook list | create | delete                           （二期）
+patato automation list | create | update | delete               （二期）
+patato plan history <套餐>                                       （二期）
+patato rules list | presets | show | create | update | refresh | delete   （二期）
 ```
 
 每条命令加 `-h` 看选项。几条约定：
@@ -43,6 +52,10 @@ patato usage
 - **`--json`** 输出服务端返回的原始 JSON，供 Agent 解析。
 - **`--actor`**（或 `$PATATO_ACTOR`）写进 `X-Actor`，例如「Claude Code 会话」；只进审计，不参与权限判断。
 - 写请求自动带 `Idempotency-Key`；网络错误或服务端 5xx 时自动重试，复用同一个键，服务端保证只执行一次。
+- **涉及钱的命令**（`order refund`、`order mark-paid`、`coupon create`、`referral settings`、`referral release`、带价格或 `--rollout-price` 的 `plan update`）在服务端固定为敏感操作，只会返回审批；退款金额、优惠金额、节点月成本（`node update --monthly-cost`）同样按元输入。
+- **`ticket draft`** 只保存草稿，不会发给用户；回答不了时用 `--needs-human --reason ...` 标为「等你处理」。发送回复只能由运营者在 Admin 上确认。
+- **分流规则**：`rules presets` 列出内置的 ACL4SSR 模板，`rules create --preset acl4ssr-online` 导入；也可以 `--url <ini 地址>` 或 `--file <本地 ini>`。套餐默认规则用 `plan update <套餐> --rule-profile <规则>`（传空字符串改回内置规则），替某个用户选用 `user update <用户> --rule-profile <规则>`。
+- **`audit export`** 默认输出 CSV（带 BOM，Excel 可直接打开），`--format json` 输出 JSON，`-o` 写文件。
 
 退出码：`0` 成功（包括预演、已提交审批）；`1` 出错；`2` 用法不对；`3` 变更被拒绝、过期、作废或执行失败（`--wait` 时尤其有用）。
 
@@ -59,6 +72,7 @@ patato usage
 - `cli/...` 下的单测：价格换算、参数解析、表格对齐、profile 选择、客户端重试复用幂等键。
 - `cli/cmd/patato/endpoints_test.go`：CLI 用到的每个接口都必须在 `api/openapi.yaml` 里。
 - `server/internal/app/cli_test.go`：编译真实的 `patato` 二进制，对进程内的服务端走一遍：设备授权登录、常规写操作、带价格的套餐走审批、预演后 `change apply --wait` 等到批准、被拒绝时退出码 3、审计里带调用方自报身份、只读 token 不能调写接口、退出登录吊销 token。
+- `server/internal/app/cli_commerce_test.go`：二期命令：灰度调价与套餐历史、发券（两人审批）、工单草稿与「等你处理」、订单列表与退款预演、收入报表、审计导出。
 
 ## 与计划的差异
 
@@ -70,5 +84,4 @@ patato usage
 
 ## 已知限制
 
-- 二期的 `order`、`ticket`、`referral` 命令还没有，等对应接口。
 - 发布流程还没有：目前只能 `make install-cli` 从源码安装。

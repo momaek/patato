@@ -269,6 +269,16 @@ func (a *app) renderApproval(d *approvalDetail, hints bool) {
 	}
 	a.printf("审批 %s\n\n", d.ID)
 	kv(a.out, [][2]string{{"状态", status}, {"发起方", fmt.Sprintf("%s（%s）", who, label(entryNames, d.Requester.Entry))}, {"原始指令", d.Instruction}})
+	if d.Required > 1 {
+		names := []string{}
+		for _, v := range d.Votes {
+			names = append(names, v.Operator)
+		}
+		kv(a.out, [][2]string{{"批准人数", fmt.Sprintf("需要 %d 人，已批准 %d 人：%s", d.Required, len(d.Votes), orDash(strings.Join(names, "、")))}})
+	}
+	if d.NeedsCode {
+		kv(a.out, [][2]string{{"批准方式", "网页 passkey + Telegram 私聊的一次性码"}})
+	}
 	if d.DecidedBy != "" {
 		kv(a.out, [][2]string{{"决定", fmt.Sprintf("%s，由 %s 经%s", label(approvalNames, d.Status), d.DecidedBy, label(entryNames, d.DecidedVia))}, {"原因", d.Reason}})
 	}
@@ -342,11 +352,13 @@ func (a *app) waitApprovalRaw(id string, timeout time.Duration) (*approvalDetail
 // ---- audit / events / usage ----------------------------------------------
 
 func (a *app) audit(args []string) error {
-	sub, rest := "log", args
+	rest := args
 	if len(args) > 0 && (args[0] == "log" || args[0] == "list") {
-		sub, rest = args[0], args[1:]
+		rest = args[1:]
 	}
-	_ = sub
+	if len(args) > 0 && args[0] == "export" {
+		return a.auditExport(args[1:])
+	}
 	c := newCommand("audit log", "patato audit log [选项]\n\n每一个写操作：谁、从哪个入口、做了什么、结果如何。")
 	q := c.fs.String("q", "", "按操作、对象或 change_id 搜索")
 	entry := c.fs.String("entry", "", "入口：cli web telegram cli_passkey portal")

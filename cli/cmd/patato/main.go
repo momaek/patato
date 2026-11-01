@@ -35,10 +35,17 @@ const usage = `patato：Patato 的命令行客户端（短别名 pat）
   patato machine list | show <机器>
   patato template list | show <模板>
   patato plan list | show <套餐>
+  patato rules list | presets | show <规则>          分流规则（ACL4SSR 等 ini 模板）
   patato user list [--q <邮箱>] [--state ...] | show <用户>
   patato usage [--day YYYY-MM-DD]
-  patato audit log [--q ...] [--entry cli|web|telegram] [--result ...]
+  patato audit log [--q ...] [--entry cli|web|telegram] [--result ...] | export [--since ...] [--format csv|json]
   patato events list | watch
+  patato order list [--status ...] [--user ...] | show <订单号>
+  patato coupon list | show <优惠码>
+  patato referral list [--status frozen] | settings
+  patato ticket list [--needs-human] | show <工单>
+  patato report traffic | revenue | nodes [--days N]
+  patato webhook list | automation list
 
 变更（都支持 --dry-run 预演、--wait 等待审批、--instruction 记录用户原话）
   patato node provision --template <模板> --plan <套餐> (--host <机器> | --address <地址>)
@@ -48,9 +55,17 @@ const usage = `patato：Patato 的命令行客户端（短别名 pat）
   patato node install-cmd <节点> [--command-only]
   patato machine install-cmd <机器> [--command-only] | revoke <机器>
   patato template create | update ...
-  patato plan create | update | delete ...       价格用 --price monthly=19.9（单位元）
+  patato plan create | update | delete ...       价格用 --price monthly=19.9（单位元）；灰度调价用 --rollout-price
+  patato plan history <套餐>
+  patato rules create | update | refresh | delete ...  套餐默认规则用 patato plan update <套餐> --rule-profile <规则>
   patato user create | update | reset-traffic | reset-token | delete ...
   patato change show <change_id> | apply <change_id> [--wait]
+  patato order refund | mark-paid | cancel <订单号>     退款和手动确认收款是敏感操作
+  patato coupon create | update ...                   优惠涉及钱，需要审批（只停用除外）
+  patato referral settings --rate ... | release <邀请人>
+  patato ticket draft <工单> --body ... [--basis ...] | close <工单>   草稿不会发给用户，由运营者确认发送
+  patato webhook create | delete ...
+  patato automation create | update | delete ...
 
 审批
   patato approval list [--status pending|approved|rejected] | show <id> [--wait]
@@ -147,6 +162,8 @@ func run(args []string, out io.Writer) error {
 		return a.template(rest)
 	case "plan", "plans":
 		return a.plan(rest)
+	case "rules", "rule":
+		return a.rules(rest)
 	case "user", "users":
 		return a.user(rest)
 	case "change", "changes":
@@ -159,6 +176,20 @@ func run(args []string, out io.Writer) error {
 		return a.events(rest)
 	case "usage":
 		return a.usage(rest)
+	case "order", "orders":
+		return a.order(rest)
+	case "coupon", "coupons":
+		return a.coupon(rest)
+	case "referral", "referrals":
+		return a.referral(rest)
+	case "ticket", "tickets":
+		return a.ticket(rest)
+	case "report", "reports":
+		return a.report(rest)
+	case "webhook", "webhooks":
+		return a.webhook(rest)
+	case "automation", "automations":
+		return a.automation(rest)
 	}
 	return fmt.Errorf("未知命令 %q\n\n%s", group, usage)
 }

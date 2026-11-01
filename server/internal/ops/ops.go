@@ -13,6 +13,8 @@ import (
 
 	"github.com/momaek/patato/server/internal/apierr"
 	"github.com/momaek/patato/server/internal/change"
+	"github.com/momaek/patato/server/internal/events"
+	"github.com/momaek/patato/server/internal/rules"
 	"github.com/momaek/patato/server/internal/secret"
 	"github.com/momaek/patato/server/internal/store"
 	"github.com/momaek/patato/server/internal/store/db"
@@ -31,11 +33,27 @@ type MachineLookup interface {
 	LookupMachine(ctx context.Context, name string) (*Machine, error)
 }
 
+// EventSink 记录和解决事件，由 events.Recorder 实现。
+type EventSink interface {
+	Emit(ctx context.Context, q *db.Queries, e events.Event)
+	Resolve(ctx context.Context, q *db.Queries, dedupKey string)
+}
+
 type Deps struct {
 	Box      *secret.Box
 	Machines MachineLookup
+	Events   EventSink
 	Loc      *time.Location
 	Now      func() time.Time
+	// Operations 返回已注册的操作及其风险等级，自动处置规则校验动作时用；装配时由引擎提供。
+	Operations func() map[string]change.Risk
+	// Rules 拉取分流规则模板；未配置时只能使用粘贴的模板内容。
+	Rules RuleFetcher
+}
+
+// RuleFetcher 下载并解析 ini 规则模板，由 rules.Service 实现。
+type RuleFetcher interface {
+	FetchProfile(ctx context.Context, url string) (string, *rules.Profile, error)
 }
 
 func (d *Deps) now() time.Time {
@@ -52,7 +70,13 @@ func All(d *Deps) []change.Operation {
 		&NodeDelete{d}, &NodeRotateKey{d}, &MachineRevoke{d},
 		&TemplateCreate{d}, &TemplateUpdate{d},
 		&PlanCreate{d}, &PlanUpdate{d}, &PlanDelete{d},
+		&RuleProfileCreate{d}, &RuleProfileUpdate{d}, &RuleProfileRefresh{d}, &RuleProfileDelete{d},
 		&UserCreate{d}, &UserUpdate{d}, &UserResetTraffic{d}, &UserResetToken{d}, &UserDelete{d},
+		&OrderRefund{d}, &OrderMarkPaid{d}, &OrderCancel{d}, &CouponCreate{d}, &CouponUpdate{d},
+		&ReferralSettings{d}, &ReferralRelease{d},
+		&TicketDraft{d}, &TicketClose{d},
+		&WebhookCreate{d}, &WebhookDelete{d},
+		&AutomationCreate{d}, &AutomationUpdate{d}, &AutomationDelete{d},
 	}
 }
 
@@ -188,6 +212,10 @@ func planTarget(p db.Plan) change.Target {
 
 func userTarget(u db.User) change.Target {
 	return change.Target{Type: "user", ID: u.ID, Version: u.Version}
+}
+
+func ruleProfileTarget(r db.RuleProfile) change.Target {
+	return change.Target{Type: "rule_profile", ID: r.ID, Version: r.Version}
 }
 
 func templateTarget(t db.NodeTemplate) change.Target {

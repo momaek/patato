@@ -163,10 +163,10 @@ func trojanLink(s Server) string {
 		q["sni"] = p.Str("reality_settings.server_name")
 		q["fp"] = firstNonEmpty(p.Fingerprint(), "chrome")
 	} else {
-		if p.Bool("tls_settings.allow_insecure") {
+		if p.TrojanInsecure() {
 			q["allowInsecure"] = "1"
 		}
-		if sni := p.Str("tls_settings.server_name"); sni != "" {
+		if sni := p.TrojanSNI(); sni != "" {
 			q["sni"], q["peer"] = sni, sni
 		}
 		q["fp"] = p.Fingerprint()

@@ -6,7 +6,8 @@ import (
 )
 
 // SingBox 生成 sing-box 配置（sing-box 1.11+ 的路由动作语法），适用于 SFI / SFA / SFM、Hiddify 等。
-func SingBox(servers []Server) ([]byte, error) {
+// r 为 nil 时用内置的两个策略组和简单规则。
+func SingBox(servers []Server, r *Rules) ([]byte, error) {
 	outbounds := []map[string]any{}
 	names := []string{}
 	for _, s := range servers {
@@ -45,24 +46,30 @@ func SingBox(servers []Server) ([]byte, error) {
 			},
 		},
 	}
+	if r != nil {
+		singboxRuled(cfg, outbounds, names, r)
+	}
 	return json.MarshalIndent(cfg, "", "  ")
 }
 
 func singboxOutbound(s Server) map[string]any {
 	p := s.S
 	o := map[string]any{"tag": s.Name, "server": s.Host, "server_port": s.Port}
-	tls := func(sniPath, insecurePath string) map[string]any {
+	tlsWith := func(sni string, insecure bool) map[string]any {
 		t := map[string]any{"enabled": true}
-		if sni := p.Str(sniPath); sni != "" {
+		if sni != "" {
 			t["server_name"] = sni
 		}
-		if p.Bool(insecurePath) {
+		if insecure {
 			t["insecure"] = true
 		}
 		if fp := p.Fingerprint(); fp != "" {
 			t["utls"] = map[string]any{"enabled": true, "fingerprint": fp}
 		}
 		return t
+	}
+	tls := func(sniPath, insecurePath string) map[string]any {
+		return tlsWith(p.Str(sniPath), p.Bool(insecurePath))
 	}
 	reality := func() map[string]any {
 		return map[string]any{
@@ -113,7 +120,7 @@ func singboxOutbound(s Server) map[string]any {
 		if p.Int("tls") == 2 {
 			o["tls"] = reality()
 		} else {
-			o["tls"] = tls("tls_settings.server_name", "tls_settings.allow_insecure")
+			o["tls"] = tlsWith(p.TrojanSNI(), p.TrojanInsecure())
 		}
 		transport()
 	case "shadowsocks":

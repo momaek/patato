@@ -24,7 +24,7 @@ WHERE status = 'planned' AND expires_at < now();
 -- 审批 -------------------------------------------------------------------
 
 -- name: CreateApproval :one
-INSERT INTO approvals (id, change_id, expires_at) VALUES ($1, $2, $3) RETURNING *;
+INSERT INTO approvals (id, change_id, expires_at, required, needs_code) VALUES ($1, $2, $3, $4, $5) RETURNING *;
 
 -- name: GetApproval :one
 SELECT * FROM approvals WHERE id = $1;

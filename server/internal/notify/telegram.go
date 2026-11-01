@@ -65,6 +65,12 @@ func (t *Telegram) Send(ctx context.Context, text string) error {
 	return err
 }
 
+// SendCode 私聊运营者发送审批一次性码。运营者绑定时给机器人发过消息，机器人可以私聊。
+func (t *Telegram) SendCode(ctx context.Context, telegramUserID int64, text string) error {
+	_, err := t.b.SendMessage(ctx, &bot.SendMessageParams{ChatID: telegramUserID, Text: text})
+	return err
+}
+
 // SendApproval 推送审批卡片，并记下消息 ID，方便审批结束后更新卡片。
 func (t *Telegram) SendApproval(ctx context.Context, approvalID string) error {
 	d, err := t.approvals.Get(ctx, approvalID)
@@ -75,13 +81,15 @@ func (t *Telegram) SendApproval(ctx context.Context, approvalID string) error {
 	if t.adminURL != "" {
 		text += "\n\n详情：" + t.adminURL + "/approvals/" + approvalID
 	}
+	buttons := []models.InlineKeyboardButton{{Text: "批准", CallbackData: t.callbackData(approvalID, "a")}}
+	if d.NeedsCode {
+		buttons = nil // 需要一次性码的审批只能在网页上批准
+	}
+	buttons = append(buttons, models.InlineKeyboardButton{Text: "拒绝", CallbackData: t.callbackData(approvalID, "r")})
 	msg, err := t.b.SendMessage(ctx, &bot.SendMessageParams{
-		ChatID: t.chatID,
-		Text:   text,
-		ReplyMarkup: &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{{
-			{Text: "批准", CallbackData: t.callbackData(approvalID, "a")},
-			{Text: "拒绝", CallbackData: t.callbackData(approvalID, "r")},
-		}}},
+		ChatID:      t.chatID,
+		Text:        text,
+		ReplyMarkup: &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{buttons}},
 	})
 	if err != nil {
 		return err
@@ -137,9 +145,13 @@ func (t *Telegram) onCallback(ctx context.Context, b *bot.Bot, u *models.Update)
 	id := parts[1]
 	switch parts[2] {
 	case "a":
-		d, err := t.approvals.Approve(ctx, id, op, approval.ViaTelegram)
+		d, err := t.approvals.Approve(ctx, id, op, approval.ViaTelegram, "")
 		if err != nil {
 			answer("批准失败：" + err.Error())
+			return
+		}
+		if d.Status == "pending" {
+			answer(fmt.Sprintf("已记下你的批准（%d/%d），还需要其他运营者批准", len(d.Votes), d.Required))
 			return
 		}
 		answer("已批准，变更状态：" + d.Change.Status)

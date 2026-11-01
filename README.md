@@ -17,4 +17,4 @@ Agentic 时代的代理面板：人只负责说话和审批，日常操作交给
 
 部署：两个前端内嵌在服务端镜像中，无需单独部署静态文件；Docker 构建使用 `server/Dockerfile`，本地完整构建使用 `make build`（需要 Go 和 pnpm）。开发时仍可用 Vite 热更新，见 [docs/web.md](docs/web.md)。
 
-状态：MVP 服务端、patato-node、Admin 与用户侧前端、CLI 已完成（见 [docs/server.md](docs/server.md)、[docs/web.md](docs/web.md)、[docs/cli.md](docs/cli.md)）；真实环境验证、发布流程和迁移演练尚未开始。
+状态：MVP 与二期（支付与订单、工单、优惠券与邀请返佣、Admin 手动操作与报表、更多订阅格式、Webhook 与自动处置、多人审批）已完成，patato-node 可以经 tolato-agent 引导身份接入（需要 tolato 的配套改动；见 [docs/server.md](docs/server.md)、[docs/web.md](docs/web.md)、[docs/cli.md](docs/cli.md)）；真实环境验证、发布流程和迁移演练尚未开始。

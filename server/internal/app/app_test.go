@@ -189,7 +189,7 @@ func TestEndToEnd(t *testing.T) {
 	}
 
 	// 运营者批准（网页 passkey 校验之后的那一步）
-	d, err := h.a.Approvals.Approve(ctx, approvalID, h.op, approval.ViaWeb)
+	d, err := h.a.Approvals.Approve(ctx, approvalID, h.op, approval.ViaWeb, "")
 	if err != nil {
 		t.Fatal(err)
 	}

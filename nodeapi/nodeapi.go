@@ -26,11 +26,14 @@ const (
 	PathWS     = "/api/v1/node/ws"
 )
 
-// EnrollRequest 凭注册码换取机器 token。注册码由 patato machine install-cmd 生成，一小时内有效，只能用一次。
+// EnrollRequest 凭注册码或 tolato 的机器身份证明换取机器 token。
+// 注册码由 patato machine install-cmd 生成，一小时内有效，只能用一次；
+// Attestation 是本机 tolato-agent 签发的一次性证明（tolato-agent --attest <面板地址>），二者给一个。
 type EnrollRequest struct {
-	Code     string `json:"code"`
-	Hostname string `json:"hostname"`
-	Version  string `json:"version"`
+	Code        string `json:"code,omitempty"`
+	Attestation string `json:"attestation,omitempty"`
+	Hostname    string `json:"hostname"`
+	Version     string `json:"version"`
 }
 
 type EnrollResponse struct {

@@ -49,6 +49,13 @@ func fakeXboard(t *testing.T) string {
 			 'abcdef0123456789abcdef0123456789', 3, 7, 0, 322122547200, 100, 200, 1893456000, NULL, NULL, NULL, NULL, 1700000000),
 			(101, 'expired@example.com', '$2y$10$abcdefghijklmnopqrstuv', NULL, NULL, '1f7c3a8e-1111-4222-8333-944455556666',
 			 'ffffef0123456789abcdef0123456789', 99, 7, 0, 0, 0, 0, NULL, NULL, 1, NULL, NULL, 1700000000)`,
+		`ALTER TABLE v2_user ADD COLUMN invite_user_id int, ADD COLUMN balance int DEFAULT 0, ADD COLUMN commission_balance int DEFAULT 0`,
+		`UPDATE v2_user SET invite_user_id = 100 WHERE id = 101`,
+		`UPDATE v2_user SET balance = 500, commission_balance = 120 WHERE id = 100`,
+		`CREATE TABLE v2_order (id int, user_id int, plan_id int, type int, period text, trade_no text, total_amount int,
+			discount_amount int, balance_amount int, status int, created_at int, updated_at int, paid_at int)`,
+		`INSERT INTO v2_order VALUES (1, 100, 3, 2, 'month_price', 'XB0001', 1790, 200, 0, 3, 1700000000, 1700000100, 1700000100),
+			(2, 100, 3, 2, 'monthly', 'XB0002', 1990, 0, 0, 0, 1700000000, 1700000000, NULL)`,
 	}
 	for _, s := range stmts {
 		if _, err := c.Exec(ctx, s); err != nil {
@@ -81,6 +88,18 @@ func TestImport(t *testing.T) {
 	}
 	if rep.Attached != 3 {
 		t.Fatalf("plan-node links: %+v", rep)
+	}
+	// 只导入已完成的订单；邀请关系和余额（余额 + 佣金余额）一起迁移
+	if rep.Orders != 1 || rep.Invites != 1 || rep.Balance != 620 {
+		t.Fatalf("orders / invites / balance: %+v", rep)
+	}
+	o, err := st.GetOrderByTradeNo(ctx, "XB0001")
+	if err != nil || o.Status != "paid" || o.Period != "monthly" || o.Kind != "renew" || o.Total != 1790 || o.Amount != 1990 || o.Source != "xboard" {
+		t.Fatalf("imported order: %+v %v", o, err)
+	}
+	invitee, _ := st.GetUser(ctx, 101)
+	if invitee.InvitedBy == nil || *invitee.InvitedBy != 100 {
+		t.Fatalf("invite link: %+v", invitee)
 	}
 	joined := strings.Join(rep.Warnings, "\n")
 	for _, want := range []string{"按年重置", "端口范围", "套餐 99 不存在"} {

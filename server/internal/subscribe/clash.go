@@ -10,7 +10,8 @@ const (
 )
 
 // Clash 生成 Clash Meta（mihomo）配置，适用于 Clash Verge、FlClash、Clash Meta for Android 等。
-func Clash(servers []Server) ([]byte, error) {
+// r 为 nil 时用内置的两个策略组和简单规则。
+func Clash(servers []Server, r *Rules) ([]byte, error) {
 	proxies := make([]map[string]any, 0, len(servers))
 	names := make([]string, 0, len(servers))
 	for _, s := range servers {
@@ -45,6 +46,9 @@ func Clash(servers []Server) ([]byte, error) {
 			"GEOIP,CN,DIRECT",
 			"MATCH," + groupSelect,
 		}},
+	}
+	if r != nil {
+		cfg = clashRuled(cfg, names, r)
 	}
 	return yaml.Marshal(cfg)
 }
@@ -123,8 +127,8 @@ func clashProxy(s Server) map[string]any {
 			reality()
 			base["sni"] = p.Str("reality_settings.server_name")
 		} else {
-			base["skip-cert-verify"] = p.Bool("tls_settings.allow_insecure")
-			if sni := p.Str("tls_settings.server_name"); sni != "" {
+			base["skip-cert-verify"] = p.TrojanInsecure()
+			if sni := p.TrojanSNI(); sni != "" {
 				base["sni"] = sni
 			}
 		}

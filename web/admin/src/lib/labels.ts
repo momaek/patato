@@ -25,6 +25,7 @@ export const risks: Record<string, { label: string; tone: Tone }> = {
 
 export const entries: Record<string, string> = {
   cli: 'patato CLI', web: 'Admin 网页', telegram: 'Telegram', cli_passkey: 'CLI 拉起的 passkey', portal: '用户侧', system: '系统',
+  payment: '支付回调', automation: '自动处置',
 }
 
 export const results: Record<string, { label: string; tone: Tone }> = {
@@ -33,6 +34,7 @@ export const results: Record<string, { label: string; tone: Tone }> = {
   rejected: { label: '已拒绝', tone: 'neutral' },
   voided: { label: '已作废', tone: 'neutral' },
   failed: { label: '失败', tone: 'bad' },
+  vote: { label: '已批准一票', tone: 'accent' },
 }
 
 export const approvalStates: Record<string, { label: string; tone: Tone }> = {
@@ -56,6 +58,11 @@ const fieldNames: Record<string, string> = {
   name: '名称', code: '代号', address: '地址', port: '端口', protocol: '协议', region: '地区', state: '状态', backend: '节点后端',
   email: '邮箱', plan: '套餐', expires_at: '到期', transfer_gb: '流量（GB）', device_limit: '设备数', speed_limit_mbps: '限速（Mbps）',
   reset_method: '流量重置', prices: '价格', sellable: '对外售卖', banned: '封禁', rate: '倍率', tags: '标签',
+  rollout_prices: '灰度价格', rollout_percent: '灰度比例', monthly_cost: '月成本（分）', status: '状态', refund_amount: '退款（分）',
+  kind: '类型', value: '优惠值', max_uses: '总次数', per_user: '每人次数', enabled: '启用', rate_percent: '返佣比例',
+  wait_days: '入账等待天数', first_order_only: '只返首单', subnet_limit: '同网段阈值',
+  rule_profile: '分流规则', description: '说明', source_url: '模板地址', content: '模板内容', user_selectable: '允许用户自选',
+  groups: '策略组', rules: '规则数', lists: '规则文件数',
 }
 
 const valueNames: Record<string, Record<string, string>> = {
@@ -63,6 +70,47 @@ const valueNames: Record<string, Record<string, string>> = {
   backend: { native: 'patato-node', uniproxy: 'V2bX / XrayR' },
   protocol: { vless: 'VLESS', vmess: 'VMess', trojan: 'Trojan', shadowsocks: 'Shadowsocks', hysteria: 'Hysteria2', tuic: 'TUIC', anytls: 'AnyTLS' },
   reset_method: { purchase_day: '按购买日', calendar_month: '按自然月', never: '不重置' },
+}
+
+export const orderStatuses: Record<string, { label: string; tone: Tone }> = {
+  pending: { label: '待支付', tone: 'idle' },
+  paid: { label: '已支付', tone: 'ok' },
+  refunding: { label: '退款审批中', tone: 'warn' },
+  refunded: { label: '已退款', tone: 'neutral' },
+  cancelled: { label: '已取消', tone: 'neutral' },
+}
+
+export const orderKinds: Record<string, string> = { new: '新购', renew: '续费', change: '换套餐', reset_traffic: '流量重置' }
+
+export const commissionStates: Record<string, { label: string; tone: Tone }> = {
+  pending: { label: '待入账', tone: 'idle' },
+  frozen: { label: '已冻结', tone: 'warn' },
+  settled: { label: '已入账', tone: 'ok' },
+  cancelled: { label: '已作废', tone: 'neutral' },
+}
+
+export const ticketStates: Record<string, { label: string; tone: Tone }> = {
+  open: { label: '待回复', tone: 'warn' },
+  replied: { label: '已回复', tone: 'ok' },
+  closed: { label: '已关闭', tone: 'neutral' },
+}
+
+export const couponStates: Record<string, { label: string; tone: Tone }> = {
+  active: { label: '可用', tone: 'ok' },
+  disabled: { label: '已停用', tone: 'neutral' },
+  expired: { label: '已过期', tone: 'neutral' },
+  scheduled: { label: '未开始', tone: 'idle' },
+  used_up: { label: '已用完', tone: 'neutral' },
+}
+
+export const eventKinds: Record<string, string> = {
+  node_offline: '节点离线', node_online: '节点恢复', user_expired: '用户到期', user_expiring: '用户即将到期', user_over_quota: '流量超额',
+  panel_host_exec: '面板主机执行', traffic_anomaly: '流量异常', order_paid: '订单支付', order_refunded: '订单退款',
+  order_needs_attention: '订单需人工处理', referral_frozen: '返佣冻结', ticket_created: '新工单', ticket_replied: '工单已回复',
+}
+
+export const automationActions: Record<string, string> = {
+  email_user: '给用户发邮件', operation: '执行变更操作', replace_offline_node: '用备用节点替换掉线节点',
 }
 
 export const periods: Record<string, string> = {
@@ -86,9 +134,17 @@ export function fields(v: unknown): [string, string][] | null {
   ])
 }
 
-/** 把 diff 里的值换成可读文字：数组用顿号连接，空值显示「无」。 */
+/** diff 里的字段名换成中文，没有对应时原样显示。 */
+export function fieldName(k: string): string {
+  return fieldNames[k] ?? k
+}
+
+const isoTime = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/
+
+/** 把 diff 里的值换成可读文字：数组用顿号连接，空值显示「无」，时间按本地时区显示。 */
 export function show(v: unknown): string {
   if (v === null || v === undefined || v === '') return '无'
+  if (typeof v === 'string' && isoTime.test(v)) return fmt.date(v) + ' ' + fmt.time(v)
   if (Array.isArray(v)) return v.length ? v.map(show).join('、') : '无'
   if (typeof v === 'boolean') return v ? '是' : '否'
   if (typeof v === 'object') return Object.entries(v as Record<string, unknown>).map(([k, x]) => `${k}: ${show(x)}`).join('，')

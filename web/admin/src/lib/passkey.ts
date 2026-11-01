@@ -24,10 +24,10 @@ export async function addPasskey(): Promise<void> {
 }
 
 /** 批准审批：先为这一条审批要一次 passkey 验证，再提交。via 为 cli_passkey 表示由 CLI 拉起。 */
-export async function approve(id: string, via: 'web' | 'cli_passkey'): Promise<ApprovalDetail> {
+export async function approve(id: string, via: 'web' | 'cli_passkey', code?: string): Promise<ApprovalDetail> {
   const b = await api.post<WebAuthnBegin>('/api/v1/approvals/{id}:approve-begin', { params: { id } })
   const credential = await startAuthentication({ optionsJSON: b.options.publicKey })
-  return api.post<ApprovalDetail>('/api/v1/approvals/{id}:approve', { params: { id }, body: { challenge_id: b.challenge_id, credential, via } })
+  return api.post<ApprovalDetail>('/api/v1/approvals/{id}:approve', { params: { id }, body: { challenge_id: b.challenge_id, credential, via, code } })
 }
 
 /** 用户取消或超时都会抛 NotAllowedError，给一句人话。 */
