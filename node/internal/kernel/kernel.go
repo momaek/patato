@@ -92,9 +92,10 @@ func New(opts Options) (*Kernel, error) {
 	if opts.BlockPrivate {
 		rules = append(rules, map[string]any{"ip_is_private": true, "action": "reject"})
 	}
+	// 使用 hosts / resolv.conf，不依赖可能未运行的 systemd-resolved D-Bus 服务。
 	base := map[string]any{
 		"log":       map[string]any{"level": opts.LogLevel, "timestamp": true},
-		"dns":       map[string]any{"servers": []map[string]any{{"type": "local", "tag": "local"}}},
+		"dns":       map[string]any{"servers": []map[string]any{{"type": "local", "tag": "local", "prefer_go": true}}},
 		"outbounds": []map[string]any{{"type": "direct", "tag": "direct"}},
 		"route":     map[string]any{"rules": rules, "final": "direct", "default_domain_resolver": "local"},
 	}

@@ -227,9 +227,11 @@ func TestProtocols(t *testing.T) {
 				t.Fatalf("not running: %+v", st)
 			}
 			c := client(t, tc.outbound(port))
-			n, err := fetch(c, u)
-			if err != nil || n != 64<<10 {
-				t.Fatalf("fetch through %s: n=%d err=%v", tc.name, n, err)
+			for _, targetURL := range []string{u, strings.Replace(u, "127.0.0.1", "localhost", 1)} {
+				n, err := fetch(c, targetURL)
+				if err != nil || n != 64<<10 {
+					t.Fatalf("fetch %s through %s: n=%d err=%v", targetURL, tc.name, n, err)
+				}
 			}
 			r := m.Collect()[spec.ID]
 			if r == nil || r.Traffic[7][1] < 64<<10 || r.Traffic[7][0] == 0 {
