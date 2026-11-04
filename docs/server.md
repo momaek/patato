@@ -43,7 +43,7 @@ make lint
 | `server/internal/jobs` | River 周期任务与通知推送 |
 | `server/internal/notify` | Telegram 审批卡片与告警、邮件 |
 | `server/internal/xboard` | 从 Xboard 导入数据（含已完成订单、邀请关系、余额） |
-| `server/internal/commerce` | 二期售卖：报价（灰度价格、优惠券、余额）、下单、易支付、回调履约、超时取消、返佣入账与风控 |
+| `server/internal/commerce` | 二期售卖：报价（灰度价格、优惠券、余额）、下单、易支付与 Stripe Checkout、回调履约、超时取消、返佣入账与风控 |
 | `server/internal/automation` | 二期事件分发：Webhook 推送（HMAC 签名、失败重试）、自动处置规则 |
 | `server/internal/store` | 迁移（`migrations/`）、查询（`queries/`，sqlc 生成到 `db/`） |
 
@@ -83,7 +83,9 @@ make lint
 **订单与支付**
 
 - 用户在用户侧下单（新购、续费、换套餐、流量重置包），价格以服务端试算为准：灰度价格 → 优惠券 → 余额抵扣，实付为 0 时直接开通。待支付订单占用优惠码次数和余额，超时（`payment.order_timeout`）自动取消并退回。
-- 支付驱动目前是易支付（彩虹易支付及兼容接口，MD5 签名）。回调地址 `{public_url}/api/v1/payment/{code}/notify`：验签通过、金额与应付一致才开通，回调原样记在 `payment_callbacks`，平台重发不会重复开通；超时取消后才到账的订单照常开通。金额不符、套餐已被删除时不开通并发出 `order_needs_attention` 告警。
+- 支付驱动支持易支付（彩虹易支付及兼容接口，MD5 签名）和 Stripe Checkout（托管收银台、人民币单次付款）。回调地址 `{public_url}/api/v1/payment/{code}/notify`：验签通过、支付方式和金额与订单一致才开通，回调记在 `payment_callbacks`，平台重发或并发回调不会重复开通；超时取消后才到账的订单照常开通。金额不符、套餐已被删除时不开通并发出 `order_needs_attention` 告警。回调请求体上限为 1 MiB。
+- Stripe 配置 `driver: stripe`、`secret_key`（API secret key，不是 publishable key）、`webhook_secret`（该端点的 signing secret），示例见 `deploy/config.example.yaml`。在 Stripe 为上述地址创建 POST Webhook，订阅 `checkout.session.completed`、`checkout.session.async_payment_succeeded`；密钥与端点必须属于同一测试/正式环境。反向代理必须保留原始 JSON 请求体和 `Stripe-Signature`。服务端校验签名和 5 分钟时间戳容差，只接受 `mode=payment`、`currency=cny`、`payment_status=paid` 的匹配订单；未支付状态及其他签名有效的事件只确认接收。成功和取消都会跳回用户侧订单页，页面返回不会触发履约。
+- Checkout 金额取服务端优惠及余额抵扣后的实付（分），关闭 Adaptive Pricing，不提供自动换汇或 Stripe 订阅扣款。重复打开同一订单的 Stripe 付款链接使用相同幂等键；创建 Session 失败时订单仍保持待支付，可在订单页重试。Patato 取消/超时不会自动关闭 Stripe Session；付款链接已过期或已付款但换过支付方式时，需要运营者核实处理，不会自动退款。
 - 续费从当前到期日接着算；已经到期后续费从现在算并重置流量周期。换套餐立即切换、到期时间从支付时重新计算，原套餐剩余时长不折算（设计文档「二期售卖规则」里还待确认）。
 - 退款（`order.refund`）固定为敏感操作：默认退实付全额、扣回这笔订单顺延的天数、退回抵扣的余额、撤销返佣（已入账的从邀请人余额扣回）。资金需要在支付平台原路退回，易支付没有统一的退款接口。回调丢失时用 `order.mark_paid` 手动确认收款，同样要审批。
 - 优惠券：减金额或打折，可限套餐、周期、总次数、每人次数、时间窗口。发券和改券是敏感操作，只停用不需要审批。
@@ -123,8 +125,8 @@ make lint
 
 ### 二期已知限制
 
-- **只有易支付一种支付驱动**，没有在真实易支付商户上联调过（没有商户账号）。签名和验签用测试对照了 Xboard 线上在用的 EPay 实现（同样的算法签出的付款链接、回调都能互认），回调里有空参数时，官方 SDK（跳过空值）和 Xboard（计入空值）两种签法都能验过。Stripe、USDT 等需要时再加驱动。
-- **退款不自动原路退回**：易支付没有统一退款接口，Patato 记录退款并扣回时长，资金由运营者在支付平台操作。
+- **支付尚未完成真实商户联调**：易支付签名和验签用测试对照了 Xboard 线上在用的 EPay 实现，空参数兼容官方 SDK 和 Xboard 两种签法。Stripe 使用官方 Go SDK，测试覆盖模拟 Stripe HTTP 接口、真实 PostgreSQL 下单、验签、金额/币种/方式拒绝、延迟支付和并发幂等，但这不等于 Stripe 沙盒或正式商户验收；启用前仍需用商户测试环境验证支付、Webhook 可达性，以及账户地区、人民币收款能力和最低金额等限制。
+- **退款不自动原路退回**：易支付没有统一退款接口，本期也未调用 Stripe Refund API；Patato 记录退款并扣回时长，资金由运营者在支付平台操作。
 - **换套餐剩余时长不折算、返佣不能提现**：设计文档「二期售卖规则」还没确定，按最简单的规则实现。
 - **一次性码只经 Telegram 私聊下发**：没有配置 Telegram 时，`approval.code_for` 里的操作无法批准。
 - **新订阅格式没有在 Surge、Quantumult X、Loon 真机上导入过**（这些客户端只有 iOS / macOS 版）。字段写法逐项对照了 Xboard 的 Surge、QuantumultX、Loon 生成器，下发的协议范围也与它一致：Surge 和 Loon 不下发 VLESS、Shadowsocks 2022 和带混淆的 Hysteria2。超出 Xboard 的两处按客户端文档实现、没有对照：Surge 的 TUIC（`tuic-v5`）、Quantumult X 的 VLESS（含 Reality）。

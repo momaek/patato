@@ -91,7 +91,12 @@ func New(ctx context.Context, cfg *config.Config, log *slog.Logger) (*App, error
 		if name == "" {
 			name = m.Code
 		}
-		gateways = append(gateways, commerce.NewEPay(m.Code, name, m.URL, m.PID, m.Key, m.Type))
+		switch m.Driver {
+		case "stripe":
+			gateways = append(gateways, commerce.NewStripe(m.Code, name, m.SecretKey, m.WebhookSecret))
+		case "epay":
+			gateways = append(gateways, commerce.NewEPay(m.Code, name, m.URL, m.PID, m.Key, m.Type))
+		}
 	}
 	a.Commerce = commerce.NewService(st, a.Events, commerce.Config{
 		OrderTimeout: cfg.Payment.OrderTimeout.D(), NotifyBase: cfg.PublicURL, ReturnBase: cfg.PortalURL, Loc: loc,

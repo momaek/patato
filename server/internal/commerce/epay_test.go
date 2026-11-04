@@ -1,8 +1,10 @@
 package commerce
 
 import (
+	"context"
 	"crypto/md5"
 	"encoding/hex"
+	"net/http/httptest"
 	"net/url"
 	"sort"
 	"strings"
@@ -32,7 +34,7 @@ func xboardSign(params map[string]string, key string) string {
 func TestEPayMatchesXboard(t *testing.T) {
 	g := NewEPay("alipay", "支付宝", "https://pay.example.com", "1001", "merchant-key", "alipay")
 	o := db.Order{TradeNo: "20261101120000ABCD1234", PlanName: "高级", Period: "monthly", Total: 1990, ExpiresAt: time.Now()}
-	raw, err := g.PayURL(o, "https://api.example.com/api/v1/payment/alipay/notify", "https://my.example.com/orders/20261101120000ABCD1234")
+	raw, err := g.PayURL(context.Background(), o, "https://api.example.com/api/v1/payment/alipay/notify", "https://my.example.com/orders/20261101120000ABCD1234")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -61,9 +63,14 @@ func TestEPayMatchesXboard(t *testing.T) {
 	}
 	v.Set("sign", xboardSign(cb, "merchant-key"))
 	v.Set("sign_type", "MD5")
-	n, err := g.Verify(v)
+	n, err := g.Verify(httptest.NewRequest("GET", "/?"+v.Encode(), nil))
 	if err != nil || !n.Paid || n.Amount != 1990 || n.TradeNo != o.TradeNo || n.GatewayTradeNo != "2026110112345678" {
 		t.Fatalf("verify xboard-signed callback: %+v %v", n, err)
+	}
+	post := httptest.NewRequest("POST", "/", strings.NewReader(v.Encode()))
+	post.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	if got, err := g.Verify(post); err != nil || got != n {
+		t.Fatalf("POST form must verify the same payment: %+v %v", got, err)
 	}
 
 	// 改过金额、换了商户号、签名不对都拒绝
@@ -72,11 +79,11 @@ func TestEPayMatchesXboard(t *testing.T) {
 		tampered.Set(k, v.Get(k))
 	}
 	tampered.Set("money", "0.01")
-	if _, err := g.Verify(tampered); err == nil {
+	if _, err := g.Verify(httptest.NewRequest("GET", "/?"+tampered.Encode(), nil)); err == nil {
 		t.Fatal("tampered amount must fail")
 	}
 	other := NewEPay("alipay", "支付宝", "https://pay.example.com", "2002", "merchant-key", "")
-	if _, err := other.Verify(v); err == nil {
+	if _, err := other.Verify(httptest.NewRequest("GET", "/?"+v.Encode(), nil)); err == nil {
 		t.Fatal("wrong pid must fail")
 	}
 
@@ -90,15 +97,15 @@ func TestEPayMatchesXboard(t *testing.T) {
 		}
 	}
 	v.Set("sign", xboardSign(sdkStyle, "merchant-key"))
-	if _, err := g.Verify(v); err != nil {
+	if _, err := g.Verify(httptest.NewRequest("GET", "/?"+v.Encode(), nil)); err != nil {
 		t.Fatalf("official SDK style (empty values skipped) must verify: %v", err)
 	}
 	v.Set("sign", xboardSign(cb, "merchant-key"))
-	if _, err := g.Verify(v); err != nil {
+	if _, err := g.Verify(httptest.NewRequest("GET", "/?"+v.Encode(), nil)); err != nil {
 		t.Fatalf("Xboard style (empty values signed) must verify: %v", err)
 	}
 	v.Set("sign", xboardSign(cb, "wrong-key"))
-	if _, err := g.Verify(v); err == nil {
+	if _, err := g.Verify(httptest.NewRequest("GET", "/?"+v.Encode(), nil)); err == nil {
 		t.Fatal("wrong key must fail")
 	}
 }

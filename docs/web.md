@@ -70,7 +70,7 @@ docker compose -f deploy/docker-compose.yaml up -d
 | Admin `/cli-auth?code=` | CLI 设备授权的 `verification_url` |
 | Admin `/approvals/{id}` | Telegram 审批卡片；CLI 拉起确认页时带 `?via=cli`，审计里记为「CLI 拉起的 passkey」 |
 | 用户侧 `/reset-password?token=` | 找回密码邮件 |
-| 用户侧 `/orders/{订单号}` | 易支付完成后的跳回地址（`return_url`），页面在待支付时每 3 秒刷新，等回调到账 |
+| 用户侧 `/orders/{订单号}` | 易支付的 `return_url`、Stripe Checkout 的成功/取消跳回地址；页面在待支付时每 3 秒刷新，跳回本身不会开通，等回调到账 |
 | 用户侧 `/tickets/{id}` | 工单回复邮件 |
 | 用户侧 `/register?invite=` | 邀请链接 |
 

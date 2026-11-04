@@ -93,6 +93,15 @@ payment:
   #   pid: "1001"
   #   key: "商户密钥"
   #   type: alipay   # alipay、wxpay；留空由收银台选择
+  # Stripe Checkout：单次付款，固定人民币，不自动换汇。启用示例前将 methods: [] 改为 methods:
+  # - code: stripe
+  #   name: 银行卡
+  #   driver: stripe
+  #   secret_key: "Stripe API secret key（不是 publishable key）"
+  #   webhook_secret: "该回调端点的 Stripe signing secret"
+  # 在 Stripe 配置 POST {public_url}/api/v1/payment/stripe/notify，订阅：
+  # checkout.session.completed、checkout.session.async_payment_succeeded。
+  # 两个密钥必须属于同一测试/正式环境；不要把实际密钥提交进仓库。
 
 # 用户侧注册。关闭时只有迁移来的老用户和管理员创建的用户能登录。
 registration:

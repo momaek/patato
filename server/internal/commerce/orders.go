@@ -1,10 +1,13 @@
 package commerce
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
+	"net/http"
 	"strings"
 	"time"
 
@@ -166,12 +169,12 @@ func (s *Service) Create(ctx context.Context, userID int64, in QuoteInput, metho
 		s.afterPaid(ctx, paid)
 		return &out, nil
 	}
-	out.PayURL, err = s.PayURL(out.Order)
+	out.PayURL, err = s.PayURL(ctx, out.Order)
 	return &out, err
 }
 
 // PayURL 生成待支付订单的付款链接。
-func (s *Service) PayURL(o db.Order) (string, error) {
+func (s *Service) PayURL(ctx context.Context, o db.Order) (string, error) {
 	if o.Status != "pending" || o.Total == 0 {
 		return "", nil
 	}
@@ -179,7 +182,7 @@ func (s *Service) PayURL(o db.Order) (string, error) {
 	if !ok {
 		return "", apierr.Conflict("payment_unavailable", "支付方式 %s 已不可用", o.Method).WithHint("取消这笔订单后重新下单")
 	}
-	return g.PayURL(o, s.cfg.NotifyBase+"/api/v1/payment/"+g.Code()+"/notify", s.cfg.ReturnBase+"/orders/"+o.TradeNo)
+	return g.PayURL(ctx, o, s.cfg.NotifyBase+"/api/v1/payment/"+g.Code()+"/notify", s.cfg.ReturnBase+"/orders/"+o.TradeNo)
 }
 
 // NewTradeNo 生成订单号：时间加随机串，便于人工对账。
@@ -372,13 +375,25 @@ func Fulfill(ctx context.Context, q *db.Queries, o db.Order, in FulfillInput, no
 }
 
 // HandleNotify 处理支付回调：验签、核对金额、履约。验签失败或金额不符都不开通。
-func (s *Service) HandleNotify(ctx context.Context, code string, values map[string][]string) (string, error) {
+func (s *Service) HandleNotify(ctx context.Context, code string, r *http.Request) (string, error) {
 	g, ok := s.gateways[code]
 	if !ok {
 		return "", apierr.NotFound("payment_method_not_found", "支付方式 %s 不存在", code)
 	}
-	payload, _ := json.Marshal(values)
-	n, verr := g.Verify(values)
+	const maxBody = 1 << 20
+	body, err := io.ReadAll(io.LimitReader(r.Body, maxBody+1))
+	if err != nil || len(body) > maxBody {
+		return "", apierr.BadRequest("invalid_callback", "回调内容无法读取或超过 1 MiB")
+	}
+	r.Body = io.NopCloser(bytes.NewReader(body))
+	n, verr := g.Verify(r)
+	// Stripe 保留原始 JSON；易支付保留原有的表单审计格式。
+	payload := body
+	if r.Form != nil {
+		payload, _ = json.Marshal(r.Form)
+	} else if !json.Valid(payload) {
+		payload, _ = json.Marshal(string(body))
+	}
 	record := func(verified bool, result string) {
 		if err := s.st.InsertPaymentCallback(ctx, db.InsertPaymentCallbackParams{Method: code, TradeNo: n.TradeNo, Verified: verified, Result: result, Payload: payload}); err != nil {
 			s.log.Error("record payment callback", "err", err)
@@ -393,13 +408,16 @@ func (s *Service) HandleNotify(ctx context.Context, code string, values map[stri
 		return g.Ack(), nil
 	}
 	var paid *Paid
-	err := s.st.Tx(ctx, func(q *db.Queries, _ pgx.Tx) error {
+	err = s.st.Tx(ctx, func(q *db.Queries, _ pgx.Tx) error {
 		o, err := q.LockOrderByTradeNo(ctx, n.TradeNo)
 		if store.IsNotFound(err) {
 			return apierr.NotFound("order_not_found", "订单 %s 不存在", n.TradeNo)
 		}
 		if err != nil {
 			return err
+		}
+		if o.Method != code {
+			return apierr.BadRequest("payment_method_mismatch", "支付方式与订单不符")
 		}
 		if n.Amount != o.Total {
 			s.ev.Emit(ctx, nil, events.Event{

@@ -3,6 +3,8 @@ package config
 import (
 	"strings"
 	"testing"
+
+	"gopkg.in/yaml.v3"
 )
 
 func TestFrontendOrigins(t *testing.T) {
@@ -25,5 +27,32 @@ func TestFrontendOrigins(t *testing.T) {
 		if tc.want == "" && err != nil || tc.want != "" && (err == nil || !strings.Contains(err.Error(), tc.want)) {
 			t.Errorf("admin=%q portal=%q: %v", tc.admin, tc.portal, err)
 		}
+	}
+}
+
+func TestPaymentDrivers(t *testing.T) {
+	for _, tc := range []struct {
+		name, method, want string
+	}{
+		{"stripe", "driver: stripe\nsecret_key: sk_test_fixture\nwebhook_secret: whsec_fixture", ""},
+		{"stripe missing API key", "driver: stripe\nwebhook_secret: whsec_fixture", "secret_key"},
+		{"stripe missing signing secret", "driver: stripe\nsecret_key: sk_test_fixture", "webhook_secret"},
+		{"epay", "driver: epay\nurl: https://pay.test\npid: '1001'\nkey: epay-fixture", ""},
+		{"epay missing key", "driver: epay\nurl: https://pay.test\npid: '1001'", "url, pid and key"},
+		{"unknown driver", "driver: unknown", "not supported"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c := Default()
+			c.DatabaseURL, c.PublicURL, c.SecretKey = "postgres://test", "https://api.test", strings.Repeat("k", 32)
+			var method PaymentMethod
+			if err := yaml.Unmarshal([]byte("code: checkout\n"+tc.method), &method); err != nil {
+				t.Fatal(err)
+			}
+			c.Payment.Methods = []PaymentMethod{method}
+			err := c.Validate()
+			if tc.want == "" && err != nil || tc.want != "" && (err == nil || !strings.Contains(err.Error(), tc.want)) {
+				t.Fatalf("validation: %v, want %q", err, tc.want)
+			}
+		})
 	}
 }
