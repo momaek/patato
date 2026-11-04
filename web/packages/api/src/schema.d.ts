@@ -1801,10 +1801,20 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** 支付平台异步回调 */
+        /**
+         * 支付平台异步回调
+         * @description 易支付的查询参数回调；Stripe 使用 POST JSON 和 Stripe-Signature。
+         */
         get: operations["get_payment_method_notify"];
         put?: never;
-        /** 支付平台异步回调 */
+        /**
+         * 支付平台异步回调
+         * @description 易支付使用表单；Stripe 使用未改写的原始 JSON 与 Stripe-Signature，正文上限 1 MiB。
+         *     Stripe 只处理 checkout.session.completed 和 checkout.session.async_payment_succeeded，
+         *     且仅在 payment_status=paid、mode=payment、currency=cny、订单方式及金额匹配时履约。
+         *     其他签名有效的事件或未支付状态确认接收但不履约；重复回调不会重复开通。
+         *
+         */
         post: operations["post_payment_method_notify"];
         delete?: never;
         options?: never;
@@ -6735,20 +6745,22 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description 成功 */
+            /** @description 已接收，正文 success 不一定代表订单已支付 */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "text/plain": "success";
+                };
             };
-            /** @description 错误 */
+            /** @description 拒绝回调，正文 fail */
             default: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Error"];
+                    "text/plain": "fail";
                 };
             };
         };
@@ -6756,28 +6768,48 @@ export interface operations {
     post_payment_method_notify: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Stripe 驱动必需；校验原始请求体签名和 5 分钟时间戳容差。 */
+                "Stripe-Signature"?: string;
+            };
             path: {
                 method: string;
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": {
+                    id?: string;
+                    type?: string;
+                    data?: {
+                        [key: string]: unknown;
+                    };
+                } & {
+                    [key: string]: unknown;
+                };
+                "application/x-www-form-urlencoded": {
+                    [key: string]: string;
+                };
+            };
+        };
         responses: {
-            /** @description 成功 */
+            /** @description 已接收，正文 success 不一定代表订单已支付 */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "text/plain": "success";
+                };
             };
-            /** @description 错误 */
+            /** @description 拒绝回调，正文 fail */
             default: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Error"];
+                    "text/plain": "fail";
                 };
             };
         };

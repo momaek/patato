@@ -173,7 +173,7 @@ func (s *Server) meOrderCreate(c *gin.Context) {
 		fail(c, err)
 		return
 	}
-	res, err := s.d.Commerce.Create(c, meUser(c).ID, req.QuoteInput, req.Method)
+	res, err := s.d.Commerce.Create(c.Request.Context(), meUser(c).ID, req.QuoteInput, req.Method)
 	if err != nil {
 		fail(c, err)
 		return
@@ -258,7 +258,7 @@ func (s *Server) meOrderPay(c *gin.Context) {
 		}
 		o.Method = req.Method
 	}
-	url, err := s.d.Commerce.PayURL(o)
+	url, err := s.d.Commerce.PayURL(c.Request.Context(), o)
 	if err != nil {
 		fail(c, err)
 		return
@@ -336,8 +336,7 @@ func (s *Server) paymentNotify(c *gin.Context) {
 		c.String(http.StatusNotFound, "fail")
 		return
 	}
-	_ = c.Request.ParseForm()
-	ack, err := s.d.Commerce.HandleNotify(c, c.Param("method"), c.Request.Form)
+	ack, err := s.d.Commerce.HandleNotify(c, c.Param("method"), c.Request)
 	if err != nil {
 		e := apierr.From(err)
 		if e == apierr.ErrInternal {

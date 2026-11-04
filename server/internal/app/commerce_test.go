@@ -1,13 +1,22 @@
 package app
 
 import (
+	"bytes"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"regexp"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/stripe/stripe-go/v87"
 
 	"github.com/momaek/patato/server/internal/approval"
 	"github.com/momaek/patato/server/internal/commerce"
@@ -320,5 +329,146 @@ func TestReferralFreeze(t *testing.T) {
 	r = h.api("GET", "/api/v1/referrals", nil)
 	if r.str("totals.frozen") != "0" || r.str("totals.pending") != "200" {
 		t.Fatalf("released: %s", r.raw)
+	}
+}
+
+func TestStripeCheckout(t *testing.T) {
+	// Only Stripe's external HTTP boundary is replaced; the API, database and fulfillment are real.
+	requests := make(chan *http.Request, 8)
+	remote := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := r.ParseForm(); err != nil {
+			t.Error(err)
+		}
+		requests <- r
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"id":"cs_fixture","object":"checkout.session","url":"https://checkout.test/session"}`)
+	}))
+	t.Cleanup(remote.Close)
+	previous := stripe.GetBackend(stripe.APIBackend)
+	stripe.SetBackend(stripe.APIBackend, stripe.GetBackendWithConfig(stripe.APIBackend, &stripe.BackendConfig{
+		URL: stripe.String(remote.URL), HTTPClient: remote.Client(), MaxNetworkRetries: stripe.Int64(0),
+	}))
+	t.Cleanup(func() { stripe.SetBackend(stripe.APIBackend, previous) })
+	const signingSecret = "stripe-webhook-fixture"
+	h := newHarness(t, func(c *config.Config) {
+		c.PortalURL = "http://portal.test"
+		c.Payment.Methods = []config.PaymentMethod{
+			{Code: "stripe", Name: "银行卡", Driver: "stripe", SecretKey: "stripe-api-fixture", WebhookSecret: signingSecret},
+			{Code: "alipay", Name: "支付宝", Driver: "epay", URL: "https://pay.test/", PID: "1001", Key: epayKey},
+		}
+	})
+	setup(h)
+	h.approve(h.sensitive("PATCH", "/api/v1/plans/premium", map[string]any{
+		"sellable": true, "prices": map[string]int64{"monthly": 1990},
+	}), h.op, "")
+	ctx := context.Background()
+	u, err := h.a.Store.GetUserByEmail(ctx, "u1@example.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.a.Store.AddUserBalance(ctx, db.AddUserBalanceParams{ID: u.ID, Delta: 503}); err != nil {
+		t.Fatal(err)
+	}
+	buyer := h.login(u.Email, "password-123")
+	r := h.do("GET", "/api/v1/me/plans", nil, buyer)
+	expect(t, r, 200)
+	if !strings.Contains(string(r.raw), `"stripe"`) || strings.Contains(string(r.raw), signingSecret) {
+		t.Fatalf("public methods: %s", r.raw)
+	}
+	r = h.do("POST", "/api/v1/me/orders", map[string]any{
+		"plan": "premium", "period": "monthly", "method": "stripe", "use_balance": true,
+	}, buyer)
+	expect(t, r, 200)
+	if r.str("pay_url") != "https://checkout.test/session" || r.str("order.total") != "1487" {
+		t.Fatalf("checkout: %s", r.raw)
+	}
+	tradeNo := r.str("order.trade_no")
+	first := <-requests
+	if first.Method != "POST" || first.URL.Path != "/v1/checkout/sessions" || first.Header.Get("Authorization") != "Bearer stripe-api-fixture" {
+		t.Fatalf("Stripe request: %s %s", first.Method, first.URL)
+	}
+	for key, want := range map[string]string{
+		"mode": "payment", "client_reference_id": tradeNo, "adaptive_pricing[enabled]": "false",
+		"line_items[0][price_data][currency]": "cny", "line_items[0][price_data][unit_amount]": "1487",
+		"line_items[0][quantity]": "1", "line_items[0][price_data][product_data][name]": "高级 月付",
+		"success_url": "http://portal.test/orders/" + tradeNo, "cancel_url": "http://portal.test/orders/" + tradeNo,
+	} {
+		if first.PostForm.Get(key) != want {
+			t.Fatalf("Checkout %s=%q, want %q", key, first.PostForm.Get(key), want)
+		}
+	}
+	// Reopening payment must reuse the same Stripe idempotency key for this order.
+	expect(t, h.do("POST", "/api/v1/me/orders/"+tradeNo+":pay", map[string]any{}, buyer), 200)
+	second := <-requests
+	if first.Header.Get("Idempotency-Key") == "" || first.Header.Get("Idempotency-Key") != second.Header.Get("Idempotency-Key") {
+		t.Fatal("Checkout requests must use stable order-scoped idempotency")
+	}
+	// An authentic callback for a different configured method cannot pay this order.
+	expect(t, epayNotify(h, tradeNo, "14.87", epayKey), 400)
+	expect(t, h.do("POST", "/api/v1/payment/stripe/notify", map[string]any{"type": "checkout.session.completed"}, nil), 400)
+	expect(t, h.do("POST", "/api/v1/payment/stripe/notify", map[string]any{"padding": strings.Repeat("x", 1<<20)}, nil), 400)
+	notify := func(kind string, overrides map[string]any, secret string, at time.Time) resp {
+		object := map[string]any{"id": "cs_fixture", "object": "checkout.session", "mode": "payment",
+			"client_reference_id": tradeNo, "amount_total": 1487, "currency": "cny", "payment_status": "paid"}
+		for k, v := range overrides {
+			object[k] = v
+		}
+		event := map[string]any{"id": "evt_fixture", "type": kind, "data": map[string]any{"object": object}}
+		// Deliberate whitespace catches handlers that decode and re-encode before verification.
+		payload, _ := json.MarshalIndent(event, "", "  ")
+		stamp := fmt.Sprint(at.Unix())
+		mac := hmac.New(sha256.New, []byte(secret))
+		mac.Write([]byte(stamp + "."))
+		mac.Write(payload)
+		req := httptest.NewRequest("POST", "/api/v1/payment/stripe/notify", bytes.NewReader(payload))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Stripe-Signature", "t="+stamp+",v1="+hex.EncodeToString(mac.Sum(nil)))
+		w := httptest.NewRecorder()
+		h.a.HTTP.ServeHTTP(w, req)
+		return resp{status: w.Code, raw: w.Body.Bytes()}
+	}
+	for _, tc := range []struct {
+		name, kind, secret string
+		fields             map[string]any
+		age                time.Duration
+		status             int
+	}{
+		{"invalid signature", "checkout.session.completed", "wrong-secret", nil, 0, 400},
+		{"stale signature", "checkout.session.completed", signingSecret, nil, -10 * time.Minute, 400},
+		{"wrong amount", "checkout.session.completed", signingSecret, map[string]any{"amount_total": 1486}, 0, 400},
+		{"wrong currency", "checkout.session.completed", signingSecret, map[string]any{"currency": "usd"}, 0, 400},
+		{"subscription", "checkout.session.completed", signingSecret, map[string]any{"mode": "subscription"}, 0, 400},
+		{"missing reference", "checkout.session.completed", signingSecret, map[string]any{"client_reference_id": ""}, 0, 400},
+		{"missing session ID", "checkout.session.completed", signingSecret, map[string]any{"id": ""}, 0, 400},
+		{"unpaid completed", "checkout.session.completed", signingSecret, map[string]any{"payment_status": "unpaid"}, 0, 200},
+		{"unpaid async", "checkout.session.async_payment_succeeded", signingSecret, map[string]any{"payment_status": "unpaid"}, 0, 200},
+		{"unrelated event", "payment_intent.succeeded", signingSecret, nil, 0, 200},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			expect(t, notify(tc.kind, tc.fields, tc.secret, time.Now().Add(tc.age)), tc.status)
+			current, err := h.a.Store.GetUser(ctx, u.ID)
+			if err != nil || !current.ExpiresAt.Equal(*u.ExpiresAt) {
+				t.Fatalf("invalid/unpaid callback changed entitlement: %v %v", current.ExpiresAt, err)
+			}
+			if r := h.do("GET", "/api/v1/me/orders/"+tradeNo, nil, buyer); r.str("order.status") != "pending" {
+				t.Fatalf("callback unexpectedly paid order: %s", r.raw)
+			}
+		})
+	}
+	// Delayed success and completed can race or be retried: extend the user exactly once.
+	responses := make(chan resp, 2)
+	for _, kind := range []string{"checkout.session.async_payment_succeeded", "checkout.session.completed"} {
+		go func(kind string) { responses <- notify(kind, nil, signingSecret, time.Now()) }(kind)
+	}
+	for i := 0; i < 2; i++ {
+		expect(t, <-responses, 200)
+	}
+	current, err := h.a.Store.GetUser(ctx, u.ID)
+	if err != nil || !current.ExpiresAt.Equal(u.ExpiresAt.AddDate(0, 0, 30)) || current.Balance != 0 {
+		t.Fatalf("fulfillment: expires=%v balance=%d err=%v", current.ExpiresAt, current.Balance, err)
+	}
+	r = h.api("GET", "/api/v1/orders/"+tradeNo, nil)
+	if r.str("order.status") != "paid" || r.str("order.gateway_trade_no") != "cs_fixture" {
+		t.Fatalf("paid order: %s", r.raw)
 	}
 }

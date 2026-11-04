@@ -1849,22 +1849,45 @@ paths:
     get:
       operationId: get_payment_method_notify
       summary: "支付平台异步回调"
+      description: 易支付的查询参数回调；Stripe 使用 POST JSON 和 Stripe-Signature。
       x-risk: normal
       x-access: public
       security: []
       parameters:
         - {name: method, in: path, required: true, schema: {type: string}}
       responses:
-        '200': {description: 成功}
-        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+        '200': {description: 已接收，正文 success 不一定代表订单已支付, content: {text/plain: {schema: {type: string, const: success}}}}
+        default: {description: 拒绝回调，正文 fail, content: {text/plain: {schema: {type: string, const: fail}}}}
     post:
       operationId: post_payment_method_notify
       summary: "支付平台异步回调"
+      description: |
+        易支付使用表单；Stripe 使用未改写的原始 JSON 与 Stripe-Signature，正文上限 1 MiB。
+        Stripe 只处理 checkout.session.completed 和 checkout.session.async_payment_succeeded，
+        且仅在 payment_status=paid、mode=payment、currency=cny、订单方式及金额匹配时履约。
+        其他签名有效的事件或未支付状态确认接收但不履约；重复回调不会重复开通。
       x-risk: normal
       x-access: public
       security: []
       parameters:
         - {name: method, in: path, required: true, schema: {type: string}}
+        - name: Stripe-Signature
+          in: header
+          description: Stripe 驱动必需；校验原始请求体签名和 5 分钟时间戳容差。
+          schema: {type: string}
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Stripe snapshot event，data.object 为 Checkout Session。
+              additionalProperties: true
+              properties:
+                id: {type: string}
+                type: {type: string}
+                data: {type: object, additionalProperties: true}
+          application/x-www-form-urlencoded:
+            schema: {type: object, additionalProperties: {type: string}}
       responses:
-        '200': {description: 成功}
-        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+        '200': {description: 已接收，正文 success 不一定代表订单已支付, content: {text/plain: {schema: {type: string, const: success}}}}
+        default: {description: 拒绝回调，正文 fail, content: {text/plain: {schema: {type: string, const: fail}}}}

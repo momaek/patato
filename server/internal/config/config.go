@@ -72,7 +72,7 @@ type PaymentConfig struct {
 	Methods      []PaymentMethod `yaml:"methods"`
 }
 
-// PaymentMethod 是一种支付方式。driver 目前支持 epay（易支付及兼容接口）。
+// PaymentMethod 是一种支付方式：epay（易支付）或 stripe（Checkout 单次付款）。
 type PaymentMethod struct {
 	Code   string `yaml:"code"`
 	Name   string `yaml:"name"`
@@ -82,6 +82,9 @@ type PaymentMethod struct {
 	Key    string `yaml:"key"`
 	// Type 是易支付的渠道（alipay、wxpay），为空时由收银台选择。
 	Type string `yaml:"type"`
+	// Stripe 的 API secret key 与 Webhook 签名密钥；不是 publishable key。
+	SecretKey     string `yaml:"secret_key"`
+	WebhookSecret string `yaml:"webhook_secret"`
 }
 
 type RegistrationConfig struct {
@@ -322,10 +325,12 @@ func (c *Config) Validate() error {
 			errs = append(errs, fmt.Errorf("payment.methods[%d].code is required and must be a plain word", i))
 		case seen[m.Code]:
 			errs = append(errs, fmt.Errorf("payment.methods[%d].code %q is duplicated", i, m.Code))
-		case m.Driver != "epay":
-			errs = append(errs, fmt.Errorf("payment.methods[%d].driver %q is not supported (epay)", i, m.Driver))
-		case m.URL == "" || m.PID == "" || m.Key == "":
+		case m.Driver != "epay" && m.Driver != "stripe":
+			errs = append(errs, fmt.Errorf("payment.methods[%d].driver %q is not supported (epay, stripe)", i, m.Driver))
+		case m.Driver == "epay" && (m.URL == "" || m.PID == "" || m.Key == ""):
 			errs = append(errs, fmt.Errorf("payment.methods[%d] needs url, pid and key", i))
+		case m.Driver == "stripe" && (m.SecretKey == "" || m.WebhookSecret == ""):
+			errs = append(errs, fmt.Errorf("payment.methods[%d] needs secret_key and webhook_secret", i))
 		}
 		seen[m.Code] = true
 	}

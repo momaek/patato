@@ -1,12 +1,14 @@
 package commerce
 
 import (
+	"context"
 	"crypto/md5"
 	"crypto/subtle"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"math"
+	"net/http"
 	"net/url"
 	"sort"
 	"strconv"
@@ -19,8 +21,8 @@ import (
 type Gateway interface {
 	Code() string
 	Name() string
-	PayURL(o db.Order, notifyURL, returnURL string) (string, error)
-	Verify(values url.Values) (Notification, error)
+	PayURL(ctx context.Context, o db.Order, notifyURL, returnURL string) (string, error)
+	Verify(r *http.Request) (Notification, error)
 	// Ack 是回调处理成功后应返回给支付平台的内容。
 	Ack() string
 }
@@ -75,7 +77,7 @@ func (e *EPay) sign(values url.Values, withEmpty bool) string {
 	return hex.EncodeToString(sum[:])
 }
 
-func (e *EPay) PayURL(o db.Order, notifyURL, returnURL string) (string, error) {
+func (e *EPay) PayURL(_ context.Context, o db.Order, notifyURL, returnURL string) (string, error) {
 	v := url.Values{}
 	v.Set("pid", e.PID)
 	if e.Type != "" {
@@ -91,7 +93,11 @@ func (e *EPay) PayURL(o db.Order, notifyURL, returnURL string) (string, error) {
 	return e.URL + "submit.php?" + v.Encode(), nil
 }
 
-func (e *EPay) Verify(values url.Values) (Notification, error) {
+func (e *EPay) Verify(r *http.Request) (Notification, error) {
+	if err := r.ParseForm(); err != nil {
+		return Notification{}, err
+	}
+	values := r.Form
 	n := Notification{TradeNo: values.Get("out_trade_no"), GatewayTradeNo: values.Get("trade_no"), Status: values.Get("trade_status")}
 	sig := []byte(strings.ToLower(values.Get("sign")))
 	if len(sig) == 0 || (subtle.ConstantTimeCompare(sig, []byte(e.sign(values, false))) != 1 &&
