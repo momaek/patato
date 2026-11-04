@@ -4,7 +4,7 @@
 
 MVP 按 1 名工程师加 AI 辅助编码排期，约 8 周：1 周准备，7 周开发与上线。
 
-**进度**：MVP 服务端、patato-node、两个前端和 CLI 已完成；二期也已完成（经 tolato-agent 引导身份需要同时升级 tolato，tolato 侧改动在 tolato 仓库的 `feat/agent-attestation` 分支），见下文「二期排期」的状态列。说明和已知限制见 [服务端说明](server.md)、[前端说明](web.md)、[CLI 说明](cli.md)。还没做的是各阶段关口要求的真实环境验证、发布流程和第 7 周的迁移演练。比设计文档最初估的 6 周多出的部分，是两个前端应用（Admin 9 页中的 6 页、用户侧 6 页）和迁移演练。
+**进度**：MVP 服务端、patato-node、两个前端和 CLI 已完成；二期也已完成（经 tolato-agent 引导身份需要同时升级 tolato，tolato 侧改动在 tolato 仓库的 `feat/agent-attestation` 分支），见下文「二期排期」的状态列。说明和已知限制见 [服务端说明](server.md)、[前端说明](web.md)、[CLI 说明](cli.md)。已进行 [真机核心验收](acceptance-2026-11-04.md)，但稳定性未通过，各阶段关口要求的完整真实环境验证、发布流程和第 7 周的迁移演练仍未完成。比设计文档最初估的 6 周多出的部分，是两个前端应用（Admin 9 页中的 6 页、用户侧 6 页）和迁移演练。
 
 ## 技术选型
 

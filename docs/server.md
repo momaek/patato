@@ -56,7 +56,7 @@ make lint
 ## 已知限制
 
 - **tolato 侧接口**：面板主机执行告警需要 tolato 用 API key 提供 `GET /api/v1/nodes/{id}/commands`（支持 `since`，沿用 tolato 的分页格式 `items`）；`/api/v1/nodes` 目前也不返回地区，`provision` 按机器名查询时带不出区域。tolato 侧的改动见 [momaek/tolato#27](https://github.com/momaek/tolato/issues/27)，补上之前 Admin 总览显示「tolato 尚未提供执行记录接口」。
-- **订阅格式只做过内核校验**：生成的 sing-box 配置通过了 sing-box 1.11.15 的 `check`，Clash 配置通过了 mihomo 1.19.10 的 `-t`，覆盖 VLESS Reality、VMess WS、SS2022、Hysteria2 四种协议。计划第 3–4 周的关口还要求在真实客户端里导入并连通，这一步没做。端口跳跃（端口范围）和 Hysteria v1 暂不下发。
+- **订阅格式尚未全部完成真机验收**：生成的 sing-box 配置通过了 sing-box 1.11.15 的 `check`，Clash 配置通过了 mihomo 1.19.10 的 `-t`，覆盖 VLESS Reality、VMess WS、SS2022、Hysteria2 四种协议。[真机核心验收](acceptance-2026-11-04.md) 已使用官方 sing-box 1.13.21 验证 Reality、SS2022、Hysteria2 的直连与中转，仍有间歇失败；其他协议及 Clash/Surge 真实客户端尚未完成验收。端口跳跃（端口范围）和 Hysteria v1 暂不下发。
 - **V2bX 安装命令未在真机验证**：安装脚本在无人值守时的行为需要实测。
 - **Xboard 子节点**：子节点没有自己的节点后端，导入后不会有心跳，只在套餐里没有在线节点时下发；导入报告会逐个列出。只支持 Xboard 2025 年之后的统一节点表。
 - **Telegram 绑定码保存在内存里**：多实例部署时要在同一个实例上生成和使用。
@@ -74,7 +74,7 @@ make lint
 
 接入方式有两种：面板生成的一次性注册码（默认），或经 tolato-agent 引导身份（见下文「经 tolato-agent 接入」）。
 
-已知限制：只用 sing-box 内核，不支持 Hysteria v1、VLESS encryption、Shadowsocks 插件；二进制下载地址默认指向 GitHub Release（`node.binary_url`），发布流程还没加；没有在真实 Linux 机器和真实客户端上验证过。
+已知限制：只用 sing-box 内核，不支持 Hysteria v1、VLESS encryption、Shadowsocks 插件；二进制下载地址默认指向 GitHub Release（`node.binary_url`），发布流程还没加；已在真实 Linux 机器和真实客户端进行 [核心验收](acceptance-2026-11-04.md)，但 DNS 负缓存、间歇 HTTPS/UDP 失败及正式证书等问题尚未收口，不能据此宣布生产就绪。
 
 ## 二期：售卖、工单、运营
 
