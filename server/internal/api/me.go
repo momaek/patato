@@ -176,6 +176,8 @@ func (s *Server) meSubscription(c *gin.Context) {
 		"nodes":            nodes,
 		"rule_profile":     ruleProfile,
 		"service_name":     s.d.Cfg.ServiceName,
+		// 落地访问统计开启时才有：用户侧说明统计范围与保留期限
+		"destination_stats": s.destinationStatsNotice(),
 	})
 }
 

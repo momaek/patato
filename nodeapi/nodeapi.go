@@ -78,6 +78,11 @@ type Settings struct {
 	ForwardMode string `json:"forward_mode,omitempty"`
 	// ProbeInterval 是对每条转发的下一跳做 TCP 探测的间隔（秒），0 为不探测。
 	ProbeInterval int `json:"probe_interval,omitempty"`
+
+	// ---- 落地访问统计 ----
+
+	// Destinations 为 true 时节点嗅探目标域名，按「用户 × 目标」聚合流量，每 DestinationInterval 上报一次。
+	Destinations bool `json:"destinations,omitempty"`
 }
 
 // NodeSync 是一个节点的变化。Config 为 nil 表示配置没变；Users 与 Delta 至多有一个，都为 nil 表示用户没变。
@@ -195,6 +200,39 @@ type NodeReport struct {
 	// Alive 是用户 ID 到当前在线的 IP。
 	Alive  map[int64][]string `json:"alive,omitempty"`
 	Status *NodeStatus        `json:"status,omitempty"`
+
+	// ---- 落地访问统计（Settings.Destinations 开启时，每 DestinationInterval 出现一次）----
+
+	Destinations []DestinationStat `json:"destinations,omitempty"`
+	// DestinationsMerged 是这个周期内因超出 MaxDestinations 被合并进「其他」的条目数。
+	DestinationsMerged int `json:"destinations_merged,omitempty"`
+}
+
+// DestinationInterval 是落地访问统计的上报周期；条目上限 MaxDestinations 也按这个周期计算。
+const DestinationInterval = 5 * time.Minute
+
+// MaxDestinations 是每个节点每个上报周期最多保留的「用户 × 目标」条目，超出的合并为「其他」。
+const MaxDestinations = 5000
+
+// 访问目标的类型：域名（可注册域名，例如 google.com）、IP，以及超出上限后合并的「其他」。
+const (
+	DestinationDomain = "domain"
+	DestinationIP     = "ip"
+	DestinationOther  = "other"
+	// DestinationOtherName 是合并条目的目标名称。
+	DestinationOtherName = "其他"
+)
+
+// DestinationStat 是一个上报周期内某个用户访问某个目标的聚合，不含连接级明细。
+type DestinationStat struct {
+	User  int64  `json:"user"`
+	Kind  string `json:"kind"` // domain / ip / other
+	Dest  string `json:"dest"`
+	Up    int64  `json:"up"`
+	Down  int64  `json:"down"`
+	Conns int64  `json:"conns"`
+	// Merged 只出现在「其他」条目上：这个用户被合并进来的目标数。
+	Merged int64 `json:"merged,omitempty"`
 }
 
 // NodeStatus 是节点在内核里的运行状态。

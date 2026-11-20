@@ -145,6 +145,11 @@ function copyFor(name: string) {
 
           <RulePicker />
 
+          <Card v-if="sub.destination_stats" as="section" aria-labelledby="dest-h" class="flex flex-col gap-2 p-4">
+            <h2 id="dest-h" class="font-semibold">{{ t('home.destStats') }}</h2>
+            <p class="text-[13px] text-muted">{{ t('home.destStatsLead', { days: sub.destination_stats.retention_days }) }}</p>
+          </Card>
+
           <Card as="section" aria-labelledby="reset-h" class="flex flex-col gap-2 p-4">
             <h2 id="reset-h" class="font-semibold">{{ t('home.leaked') }}</h2>
             <p class="text-[13px] text-muted">{{ t('home.leakedLead') }}</p>

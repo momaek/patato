@@ -3,6 +3,7 @@
 package kernel
 
 import (
+	"bufio"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -277,5 +278,90 @@ func TestPortConflictReported(t *testing.T) {
 	st := k.Status(9)
 	if st.Running || st.Error == "" {
 		t.Fatalf("status should carry the error: %+v", st)
+	}
+}
+
+// TestDestinations 开启落地访问统计后，节点嗅探 HTTP Host 并按可注册域名累加；连接目标是 IP 且读不到域名时按 IP 记；
+// 关闭后不再采集。
+func TestDestinations(t *testing.T) {
+	u := target(t)
+	m := meter.New(time.Minute)
+	k := newKernel(t, m)
+	tc := cases()[0]
+	port := freePort(t, "tcp")
+	spec := tc.node(port)
+	users := []nodeapi.User{tc.user}
+	m.SetUsers(spec.ID, users)
+	if err := k.Apply(spec, users); err != nil {
+		t.Fatal(err)
+	}
+	// 经 CONNECT 隧道访问，Host 头只在应用层出现，节点只能靠嗅探知道域名
+	proxyURL, _ := client(t, tc.outbound(port)).Transport.(*http.Transport).Proxy(nil)
+	c := &http.Client{Timeout: 10 * time.Second, Transport: &http.Transport{DisableKeepAlives: true,
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			conn, err := net.Dial("tcp", proxyURL.Host)
+			if err != nil {
+				return nil, err
+			}
+			fmt.Fprintf(conn, "CONNECT %s HTTP/1.1\r\nHost: %s\r\n\r\n", addr, addr)
+			br := bufio.NewReader(conn)
+			resp, err := http.ReadResponse(br, nil)
+			if err != nil || resp.StatusCode != 200 {
+				conn.Close()
+				return nil, fmt.Errorf("connect: %v %v", err, resp)
+			}
+			return conn, nil
+		}}}
+	get := func(host string) {
+		t.Helper()
+		req, _ := http.NewRequest("GET", u, nil)
+		if host != "" {
+			req.Host = host
+		}
+		resp, err := c.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		b, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if len(b) != 64<<10 {
+			t.Fatalf("short body %d", len(b))
+		}
+	}
+
+	get("www.patato-sniff.com") // 未开启
+	if r := m.CollectDestinations(); len(r) != 0 {
+		t.Fatalf("collected while disabled: %+v", r)
+	}
+	m.Collect()
+	k.SetDestinations(true)
+	get("www.patato-sniff.com")
+	get("cdn.patato-sniff.com")
+	get("")
+	r := m.CollectDestinations()[spec.ID]
+	if r == nil {
+		t.Fatal("no destinations reported")
+	}
+	byDest := map[string]nodeapi.DestinationStat{}
+	for _, d := range r.Destinations {
+		byDest[d.Dest] = d
+	}
+	sniffed := byDest["patato-sniff.com"]
+	if sniffed.Kind != "domain" || sniffed.User != 7 || sniffed.Conns != 2 || sniffed.Down < 2*(64<<10) || sniffed.Up == 0 {
+		t.Fatalf("sniffed domain: %+v", r.Destinations)
+	}
+	// 没有 Host 时 Go 用 URL 里的地址作 Host，嗅探出的仍是 127.0.0.1
+	if ipd := byDest["127.0.0.1"]; ipd.Kind != "ip" || ipd.Conns != 1 {
+		t.Fatalf("ip destination: %+v", r.Destinations)
+	}
+	// 用户流量与目标流量一致
+	if tr := m.Collect()[spec.ID].Traffic[7]; tr[1] != sniffed.Down+byDest["127.0.0.1"].Down {
+		t.Fatalf("user down %d != destinations %d", tr[1], sniffed.Down+byDest["127.0.0.1"].Down)
+	}
+
+	k.SetDestinations(false)
+	get("www.patato-sniff.com")
+	if r := m.CollectDestinations(); len(r) != 0 {
+		t.Fatalf("collected after disable: %+v", r)
 	}
 }

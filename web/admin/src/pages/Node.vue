@@ -6,6 +6,7 @@ import { api, errorText, fmt, type List, type Node, type NodeEntry, type Plan, t
 import { Alert, Badge, Button, Card, Field, LoadState, Section, StatusDot } from '@patato/ui'
 import ChangeDialog from '../components/ChangeDialog.vue'
 import CliHint from '../components/CliHint.vue'
+import DestinationRanking from '../components/DestinationRanking.vue'
 import PageHeader from '../components/PageHeader.vue'
 import { cents, type ChangeRequest } from '../lib/change'
 import { backends, entryKinds, entryTone, forwardStatus, protocols, show } from '../lib/labels'
@@ -179,6 +180,8 @@ function done(p: { status: string; kind: string }) {
               <span v-if="n.plans.length === 0" class="text-muted">没有挂到任何套餐，用户看不到这个节点。</span>
             </Card>
           </Section>
+
+          <DestinationRanking v-if="n.backend === 'native'" view="node" :target="n.code" />
 
           <Section title="协议设置" meta="私钥和密码已隐去">
             <Card as="dl" class="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 p-5 text-[13px]">

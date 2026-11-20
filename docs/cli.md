@@ -22,7 +22,7 @@ patato auth login --url https://api.example.com
 
 ```
 patato status
-patato node list | show | provision | update | attach | detach | rotate-key | delete | install-cmd
+patato node list | show | provision | update | attach | detach | rotate-key | delete | install-cmd | destinations
 patato machine list | show | install-cmd | revoke | set
 patato route list | show | create | update | delete | apply | traffic | discover      （中转线路）
 patato node entry list | add | enable | disable | delete | adopt                     （节点入口）

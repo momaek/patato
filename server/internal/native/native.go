@@ -30,6 +30,9 @@ type Config struct {
 	DeviceTTL      time.Duration
 	// PublicURL 返回面板的 API 地址，tolato 机器身份证明只对它有效。
 	PublicURL func() string
+
+	// Destinations 为 true 时让 patato-node 采集落地访问统计（monitoring.destinations.enabled）。
+	Destinations bool
 }
 
 // Attestor 核实 tolato-agent 签发的机器身份证明，返回这台机器在 tolato 里的名称、别名和 IP。
@@ -238,6 +241,7 @@ func (h *Handler) Sync(c *gin.Context) {
 		Machine: m.Host, Nodes: []nodeapi.NodeSync{}, Removed: []int64{},
 		Settings: nodeapi.Settings{
 			ReportInterval: h.cfg.ReportInterval, SyncInterval: h.cfg.SyncInterval, DeviceTTL: int(h.cfg.DeviceTTL.Seconds()),
+			Destinations: h.cfg.Destinations,
 		},
 	}
 	current := map[int64]bool{}
@@ -366,6 +370,11 @@ func (h *Handler) Report(c *gin.Context) {
 			return err
 		}
 		for _, r := range req.Nodes {
+			if len(r.Destinations) > 0 {
+				if err := h.storeDestinations(c, q, byID, r, req.At); err != nil {
+					return err
+				}
+			}
 			if len(r.Traffic) == 0 {
 				continue
 			}

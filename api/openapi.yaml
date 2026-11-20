@@ -68,6 +68,35 @@ components:
         approval_id: {type: string}
         result: {}
         error: {type: string}
+    # ---- 落地访问统计 ----
+    DestinationRanking:
+      type: object
+      required: [enabled, retention_days, since, period, total, items]
+      properties:
+        enabled: {type: boolean, description: monitoring.destinations.enabled；关闭后不再有新数据，已有数据按保留期限清理}
+        retention_days: {type: integer}
+        since: {type: string, format: date-time, description: 统计起点（整点）}
+        period: {type: string, description: 请求的时间段，例如 24h}
+        node: {type: object, properties: {id: {type: integer}, code: {type: string}, name: {type: string}}}
+        user: {type: object, properties: {id: {type: integer}, email: {type: string}}}
+        user_id: {type: [integer, "null"]}
+        node_id: {type: [integer, "null"]}
+        total: {type: object, properties: {up: {type: integer}, down: {type: integer}, bytes: {type: integer}, conns: {type: integer}, destinations: {type: integer}}}
+        items:
+          type: array
+          items:
+            type: object
+            required: [kind, dest, up, down, bytes, conns]
+            properties:
+              kind: {type: string, enum: [domain, ip, other]}
+              dest: {type: string, description: 可注册域名或 IP；other 为「其他」}
+              up: {type: integer}
+              down: {type: integer}
+              bytes: {type: integer}
+              conns: {type: integer}
+              merged: {type: integer, description: 只在 other 上：被合并的目标数}
+              users: {type: integer, description: 节点视图：访问过这个目标的用户数}
+              nodes: {type: integer, description: 用户视图：经过的节点数}
 paths:
   /api/v1/tools:
     get:
@@ -2127,6 +2156,41 @@ paths:
       responses:
         '200': {description: 成功}
         default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  # ---- 落地访问统计（monitoring.destinations）----
+  /api/v1/nodes/{id}/destinations:
+    get:
+      operationId: get_nodes_id_destinations
+      summary: "节点访问最多的域名 / IP（按用户求和，可按用户筛选）"
+      description: 只在 monitoring.destinations.enabled 开启后有数据；域名记录可注册域名（例如 google.com），不含路径。超出每节点每周期 5000 条上限的目标合并为「其他」（kind other，merged 为被合并的目标数）。
+      x-risk: read
+      x-access: admin
+      security: [{token: []}, {operatorSession: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}, description: 节点 ID 或代号}
+        - {name: since, in: query, required: false, schema: {type: string, default: 24h}, description: 时间段，例如 24h、7d；不超过保留天数}
+        - {name: user, in: query, required: false, schema: {type: string}, description: 只看这个用户（ID 或邮箱）}
+        - {name: limit, in: query, required: false, schema: {type: integer, default: 50, maximum: 200}}
+        - $ref: '#/components/parameters/XActor'
+      responses:
+        '200': {description: 成功, content: {application/json: {schema: {$ref: '#/components/schemas/DestinationRanking'}}}}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /api/v1/users/{id}/destinations:
+    get:
+      operationId: get_users_id_destinations
+      summary: "用户访问最多的域名 / IP（可按节点筛选）"
+      x-risk: read
+      x-access: admin
+      security: [{token: []}, {operatorSession: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}, description: 用户 ID 或邮箱}
+        - {name: since, in: query, required: false, schema: {type: string, default: 24h}, description: 时间段，例如 24h、7d；不超过保留天数}
+        - {name: node, in: query, required: false, schema: {type: string}, description: 只看这个节点（ID 或代号）}
+        - {name: limit, in: query, required: false, schema: {type: integer, default: 50, maximum: 200}}
+        - $ref: '#/components/parameters/XActor'
+      responses:
+        '200': {description: 成功, content: {application/json: {schema: {$ref: '#/components/schemas/DestinationRanking'}}}}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  # ---- 落地访问统计 结束 ----
   /api/v1/payment/{method}/notify:
     get:
       operationId: get_payment_method_notify

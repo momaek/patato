@@ -160,6 +160,18 @@ type Coupon struct {
 	Version   int64
 }
 
+type DestinationStatsHourly struct {
+	NodeID int64
+	UserID int64
+	Hour   time.Time
+	Kind   string
+	Dest   string
+	Up     int64
+	Down   int64
+	Conns  int64
+	Merged int64
+}
+
 type Event struct {
 	ID         int64
 	Kind       string
