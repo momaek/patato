@@ -39,11 +39,13 @@ type Options struct {
 
 // Report 是导入结果，预演和正式导入都会生成。
 type Report struct {
-	Plans    int      `json:"plans"`
-	Nodes    int      `json:"nodes"`
-	Users    int      `json:"users"`
-	Attached int      `json:"plan_node_links"`
-	Orders   int      `json:"orders"`
+	Plans    int `json:"plans"`
+	Nodes    int `json:"nodes"`
+	Users    int `json:"users"`
+	Attached int `json:"plan_node_links"`
+	Orders   int `json:"orders"`
+	// Entries 是 Xboard 子节点导入成的父节点入口数（中转入口的第一跳地址，中间跳由链路发现补齐）。
+	Entries  int      `json:"entries"`
 	Invites  int      `json:"invite_links"`
 	Balance  int64    `json:"balance_cents"`
 	Warnings []string `json:"warnings"`
@@ -230,8 +232,29 @@ func Import(ctx context.Context, st *store.Store, box *secret.Box, opt Options, 
 		rep.Plans++
 	}
 
+	// Xboard 用「父节点隐藏、子节点显示」表示中转：子节点没有自己的节点后端，地址是中转入口。
+	// 导入时子节点变成父节点的入口（名称、地址、端口照旧），父节点隐藏时它的直连入口默认停用。
+	byID := map[int64]row{}
+	for _, s := range servers {
+		byID[s.int("id")] = s
+	}
+	children := map[int64][]row{}
+	for _, s := range servers {
+		if pid := s.int("parent_id"); pid > 0 {
+			if _, ok := byID[pid]; ok {
+				children[pid] = append(children[pid], s)
+			} else {
+				rep.warn("子节点 %d（%s）的父节点 %d 不存在，按独立节点导入", s.int("id"), s.str("name"), pid)
+			}
+		}
+	}
 	for _, s := range servers {
 		id := s.int("id")
+		if pid := s.int("parent_id"); pid > 0 {
+			if _, ok := byID[pid]; ok {
+				continue // 作为父节点的入口导入
+			}
+		}
 		typ := proto.Normalize(s.str("type"))
 		settings := proto.Parse(json.RawMessage(s.str("protocol_settings")))
 		if typ == "shadowsocks" {
@@ -255,9 +278,6 @@ func Import(ctx context.Context, st *store.Store, box *secret.Box, opt Options, 
 		if strings.Contains(s.str("port"), "-") {
 			rep.warn("节点 %d 使用端口范围 %s，Patato 订阅里只下发起始端口 %d", id, s.str("port"), port)
 		}
-		if s.int("parent_id") > 0 {
-			rep.warn("节点 %d（%s）是子节点，没有自己的节点后端；接入后不会有心跳，只在没有在线节点时下发", id, s.str("name"))
-		}
 		var tags []string
 		_ = json.Unmarshal([]byte(s.str("tags")), &tags)
 		if tags == nil {
@@ -276,6 +296,13 @@ func Import(ctx context.Context, st *store.Store, box *secret.Box, opt Options, 
 		rep.Nodes++
 		var groups []string
 		_ = json.Unmarshal([]byte(s.str("group_ids")), &groups)
+		groups = unionGroups(groups, children[id], func(child row, extra []string) {
+			rep.warn("子节点 %d（%s）的权限组 %s 不在父节点 %d 里；父节点按并集挂载，这些组的用户也会看到父节点的其他入口",
+				child.int("id"), child.str("name"), strings.Join(extra, ","), id)
+		})
+		if err := importEntries(ctx, q, s, children[id], rep); err != nil {
+			return nil, err
+		}
 		for _, g := range groups {
 			gid, _ := strconv.ParseInt(g, 10, 64)
 			for pid, pg := range planGroup {
@@ -397,7 +424,7 @@ func Import(ctx context.Context, st *store.Store, box *secret.Box, opt Options, 
 		rep.warn("%d 名用户的权限组与其套餐的权限组不一致；Patato 按套餐决定可用节点", groupMismatch)
 	}
 
-	for _, t := range []string{"plans", "nodes", "users", "orders"} {
+	for _, t := range []string{"plans", "nodes", "users", "orders", "node_entries"} {
 		if _, err := tx.Exec(ctx, fmt.Sprintf("SELECT setval(pg_get_serial_sequence('%s', 'id'), GREATEST((SELECT COALESCE(max(id), 0) FROM %s), 1))", t, t)); err != nil {
 			return nil, err
 		}
@@ -413,6 +440,63 @@ func Import(ctx context.Context, st *store.Store, box *secret.Box, opt Options, 
 		return nil, err
 	}
 	return rep, nil
+}
+
+// importEntries 把子节点导入成父节点的入口。只有父节点隐藏或有子节点时才写入口：
+// 没有入口的节点等价于一个启用的直连入口，订阅与原来一致。
+func importEntries(ctx context.Context, q *db.Queries, parent row, kids []row, rep *Report) error {
+	hidden := !parent.null("show") && !parent.boolean("show")
+	if len(kids) == 0 && !hidden {
+		return nil
+	}
+	pid := parent.int("id")
+	if _, err := q.CreateEntry(ctx, db.CreateEntryParams{NodeID: pid, Enabled: !hidden, Sort: int32(parent.int("sort"))}); err != nil {
+		return fmt.Errorf("insert direct entry of node %d: %w", pid, err)
+	}
+	if hidden {
+		rep.warn("节点 %d（%s）在 Xboard 里隐藏，直连入口已停用", pid, parent.str("name"))
+	}
+	for _, c := range kids {
+		if proto.Normalize(c.str("type")) != proto.Normalize(parent.str("type")) {
+			rep.warn("子节点 %d（%s）的协议 %s 与父节点不同，导入后按父节点 %s 的协议下发", c.int("id"), c.str("name"), c.str("type"), parent.str("type"))
+		}
+		port := firstPort(c.str("port"))
+		enabled := c.null("show") || c.boolean("show")
+		if _, err := q.CreateEntry(ctx, db.CreateEntryParams{
+			NodeID: pid, Name: c.str("name"), Address: c.str("host"), Port: int32(port), Enabled: enabled, Sort: int32(c.int("sort")),
+		}); err != nil {
+			return fmt.Errorf("insert entry for child node %d: %w", c.int("id"), err)
+		}
+		rep.Entries++
+	}
+	rep.warn("节点 %d（%s）的 %d 个子节点已导入为入口；中间经过哪些中转机器需要用链路发现补齐（patato route discover）",
+		pid, parent.str("name"), len(kids))
+	return nil
+}
+
+// unionGroups 返回父节点与子节点权限组的并集；子节点有父节点没有的组时回调告警。
+func unionGroups(parent []string, kids []row, warn func(child row, extra []string)) []string {
+	have := map[string]bool{}
+	for _, g := range parent {
+		have[g] = true
+	}
+	out := append([]string{}, parent...)
+	for _, c := range kids {
+		var gs []string
+		_ = json.Unmarshal([]byte(c.str("group_ids")), &gs)
+		var extra []string
+		for _, g := range gs {
+			if !have[g] {
+				have[g] = true
+				out = append(out, g)
+				extra = append(extra, g)
+			}
+		}
+		if len(extra) > 0 && len(parent) > 0 {
+			warn(c, extra)
+		}
+	}
+	return out
 }
 
 // xboardPeriod 把 Xboard 的周期换成 Patato 的周期键；老版本 Xboard 用 month_price 这类写法。

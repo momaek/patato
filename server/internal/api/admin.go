@@ -106,6 +106,7 @@ type nodeView struct {
 	Protocol        string          `json:"protocol"`
 	Backend         string          `json:"backend"`
 	Port            int32           `json:"port"`
+	ServerPort      int32           `json:"server_port"`
 	State           string          `json:"state"`
 	InSubscription  bool            `json:"in_subscription"`
 	Rate            float64         `json:"rate"`
@@ -178,7 +179,7 @@ func (s *Server) nodeViews(c *gin.Context, nodes []db.Node, detail bool) ([]node
 	for _, n := range nodes {
 		v := nodeView{
 			ID: n.ID, Code: n.Code, Name: n.Name, Region: n.Region, Host: n.Host, Address: n.Address, Protocol: n.Protocol, Backend: n.Backend,
-			Port: n.Port, State: n.State, InSubscription: n.State != "pending", Rate: n.Rate, Tags: n.Tags,
+			Port: n.Port, ServerPort: n.ServerPort, State: n.State, InSubscription: n.State != "pending", Rate: n.Rate, Tags: n.Tags,
 			Plans: nonNilRefs(plansByNode[n.ID]), OnlineUsers: online[n.ID], TodayBytes: today[n.ID],
 			LastHeartbeatAt: n.LastHeartbeatAt, LastPushAt: n.LastPushAt, LegacyToken: n.AllowLegacyToken, MonthlyCost: n.MonthlyCost,
 			Version: n.Version, CreatedAt: n.CreatedAt, Runtime: n.Runtime,

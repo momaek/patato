@@ -82,6 +82,8 @@ export default {
       over_quota: '本月流量已用完，节点暂时无法使用，到重置日自动恢复。',
       banned: '账号已被停用，如有疑问请联系客服。',
     },
+    destStats: '访问统计说明',
+    destStatsLead: '为排查线路异常、优化分流，节点会按账号统计访问的主域名或 IP（例如 google.com）及其流量，不记录网址路径和内容。统计保留 {days} 天后自动删除。',
   },
   rules: {
     title: '分流规则',

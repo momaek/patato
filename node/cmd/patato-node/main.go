@@ -21,6 +21,7 @@ import (
 	"github.com/momaek/patato/node/internal/control"
 	"github.com/momaek/patato/node/internal/kernel"
 	"github.com/momaek/patato/node/internal/meter"
+	"github.com/momaek/patato/node/internal/relay"
 	"github.com/momaek/patato/node/internal/spool"
 	"github.com/momaek/patato/node/internal/tolato"
 	"github.com/momaek/patato/nodeapi"
@@ -118,7 +119,17 @@ func run(args []string) error {
 	defer stop()
 	log.Info("patato-node starting", "version", version, "kernel", kernel.Version(), "config", path,
 		"panel", cfg.Panel, "standalone", cfg.Standalone, "spool", sp.ID())
-	return agent.New(source(cfg, log), k, m, sp, version, log).Run(ctx)
+	a := agent.New(source(cfg, log), k, m, sp, version, log)
+	rm := relay.NewManager(func() (relay.Backend, error) {
+		n, err := relay.NewNFT()
+		if err != nil {
+			return nil, err
+		}
+		return n, nil
+	}, relay.NewUserspace(cfg.KernelLogLevel), log)
+	defer rm.Close()
+	a.SetRelay(rm)
+	return a.Run(ctx)
 }
 
 func enroll(args []string) error {

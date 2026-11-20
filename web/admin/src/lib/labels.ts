@@ -150,3 +150,27 @@ export function show(v: unknown): string {
   if (typeof v === 'object') return Object.entries(v as Record<string, unknown>).map(([k, x]) => `${k}: ${show(x)}`).join('，')
   return String(v)
 }
+
+// ---- 中转线路 ------------------------------------------------------------
+
+export const hopStates: Record<string, { label: string; tone: Tone }> = {
+  online: { label: '在线', tone: 'ok' },
+  offline: { label: '离线', tone: 'bad' },
+  unknown: { label: '状态未知', tone: 'idle' },
+}
+
+export const forwardStatus: Record<string, { label: string; tone: Tone }> = {
+  pending: { label: '待生效', tone: 'warn' },
+  active: { label: '已生效', tone: 'ok' },
+  failed: { label: '失败', tone: 'bad' },
+  manual: { label: '手写规则', tone: 'neutral' },
+}
+
+export const entryKinds: Record<string, string> = { direct: '直连', custom: '自定义地址', relay: '中转' }
+
+export const forwardModes: Record<string, string> = { auto: '自动（能用 nftables 就用）', nft: 'nftables 内核转发', userspace: '用户态（sing-box）' }
+
+export function entryTone(e: { enabled: boolean; available: boolean }): Tone {
+  if (!e.enabled) return 'idle'
+  return e.available ? 'ok' : 'bad'
+}

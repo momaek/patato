@@ -16,6 +16,7 @@ import (
 	"github.com/momaek/patato/server/internal/proto"
 	"github.com/momaek/patato/server/internal/secret"
 	"github.com/momaek/patato/server/internal/store/db"
+	"github.com/momaek/patato/server/internal/subscribe"
 	"github.com/momaek/patato/server/internal/testutil"
 )
 
@@ -43,7 +44,13 @@ func fakeXboard(t *testing.T) string {
 			(10, 'vless', NULL, '["7"]', '东京-01', 1.5, '["jp"]', 'jp.example.com', '443', 443,
 			 '{"tls":2,"network":"tcp","reality_settings":{"public_key":"PUB","private_key":"PRIV","short_id":"ab","server_name":"www.apple.com"}}', true, 1, '2025-01-01 00:00:00'),
 			(11, 'shadowsocks', NULL, '["7","8"]', '香港-01', 1, NULL, 'hk.example.com', '20000-20010', 8388,
-			 '{"cipher":"2022-blake3-aes-128-gcm"}', true, 2, '2025-01-01 00:00:00')`,
+			 '{"cipher":"2022-blake3-aes-128-gcm"}', true, 2, '2025-01-01 00:00:00'),
+			(12, 'shadowsocks', NULL, '["7"]', '洛杉矶-01', 1, NULL, 'la.example.com', '8388', 8388,
+			 '{"cipher":"aes-128-gcm"}', false, 3, '2025-01-01 00:00:00'),
+			(13, 'shadowsocks', 12, '["7"]', '洛杉矶 广州中转', 1, NULL, 'gz.example.com', '60001', 60001,
+			 '{"cipher":"aes-128-gcm"}', true, 4, '2025-01-01 00:00:00'),
+			(14, 'shadowsocks', 12, '["7"]', '洛杉矶 广州中转 2', 1, NULL, 'gz.example.com', '60002', 60002,
+			 '{"cipher":"aes-128-gcm"}', true, 5, '2025-01-01 00:00:00')`,
 		`INSERT INTO v2_user VALUES
 			(100, 'old@example.com', '` + hex.EncodeToString(md5pw[:]) + `', 'md5', '', '0f7c3a8e-1111-4222-8333-944455556666',
 			 'abcdef0123456789abcdef0123456789', 3, 7, 0, 322122547200, 100, 200, 1893456000, NULL, NULL, NULL, NULL, 1700000000),
@@ -75,7 +82,7 @@ func TestImport(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if rep.Plans != 2 || rep.Nodes != 2 || rep.Users != 2 {
+	if rep.Plans != 2 || rep.Nodes != 3 || rep.Users != 2 || rep.Entries != 2 {
 		t.Fatalf("dry run report: %+v", rep)
 	}
 	if n, _ := st.ListNodes(ctx); len(n) != 0 {
@@ -86,8 +93,34 @@ func TestImport(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if rep.Attached != 3 {
+	if rep.Attached != 4 {
 		t.Fatalf("plan-node links: %+v", rep)
+	}
+	// 子节点导入成父节点的入口；父节点隐藏，直连入口停用
+	if _, err := st.GetNode(ctx, 13); err == nil {
+		t.Fatal("child node must not be imported as a node")
+	}
+	es, _ := st.ListNodeEntries(ctx, 12)
+	if len(es) != 3 || es[0].Enabled || es[0].Address != "" || es[1].Name != "洛杉矶 广州中转" || es[1].Address != "gz.example.com" ||
+		es[1].Port != 60001 || !es[1].Enabled || es[2].Port != 60002 {
+		t.Fatalf("entries: %+v", es)
+	}
+	if es10, _ := st.ListNodeEntries(ctx, 10); len(es10) != 0 {
+		t.Fatalf("visible node without children keeps the implicit direct entry: %+v", es10)
+	}
+	// 订阅与 Xboard 一致：显示的节点（东京、香港、两个子节点）按名称、地址、端口逐条对应，隐藏的父节点不出现
+	owner, _ := st.GetUser(ctx, 100)
+	servers, err := subscribe.ServersFor(ctx, st.Queries, owner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := []string{}
+	for _, sv := range servers {
+		got = append(got, fmt.Sprintf("%s %s:%d", sv.Name, sv.Host, sv.Port))
+	}
+	want := "东京-01 jp.example.com:443|香港-01 hk.example.com:20000|洛杉矶 广州中转 gz.example.com:60001|洛杉矶 广州中转 2 gz.example.com:60002"
+	if strings.Join(got, "|") != want {
+		t.Fatalf("subscription after import:\n got  %s\n want %s", strings.Join(got, "|"), want)
 	}
 	// 只导入已完成的订单；邀请关系和余额（余额 + 佣金余额）一起迁移
 	if rep.Orders != 1 || rep.Invites != 1 || rep.Balance != 620 {

@@ -88,6 +88,7 @@ export interface Node {
   protocol: string
   backend: 'native' | 'uniproxy'
   port: number
+  server_port: number
   state: NodeState
   in_subscription: boolean
   rate: number
@@ -116,6 +117,7 @@ export interface Machine {
   enrolled_at: string | null
   last_seen_at: string | null
   nodes: Ref[]
+  network: MachineNetwork | null
 }
 
 // ---- 套餐 --------------------------------------------------------------
@@ -480,6 +482,8 @@ export interface MySubscription {
   /** 当前生效的分流规则；为空时用内置规则 */
   rule_profile: { code: string; name: string } | null
   service_name: string
+  /** 落地访问统计开启时才有：用于说明统计范围与保留期限 */
+  destination_stats?: { retention_days: number } | null
 }
 
 export interface MyRuleProfile {
@@ -572,4 +576,126 @@ export interface MyReferral {
   pending: number
   settled: number
   items: Commission[]
+}
+
+// ---- 中转线路 ------------------------------------------------------------
+
+export interface PortRange {
+  local: string
+  public_from?: number
+}
+
+export interface MachineNetwork {
+  public_address: string
+  address: string
+  port_ranges: PortRange[]
+  effective_port_ranges: PortRange[]
+  reserved_ports: PortRange[]
+  nat: boolean
+  forward_mode: 'auto' | 'nft' | 'userspace'
+  tolato_ip: string
+  state: 'online' | 'offline' | 'unknown'
+  runtime: { mode: string; error?: string } | null
+  forwards: number
+  failed_forwards: number
+  ports_used: number
+  ports_total: number
+  today_up: number
+  today_down: number
+  month_up: number
+  month_down: number
+}
+
+export interface RelayForward {
+  id: number
+  hop: number
+  machine: string
+  machine_state: 'online' | 'offline' | 'unknown'
+  listen_port: number
+  public_port: number
+  target_host: string
+  target_ip: string
+  target_port: number
+  mode: 'manual' | 'nft' | 'userspace'
+  status: 'pending' | 'active' | 'failed' | 'manual'
+  applied_mode: string
+  applied_at: string | null
+  error: string
+  probe_ok: boolean | null
+  probe_ms: number | null
+  probe_at: string | null
+  probe_failures: number
+  probe_success_rate_24h: number | null
+  probe_avg_ms_24h: number | null
+  today_up: number
+  today_down: number
+}
+
+export interface NodeEntry {
+  id: number
+  node_id: number
+  node: string
+  kind: 'direct' | 'custom' | 'relay'
+  route: Ref | null
+  name: string
+  suffix: string
+  host: string
+  port: number
+  enabled: boolean
+  available: boolean
+  reason?: string
+  sort: number
+  implicit?: boolean
+  forwards: RelayForward[]
+  today_up: number
+  today_down: number
+  version: number
+}
+
+export interface RelayRoute {
+  id: number
+  code: string
+  name: string
+  hops: { id: number; host: string; address: string; state: 'online' | 'offline' | 'unknown' }[]
+  nodes: number
+  entries: NodeEntry[]
+  today_up: number
+  today_down: number
+  month_up: number
+  month_down: number
+  version: number
+}
+
+export interface RouteTraffic {
+  days: number
+  since: string
+  items: { route: Ref; up: number; down: number; series: { day: string; up: number; down: number }[] }[]
+}
+
+// ---- 落地访问统计 ------------------------------------------------------
+
+export interface DestinationItem {
+  kind: 'domain' | 'ip' | 'other'
+  dest: string
+  up: number
+  down: number
+  bytes: number
+  conns: number
+  /** 只在 other 上：被合并的目标数 */
+  merged?: number
+  /** 节点视图：访问过这个目标的用户数 */
+  users?: number
+  /** 用户视图：经过的节点数 */
+  nodes?: number
+}
+
+export interface DestinationRanking {
+  enabled: boolean
+  retention_days: number
+  since: string
+  period: string
+  node?: Ref
+  user?: { id: number; email: string }
+  total: { up: number; down: number; bytes: number; conns: number; destinations: number }
+  items: DestinationItem[]
 }

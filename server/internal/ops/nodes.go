@@ -15,6 +15,7 @@ import (
 	"github.com/momaek/patato/server/internal/apierr"
 	"github.com/momaek/patato/server/internal/change"
 	"github.com/momaek/patato/server/internal/commerce"
+	"github.com/momaek/patato/server/internal/relay"
 	"github.com/momaek/patato/server/internal/secret"
 	"github.com/momaek/patato/server/internal/store/db"
 )
@@ -234,15 +235,18 @@ func (*NodeUpdate) Kind() string      { return "node.update" }
 func (*NodeUpdate) Risk() change.Risk { return change.Normal }
 
 type nodeUpdateParams struct {
-	Node     Ref             `json:"node"`
-	Name     *string         `json:"name"`
-	Address  *string         `json:"address"`
-	Port     *int            `json:"port"`
-	Rate     *float64        `json:"rate"`
-	Tags     []string        `json:"tags"`
-	Settings json.RawMessage `json:"settings"`
-	Sort     *int            `json:"sort"`
-	Backend  *string         `json:"backend"`
+	Node    Ref     `json:"node"`
+	Name    *string `json:"name"`
+	Address *string `json:"address"`
+	// Port 是客户端连接的对外端口，ServerPort 是节点实际监听的端口。两者分别修改：
+	// 对外地址经 NAT 或中转映射时它们不同，改对外端口不能把监听端口一起改掉。
+	Port       *int            `json:"port"`
+	ServerPort *int            `json:"server_port"`
+	Rate       *float64        `json:"rate"`
+	Tags       []string        `json:"tags"`
+	Settings   json.RawMessage `json:"settings"`
+	Sort       *int            `json:"sort"`
+	Backend    *string         `json:"backend"`
 	// MonthlyCost 是这个节点每月的成本（分），只用于成本报表，不影响用户。
 	MonthlyCost *int64 `json:"monthly_cost"`
 }
@@ -271,6 +275,12 @@ func (o *NodeUpdate) Plan(ctx context.Context, q *db.Queries, raw json.RawMessag
 			return nil, apierr.BadRequest("invalid_port", "端口 %d 不合法", *p.Port)
 		}
 		add("port", n.Port, *p.Port)
+	}
+	if p.ServerPort != nil && int32(*p.ServerPort) != n.ServerPort {
+		if *p.ServerPort <= 0 || *p.ServerPort > 65535 {
+			return nil, apierr.BadRequest("invalid_port", "监听端口 %d 不合法", *p.ServerPort)
+		}
+		add("server_port", n.ServerPort, *p.ServerPort)
 	}
 	if p.Rate != nil && *p.Rate != n.Rate {
 		if *p.Rate <= 0 {
@@ -361,7 +371,10 @@ func (o *NodeUpdate) Apply(ctx context.Context, q *db.Queries, raw json.RawMessa
 		args.Address = *p.Address
 	}
 	if p.Port != nil {
-		args.Port, args.ServerPort = int32(*p.Port), int32(*p.Port)
+		args.Port = int32(*p.Port)
+	}
+	if p.ServerPort != nil {
+		args.ServerPort = int32(*p.ServerPort)
 	}
 	if p.Rate != nil {
 		args.Rate = *p.Rate
@@ -386,6 +399,12 @@ func (o *NodeUpdate) Apply(ctx context.Context, q *db.Queries, raw json.RawMessa
 			return nil, apierr.Conflict("port_taken", "这台机器上端口 %d 已被占用", args.ServerPort)
 		}
 		return nil, err
+	}
+	// 中转入口最后一跳指向节点的对外端口（和节点地址），改了要重新下发
+	if updated.Port != n.Port || updated.Address != n.Address {
+		if _, err := relay.RefreshNodeForwards(ctx, q, n.ID); err != nil {
+			return nil, err
+		}
 	}
 	return map[string]any{"node_id": updated.ID, "version": updated.Version}, nil
 }

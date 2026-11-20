@@ -23,6 +23,7 @@ import (
 	"github.com/momaek/patato/server/internal/native"
 	"github.com/momaek/patato/server/internal/notify"
 	"github.com/momaek/patato/server/internal/ops"
+	"github.com/momaek/patato/server/internal/relay"
 	"github.com/momaek/patato/server/internal/rules"
 	"github.com/momaek/patato/server/internal/secret"
 	"github.com/momaek/patato/server/internal/store"
@@ -48,6 +49,7 @@ type App struct {
 	Commerce  *commerce.Service
 	Automate  *automation.Dispatcher
 	Rules     *rules.Service
+	Relay     *relay.Monitor
 	HTTP      *api.Server
 	Log       *slog.Logger
 }
@@ -107,6 +109,11 @@ func New(ctx context.Context, cfg *config.Config, log *slog.Logger) (*App, error
 		return nil, err
 	}
 	a.Billing = billing.NewProcessor(st, a.Events, loc, log)
+	var dir relay.Directory
+	if a.Tolato != nil {
+		dir = tolatoDirectory{a.Tolato}
+	}
+	a.Relay = relay.NewMonitor(st, a.Events, dir, loc, cfg.Node.OfflineAfter.D(), log)
 
 	if cfg.Telegram.BotToken != "" && cfg.Telegram.ChatID != 0 {
 		a.Telegram, err = notify.NewTelegram(cfg.Telegram.BotToken, cfg.Telegram.ChatID, st, a.Approvals, box, loc, cfg.AdminURL, log)
@@ -137,7 +144,8 @@ func New(ctx context.Context, cfg *config.Config, log *slog.Logger) (*App, error
 	a.Approvals.SetNotifier(a.Jobs)
 	a.Native = native.New(st, native.Config{
 		ReportInterval: cfg.Node.PushInterval, SyncInterval: cfg.Node.PullInterval, DeviceTTL: cfg.Node.DeviceTTL.D(),
-		PublicURL: func() string { return cfg.PublicURL },
+		PublicURL:    func() string { return cfg.PublicURL },
+		Destinations: cfg.Monitoring.Destinations.Enabled,
 	}, a.Events, log)
 	if cfg.Tolato.AttestEnroll && a.Tolato != nil {
 		a.Native.SetAttestor(tolatoAttestor{a.Tolato})
@@ -188,13 +196,37 @@ func (a *App) tasks() []jobs.Task {
 			_, err := a.Commerce.SettleDue(ctx)
 			return err
 		}},
+		// 中转线路：每跳在线状态（心跳周期内撤下入口）、下一跳域名重新解析、流量汇总与清理、长时间无流量
+		{Name: "relay_hops", Every: 30 * time.Second, Run: a.Relay.CheckHops},
+		{Name: "relay_resolve", Every: 5 * time.Minute, Run: func(ctx context.Context) error {
+			_, err := a.Native.RefreshTargets(ctx)
+			return err
+		}},
+		{Name: "relay_rollup", Every: 10 * time.Minute, Run: a.Relay.Rollup},
+		{Name: "relay_cleanup", Every: 24 * time.Hour, Run: a.Relay.Cleanup},
+		{Name: "relay_idle", Every: time.Hour, Run: a.Relay.CheckIdle},
 		{Name: "expiring", Every: time.Hour, Run: func(ctx context.Context) error {
 			return a.Billing.CheckExpiring(ctx, a.Cfg.Anomaly.ExpiringDays)
 		}},
 		{Name: "anomalies", Every: time.Hour, Run: func(ctx context.Context) error {
 			return a.Billing.CheckAnomalies(ctx, a.Cfg.Anomaly.Factor, billing.GB(a.Cfg.Anomaly.MinGB))
 		}},
+		// 落地访问统计：按保留天数删除过期的小时数据；关闭采集后已有数据同样到期删除
+		{Name: "destinations_retention", Every: time.Hour, Run: a.CleanupDestinations},
 	}
+}
+
+// CleanupDestinations 删除超过 monitoring.destinations.retention_days 的落地访问统计。
+func (a *App) CleanupDestinations(ctx context.Context) error {
+	days := a.Cfg.Monitoring.Destinations.RetentionDays
+	if days < 1 {
+		days = 7
+	}
+	n, err := a.Store.DeleteDestinationStatsBefore(ctx, time.Now().Add(-time.Duration(days)*24*time.Hour).Truncate(time.Hour))
+	if err == nil && n > 0 {
+		a.Log.Info("destination stats expired", "rows", n, "retention_days", days)
+	}
+	return err
 }
 
 const panelCursorKey = "tolato.panel_host_cursor"
@@ -280,6 +312,21 @@ func (t tolatoAttestor) VerifyAttestation(ctx context.Context, token, audience s
 		return nil, err
 	}
 	return n.Names(), nil
+}
+
+// tolatoDirectory 把 tolato 客户端接到中转线路的机器状态刷新上。
+type tolatoDirectory struct{ c *tolato.Client }
+
+func (t tolatoDirectory) Machines(ctx context.Context) ([]relay.DirectoryMachine, error) {
+	list, err := t.c.Machines(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]relay.DirectoryMachine, len(list))
+	for i, m := range list {
+		out[i] = relay.DirectoryMachine{Names: m.Names, IP: m.IP, Online: m.Online}
+	}
+	return out, nil
 }
 
 type telegramSender struct {

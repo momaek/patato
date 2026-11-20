@@ -418,6 +418,10 @@ func checkTargets(ctx context.Context, q *db.Queries, targets []Target) string {
 			v, err = q.RuleProfileVersionForUpdate(ctx, t.ID)
 		case "machine":
 			v, err = q.MachineVersionForUpdate(ctx, t.ID)
+		case "route":
+			v, err = q.RouteVersionForUpdate(ctx, t.ID)
+		case "entry":
+			v, err = q.EntryVersionForUpdate(ctx, t.ID)
 		case "order":
 			v, err = q.OrderVersionForUpdate(ctx, t.ID)
 		case "coupon":

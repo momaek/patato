@@ -46,6 +46,8 @@ type SyncRequest struct {
 	Version string              `json:"version"` // patato-node 版本
 	Kernel  string              `json:"kernel"`  // 内核及版本，例如 sing-box 1.13.21
 	Nodes   map[int64]KnownNode `json:"nodes"`
+	// ForwardsRev 是本地已应用的转发列表版本（ForwardSync.Rev），没有转发时为空。
+	ForwardsRev string `json:"forwards_rev,omitempty"`
 }
 
 // KnownNode 是节点本地已应用的版本。
@@ -63,6 +65,8 @@ type SyncResponse struct {
 	// Remote 是限制了设备数的用户在其他机器上的在线设备数，用于全局设备数限制。
 	Remote   map[int64]int `json:"remote_devices,omitempty"`
 	Settings Settings      `json:"settings"`
+	// Forwards 是这台机器应有的完整转发列表（中转线路），见下文「中转转发」。
+	Forwards *ForwardSync `json:"forwards,omitempty"`
 }
 
 // Settings 是面板下发的运行参数。
@@ -70,6 +74,15 @@ type Settings struct {
 	ReportInterval int `json:"report_interval"` // 秒
 	SyncInterval   int `json:"sync_interval"`   // 秒，WebSocket 断开时的轮询间隔
 	DeviceTTL      int `json:"device_ttl"`      // 秒，多久没有连接的 IP 不再算作在线设备
+	// ForwardMode 是这台机器的转发模式：auto（能用 nftables 就用）、nft、userspace。
+	ForwardMode string `json:"forward_mode,omitempty"`
+	// ProbeInterval 是对每条转发的下一跳做 TCP 探测的间隔（秒），0 为不探测。
+	ProbeInterval int `json:"probe_interval,omitempty"`
+
+	// ---- 落地访问统计 ----
+
+	// Destinations 为 true 时节点嗅探目标域名，按「用户 × 目标」聚合流量，每 DestinationInterval 上报一次。
+	Destinations bool `json:"destinations,omitempty"`
 }
 
 // NodeSync 是一个节点的变化。Config 为 nil 表示配置没变；Users 与 Delta 至多有一个，都为 nil 表示用户没变。
@@ -173,6 +186,11 @@ type ReportRequest struct {
 	Seq   int64        `json:"seq"`
 	At    time.Time    `json:"at"`
 	Nodes []NodeReport `json:"nodes"`
+	// Forwards 是转发的流量差值、应用结果和探测结果；Relay 是转发层的整体状态。
+	Forwards []ForwardReport `json:"forwards,omitempty"`
+	Relay    *RelayStatus    `json:"relay,omitempty"`
+	// Listening 是本机正在监听的 TCP / UDP 端口，面板分配转发端口时避开。nil 表示本批没有采集。
+	Listening []int `json:"listening,omitempty"`
 }
 
 type NodeReport struct {
@@ -182,6 +200,39 @@ type NodeReport struct {
 	// Alive 是用户 ID 到当前在线的 IP。
 	Alive  map[int64][]string `json:"alive,omitempty"`
 	Status *NodeStatus        `json:"status,omitempty"`
+
+	// ---- 落地访问统计（Settings.Destinations 开启时，每 DestinationInterval 出现一次）----
+
+	Destinations []DestinationStat `json:"destinations,omitempty"`
+	// DestinationsMerged 是这个周期内因超出 MaxDestinations 被合并进「其他」的条目数。
+	DestinationsMerged int `json:"destinations_merged,omitempty"`
+}
+
+// DestinationInterval 是落地访问统计的上报周期；条目上限 MaxDestinations 也按这个周期计算。
+const DestinationInterval = 5 * time.Minute
+
+// MaxDestinations 是每个节点每个上报周期最多保留的「用户 × 目标」条目，超出的合并为「其他」。
+const MaxDestinations = 5000
+
+// 访问目标的类型：域名（可注册域名，例如 google.com）、IP，以及超出上限后合并的「其他」。
+const (
+	DestinationDomain = "domain"
+	DestinationIP     = "ip"
+	DestinationOther  = "other"
+	// DestinationOtherName 是合并条目的目标名称。
+	DestinationOtherName = "其他"
+)
+
+// DestinationStat 是一个上报周期内某个用户访问某个目标的聚合，不含连接级明细。
+type DestinationStat struct {
+	User  int64  `json:"user"`
+	Kind  string `json:"kind"` // domain / ip / other
+	Dest  string `json:"dest"`
+	Up    int64  `json:"up"`
+	Down  int64  `json:"down"`
+	Conns int64  `json:"conns"`
+	// Merged 只出现在「其他」条目上：这个用户被合并进来的目标数。
+	Merged int64 `json:"merged,omitempty"`
 }
 
 // NodeStatus 是节点在内核里的运行状态。
@@ -198,6 +249,57 @@ type NodeStatus struct {
 type ReportResponse struct {
 	Ack       int64 `json:"ack"`
 	Duplicate bool  `json:"duplicate,omitempty"`
+}
+
+// ---- 中转转发 --------------------------------------------------------------
+//
+// 中转机器上的 patato-node 按面板下发的完整列表维护转发：nft 模式独占 table inet patato，
+// 每次原子替换；userspace 模式用内置 sing-box 的 direct 入站（标签 r<转发 ID>）。
+
+// ForwardSync 是本机应有的完整转发列表。Rev 不变时列表不变，节点可以跳过应用。
+type ForwardSync struct {
+	Rev   string    `json:"rev"`
+	Items []Forward `json:"items"`
+}
+
+// Forward 是一条转发：本机 ListenPort（TCP 与 UDP）转到 TargetIP:TargetPort。TargetIP 由面板解析好，节点不做 DNS。
+type Forward struct {
+	ID         int64  `json:"id"`
+	ListenPort int    `json:"listen_port"`
+	TargetIP   string `json:"target_ip"`
+	TargetPort int    `json:"target_port"`
+	// Mode 为 nft 或 userspace；auto 机器上 nft 不可用时节点自动退回 userspace，并在 ForwardReport.Mode 里上报实际模式。
+	Mode string `json:"mode"`
+}
+
+// ForwardReport 是一条转发在一个上报周期里的情况。Up / Down 是字节差值（客户端到下一跳为 Up），
+// 计数器读数变小（重启、表重建）视为归零，从新读数开始累计。
+type ForwardReport struct {
+	ID      int64     `json:"id"`
+	Up      int64     `json:"up,omitempty"`
+	Down    int64     `json:"down,omitempty"`
+	Applied bool      `json:"applied"`
+	Mode    string    `json:"mode,omitempty"`
+	Error   string    `json:"error,omitempty"`
+	At      time.Time `json:"at,omitempty"`
+	// Probe 是本周期内对下一跳的 TCP 探测结果，没有探测时为 nil。
+	Probe *ProbeResult `json:"probe,omitempty"`
+}
+
+// ProbeResult 汇总一个上报周期内的 TCP 探测：成功、失败次数，成功时的平均耗时，以及截至本周期末的连续失败次数。
+type ProbeResult struct {
+	OK          int       `json:"ok"`
+	Fail        int       `json:"fail"`
+	AvgMS       int       `json:"avg_ms,omitempty"`
+	Consecutive int       `json:"consecutive_failures"`
+	Last        bool      `json:"last_ok"`
+	At          time.Time `json:"at"`
+}
+
+// RelayStatus 是转发层的整体状态：实际模式和前置条件问题（例如 ip_forward 没开）。
+type RelayStatus struct {
+	Mode  string `json:"mode"`
+	Error string `json:"error,omitempty"`
 }
 
 // Push 是 WebSocket 上的消息。

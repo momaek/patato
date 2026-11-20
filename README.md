@@ -13,6 +13,8 @@ Agentic 时代的代理面板：人只负责说话和审批，日常操作交给
 
 开发计划：[docs/plan.md](docs/plan.md)
 
+中转线路与落地访问监控计划：[docs/monitoring.md](docs/monitoring.md)，中转详细设计：[docs/relay.md](docs/relay.md)
+
 服务端说明：[docs/server.md](docs/server.md)
 
 部署：两个前端内嵌在服务端镜像中，无需单独部署静态文件；Docker 构建使用 `server/Dockerfile`，本地完整构建使用 `make build`（需要 Go 和 pnpm）。开发时仍可用 Vite 热更新，见 [docs/web.md](docs/web.md)。

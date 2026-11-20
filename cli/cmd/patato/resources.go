@@ -34,8 +34,12 @@ func (a *app) node(args []string) error {
 		return a.nodeRef(rest, "node rotate-key", "patato node rotate-key <节点>\n\n轮换节点密钥，旧密钥立即失效；之后要用新的安装命令更新机器上的配置。", "POST", epNodeRotate)
 	case "delete", "rm":
 		return a.nodeRef(rest, "node delete", "patato node delete <节点>\n\n删除节点（敏感操作，需要审批）。", "DELETE", epNode)
+	case "entry", "entries":
+		return a.nodeEntry(rest)
 	case "install-cmd":
 		return a.installCmd(rest, "node install-cmd", "patato node install-cmd <节点> [--command-only]\n\n输出在机器上安装节点后端的命令（含节点密钥或注册码，需要可写 token）。\n原样交给 tolato exec 执行：tolato exec <机器> -- \"$(patato node install-cmd <节点> --command-only)\"", epNodeInstall)
+	case "destinations", "dest":
+		return a.nodeDestinations(rest)
 	}
 	return fmt.Errorf("未知命令 node %s\n\n%s", sub, usage)
 }
@@ -158,7 +162,8 @@ func (a *app) nodeUpdate(args []string) error {
 	c := newCommand("node update", "patato node update <节点> [选项]\n\n只修改给出的字段。")
 	nm := c.fs.String("name", "", "名称")
 	address := c.fs.String("address", "", "客户端连接地址")
-	port := c.fs.Int("port", 0, "端口")
+	port := c.fs.Int("port", 0, "客户端连接的对外端口")
+	serverPort := c.fs.Int("server-port", 0, "节点实际监听的端口（与对外端口分别修改）")
 	rate := c.fs.Float64("rate", 0, "流量倍率")
 	var tags multi
 	c.fs.Var(&tags, "tag", "标签，可重复；传一次空值 --tag '' 清空")
@@ -175,7 +180,7 @@ func (a *app) nodeUpdate(args []string) error {
 		return err
 	}
 	body := map[string]any{}
-	c.copy(body, map[string]any{"name": *nm, "address": *address, "port": *port, "rate": *rate, "sort": *sort, "backend": *backend})
+	c.copy(body, map[string]any{"name": *nm, "address": *address, "port": *port, "server_port": *serverPort, "rate": *rate, "sort": *sort, "backend": *backend})
 	if c.set["tag"] {
 		body["tags"] = append([]string{}, tags...)
 	}
@@ -309,9 +314,27 @@ func (a *app) machine(args []string) error {
 			{"主机名", m.Hostname}, {"patato-node", m.AgentVersion}, {"内核", m.Kernel}, {"接入时间", timeText(m.EnrolledAt)},
 			{"最近联系", agoText(m.LastSeenAt)}, {"节点", orDash(strings.Join(nodes, "、"))},
 		})
+		if n := m.Network; n != nil {
+			ranges := []string{}
+			for _, r := range n.EffectiveRange {
+				if r.PublicFrom > 0 {
+					ranges = append(ranges, fmt.Sprintf("%s（外网从 %d）", r.Local, r.PublicFrom))
+				} else {
+					ranges = append(ranges, r.Local)
+				}
+			}
+			kv(a.out, [][2]string{
+				{"对外地址", n.Address}, {"NAT", map[bool]string{true: "是", false: "否"}[n.NAT]}, {"转发模式", n.ForwardMode},
+				{"端口段", orDash(strings.Join(ranges, "，"))}, {"端口用量", fmt.Sprintf("%d / %d", n.PortsUsed, n.PortsTotal)},
+				{"转发", fmt.Sprintf("%d 条，失败 %d 条", n.Forwards, n.Failed)},
+				{"转发流量", fmt.Sprintf("今日 %s，本月 %s", bytesText(n.TodayUp+n.TodayDown), bytesText(n.MonthUp+n.MonthDown))},
+			})
+		}
 		return nil
 	case "install-cmd":
 		return a.installCmd(rest, "machine install-cmd", "patato machine install-cmd <机器> [--command-only]\n\n输出 patato-node 的安装命令（含一小时内有效的一次性注册码，需要可写 token）。", epMachineCmd)
+	case "set":
+		return a.machineSet(rest)
 	case "revoke":
 		return a.nodeRef(rest, "machine revoke", "patato machine revoke <机器>\n\n吊销机器的 patato-node 凭证：机器上的节点停止同步和上报，恢复时重新执行安装命令。", "POST", epMachineRevoke)
 	}

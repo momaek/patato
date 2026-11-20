@@ -33,6 +33,16 @@
 
 第 6 步失败时：报告原因并停下。节点保持 pending，不会出现在用户订阅里，由用户决定重试还是删除。
 
+## 标准流程：让节点走中转线路
+
+用户：「SS 节点都走广州到香港。」
+
+1. `patato machine list`、`tolato nodes list`：确认两台中转机器的名称；还没接入 patato-node 的先用 `patato machine install-cmd <机器>` 接入。NAT 机器先 `patato machine set <机器> --public-address ... --nat --port-range <本机段>:<外网起点>`。
+2. `patato route list`：没有对应线路时 `patato route create gz-hk --name 广州中转 --via gz-01,hk-01 --dry-run`，确认后执行。
+3. `patato route apply gz-hk --plan <套餐> --dry-run`：向用户说明每一跳要占用的端口、新增几个入口、影响多少用户；端口段用尽时返回 `port_exhausted`，按提示扩端口段，不要自己挑端口。
+4. 执行后用 `patato route show gz-hk` 确认各跳转发「已生效」、入口「可用」；失败时看错误（端口被占用、ip_forward 没开），ip_forward 需要用户同意后用 tolato 开启，Patato 不会改 sysctl。
+5. 链路发现与迁移：`patato route discover` 只读；它给出的采集命令可以经 tolato exec 执行。删除机器上手写的 socat / iptables 规则是一次性迁移操作，只能在用户逐台确认、旧端口 24 小时无新连接后执行，不要自行删除。
+
 ## 标准流程：处理退款请求
 
 用户在工单里说「我要退款」。

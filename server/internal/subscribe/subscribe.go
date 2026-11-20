@@ -16,6 +16,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/momaek/patato/server/internal/proto"
+	"github.com/momaek/patato/server/internal/relay"
 	"github.com/momaek/patato/server/internal/rules"
 	"github.com/momaek/patato/server/internal/store"
 	"github.com/momaek/patato/server/internal/store/db"
@@ -213,8 +214,9 @@ func Available(u db.User, now time.Time) bool {
 	return u.UsedUp+u.UsedDown < u.TransferBytes
 }
 
-// ServersFor 返回用户套餐里的节点。只下发在线节点；如果没有一个在线（例如心跳检测出了问题），
-// 退回下发离线节点，避免用户的订阅被清空。待接入的节点永远不下发。
+// ServersFor 返回用户套餐里节点的入口：每个启用的入口一条，名称为「节点名 · 后缀」，地址是入口第一跳。
+// 只下发可用的入口（节点在线、每一跳机器在线、转发已生效、探测没有连续失败）；如果一个可用的都没有
+// （例如心跳检测出了问题），退回下发离线节点和不可用的入口，避免用户的订阅被清空。待接入的节点永远不下发。
 func ServersFor(ctx context.Context, q *db.Queries, u db.User) ([]Server, error) {
 	if u.PlanID == nil {
 		return nil, nil
@@ -223,25 +225,50 @@ func ServersFor(ctx context.Context, q *db.Queries, u db.User) ([]Server, error)
 	if err != nil {
 		return nil, err
 	}
-	pick := func(state string) []Server {
-		var out []Server
-		for _, n := range nodes {
-			if n.State != state {
-				continue
-			}
-			s := proto.Parse(n.Settings)
-			out = append(out, Server{
-				Name: n.Name, Type: n.Protocol, Region: n.Region, Host: n.Address, Port: int(n.Port), Tags: n.Tags, S: s,
-				Password: proto.UserPassword(n.Protocol, s, u.Uuid),
-			})
+	if len(nodes) == 0 {
+		return nil, nil
+	}
+	ids := make([]int64, len(nodes))
+	for i, n := range nodes {
+		ids[i] = n.ID
+	}
+	entries, err := q.ListEntriesOfNodes(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	w, err := relay.Load(ctx, q)
+	if err != nil {
+		return nil, err
+	}
+	return expand(nodes, relay.GroupEntries(entries), w, u.Uuid), nil
+}
+
+// expand 把节点展开成入口。顺序：节点按套餐里的顺序，同一节点的入口按入口排序。
+func expand(nodes []db.Node, entries map[int64][]db.NodeEntry, w *relay.World, uuid string) []Server {
+	var available, fallback []Server
+	for _, n := range nodes {
+		if n.State == "pending" {
+			continue
 		}
-		return out
+		s := proto.Parse(n.Settings)
+		eps := w.Endpoints(n, entries[n.ID])
+		relay.SortEndpoints(eps)
+		for _, ep := range eps {
+			srv := Server{
+				Name: ep.Name, Type: n.Protocol, Region: n.Region, Host: ep.Host, Port: ep.Port, Tags: n.Tags, S: s,
+				Password: proto.UserPassword(n.Protocol, s, uuid),
+			}
+			if ep.Available {
+				available = append(available, srv)
+			} else {
+				fallback = append(fallback, srv)
+			}
+		}
 	}
-	servers := pick("online")
-	if len(servers) == 0 {
-		servers = pick("offline")
+	if len(available) == 0 {
+		return fallback
 	}
-	return servers, nil
+	return available
 }
 
 // selfURL 是这次请求的订阅链接，写进 Surge 托管配置供它自动更新。

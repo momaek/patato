@@ -41,6 +41,8 @@ type machineView struct {
 	LastSeenAt   *time.Time `json:"last_seen_at"`
 	Nodes        []ref      `json:"nodes"`
 	Version      int64      `json:"version"`
+	// Network 是机器的网络属性（对外地址、端口段、NAT）与中转转发汇总；还没登记的机器为 null
+	Network *machineRelayView `json:"network"`
 }
 
 func machineStatus(m db.Machine, now time.Time) string {
@@ -73,6 +75,10 @@ func (s *Server) machineViews(c *gin.Context, only string) ([]machineView, error
 	}
 	connected := s.d.Native.Hub().Connected()
 	now := time.Now()
+	today, month, err := s.machineTraffic(c)
+	if err != nil {
+		return nil, err
+	}
 	out := []machineView{}
 	seen := map[string]bool{}
 	for _, m := range machines {
@@ -80,10 +86,14 @@ func (s *Server) machineViews(c *gin.Context, only string) ([]machineView, error
 		if only != "" && m.Host != only {
 			continue
 		}
+		netv, err := s.machineRelay(c, m, today, month)
+		if err != nil {
+			return nil, err
+		}
 		out = append(out, machineView{
 			Host: m.Host, Status: machineStatus(m, now), Connected: connected[m.ID], Hostname: m.Hostname,
 			AgentVersion: m.AgentVersion, Kernel: m.Kernel, EnrolledAt: m.EnrolledAt, LastSeenAt: m.LastSeenAt,
-			Nodes: nonNilRefs(byHost[m.Host]), Version: m.Version,
+			Nodes: nonNilRefs(byHost[m.Host]), Version: m.Version, Network: netv,
 		})
 	}
 	for host, refs := range byHost {

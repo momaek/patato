@@ -603,6 +603,214 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/machines/{id}/network": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** 设置机器的网络属性：对外地址、端口段（NAT 映射）、转发模式（改已在使用的入口地址时为敏感） */
+        patch: operations["patch_machines_id_network"];
+        trace?: never;
+    };
+    "/api/v1/routes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 线路列表：跳、入口状态、今日与本月流量 */
+        get: operations["get_routes"];
+        put?: never;
+        /** 新建线路（有序的中转机器列表） */
+        post: operations["post_routes"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/routes/traffic": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 全部线路每天的流量 */
+        get: operations["get_routes_traffic"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/routes:discover": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 链路发现（只读）：按各机器的转发现状从入口追到落地节点 */
+        post: operations["post_routes_discover"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/routes/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 线路详情：入口、各跳转发与探测 */
+        get: operations["get_routes_id"];
+        put?: never;
+        post?: never;
+        /** 删除线路（没有入口时） */
+        delete: operations["delete_routes_id"];
+        options?: never;
+        head?: never;
+        /** 修改线路名称或跳（已有入口时不能改跳） */
+        patch: operations["patch_routes_id"];
+        trace?: never;
+    };
+    "/api/v1/routes/{id}/traffic": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 线路每天的流量 */
+        get: operations["get_routes_id_traffic"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/routes/{id}:apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 让套餐或指定节点经这条线路各开一个入口 */
+        post: operations["post_routes_id_apply"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/nodes/{id}/entries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 节点的入口：链路、状态与今日流量 */
+        get: operations["get_nodes_id_entries"];
+        put?: never;
+        /** 给节点加入口：直连、经线路（自动分配端口）、手写转发或自定义地址 */
+        post: operations["post_nodes_id_entries"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/nodes/{id}/entries/{entry}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** 删除入口并释放端口 */
+        delete: operations["delete_nodes_id_entries_entry"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/nodes/{id}/entries/{entry}:enable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 启用入口 */
+        post: operations["post_nodes_id_entries_entry_enable"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/nodes/{id}/entries/{entry}:disable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 停用入口 */
+        post: operations["post_nodes_id_entries_entry_disable"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/nodes/{id}/entries/{entry}:adopt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 把自定义入口登记为经过线路的手写转发（链路发现确认后） */
+        post: operations["post_nodes_id_entries_entry_adopt"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/node/enroll": {
         parameters: {
             query?: never;
@@ -1794,6 +2002,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/nodes/{id}/destinations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 节点访问最多的域名 / IP（按用户求和，可按用户筛选）
+         * @description 只在 monitoring.destinations.enabled 开启后有数据；域名记录可注册域名（例如 google.com），不含路径。超出每节点每周期 5000 条上限的目标合并为「其他」（kind other，merged 为被合并的目标数）。
+         */
+        get: operations["get_nodes_id_destinations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/users/{id}/destinations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 用户访问最多的域名 / IP（可按节点筛选） */
+        get: operations["get_users_id_destinations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/payment/{method}/notify": {
         parameters: {
             query?: never;
@@ -1865,6 +2110,52 @@ export interface components {
             approval_id?: string;
             result?: unknown;
             error?: string;
+        };
+        DestinationRanking: {
+            /** @description monitoring.destinations.enabled；关闭后不再有新数据，已有数据按保留期限清理 */
+            enabled: boolean;
+            retention_days: number;
+            /**
+             * Format: date-time
+             * @description 统计起点（整点）
+             */
+            since: string;
+            /** @description 请求的时间段，例如 24h */
+            period: string;
+            node?: {
+                id?: number;
+                code?: string;
+                name?: string;
+            };
+            user?: {
+                id?: number;
+                email?: string;
+            };
+            user_id?: number | null;
+            node_id?: number | null;
+            total: {
+                up?: number;
+                down?: number;
+                bytes?: number;
+                conns?: number;
+                destinations?: number;
+            };
+            items: {
+                /** @enum {string} */
+                kind: "domain" | "ip" | "other";
+                /** @description 可注册域名或 IP；other 为「其他」 */
+                dest: string;
+                up: number;
+                down: number;
+                bytes: number;
+                conns: number;
+                /** @description 只在 other 上：被合并的目标数 */
+                merged?: number;
+                /** @description 节点视图：访问过这个目标的用户数 */
+                users?: number;
+                /** @description 用户视图：经过的节点数 */
+                nodes?: number;
+            }[];
         };
     };
     responses: never;
@@ -2822,7 +3113,10 @@ export interface operations {
                     instruction?: string;
                     name?: string;
                     address?: string;
+                    /** @description 客户端连接的对外端口 */
                     port?: number;
+                    /** @description 节点实际监听的端口；与 port 分别修改 */
+                    server_port?: number;
                     rate?: number;
                     tags?: string[];
                     settings?: Record<string, never>;
@@ -3246,6 +3540,826 @@ export interface operations {
                     dry_run?: boolean;
                     /** @description 用户的原始指令，显示在审批卡片上 */
                     instruction?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 预演结果或已执行的变更计划 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangePlan"];
+                };
+            };
+            /** @description 敏感操作，已生成审批 */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangePlan"];
+                };
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    patch_machines_id_network: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description 调用方自报的身份（例如某个 Agent 会话），只写入审计，不参与权限判断 */
+                "X-Actor"?: components["parameters"]["XActor"];
+                /** @description 同一个 key 重复提交返回首次结果；换了请求内容返回 422 */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                /** @description 机器名 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @description 为 true 时只预演，返回变更计划 */
+                    dry_run?: boolean;
+                    /** @description 用户的原始指令，显示在审批卡片上 */
+                    instruction?: string;
+                    /** @description 别的机器和客户端连它用的地址（IP 或域名）；空串表示用 tolato 上报的 IP */
+                    public_address?: string;
+                    /** @description 可分配的端口段；空数组为默认段 40000-49999 */
+                    port_ranges?: {
+                        /** @description 本机端口段，例如 40000-49999 */
+                        local: string;
+                        /** @description NAT 映射时外网端口起点，对应本机段的起点 */
+                        public_from?: number;
+                    }[];
+                    /** @description 为 true 时只在 port_ranges 内分配 */
+                    nat?: boolean;
+                    /** @enum {string} */
+                    forward_mode?: "auto" | "nft" | "userspace";
+                    /** @description 机器上现有规则占用的端口段，分配时避开 */
+                    reserved_ports?: {
+                        /** @description 本机端口段，例如 40000-49999 */
+                        local: string;
+                        /** @description NAT 映射时外网端口起点，对应本机段的起点 */
+                        public_from?: number;
+                    }[];
+                };
+            };
+        };
+        responses: {
+            /** @description 预演结果或已执行的变更计划 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangePlan"];
+                };
+            };
+            /** @description 敏感操作，已生成审批 */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangePlan"];
+                };
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    get_routes: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description 调用方自报的身份（例如某个 Agent 会话），只写入审计，不参与权限判断 */
+                "X-Actor"?: components["parameters"]["XActor"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    post_routes: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description 调用方自报的身份（例如某个 Agent 会话），只写入审计，不参与权限判断 */
+                "X-Actor"?: components["parameters"]["XActor"];
+                /** @description 同一个 key 重复提交返回首次结果；换了请求内容返回 422 */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @description 为 true 时只预演，返回变更计划 */
+                    dry_run?: boolean;
+                    /** @description 用户的原始指令，显示在审批卡片上 */
+                    instruction?: string;
+                    code: string;
+                    /** @description 订阅里入口名为「节点名 · 线路名」 */
+                    name: string;
+                    /** @description 机器名，按客户端到落地的顺序 */
+                    hops: string[];
+                };
+            };
+        };
+        responses: {
+            /** @description 预演结果或已执行的变更计划 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangePlan"];
+                };
+            };
+            /** @description 敏感操作，已生成审批 */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangePlan"];
+                };
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    get_routes_traffic: {
+        parameters: {
+            query?: {
+                days?: number;
+            };
+            header?: {
+                /** @description 调用方自报的身份（例如某个 Agent 会话），只写入审计，不参与权限判断 */
+                "X-Actor"?: components["parameters"]["XActor"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    post_routes_discover: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description 调用方自报的身份（例如某个 Agent 会话），只写入审计，不参与权限判断 */
+                "X-Actor"?: components["parameters"]["XActor"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    node?: string;
+                    entry?: number;
+                    host?: string;
+                    port?: number;
+                    /** @description 机器名 → 在该机器上执行 discover_command 的输出；为空时返回 discover_command */
+                    snapshots?: {
+                        [key: string]: string;
+                    };
+                };
+            };
+        };
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    get_routes_id: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description 调用方自报的身份（例如某个 Agent 会话），只写入审计，不参与权限判断 */
+                "X-Actor"?: components["parameters"]["XActor"];
+            };
+            path: {
+                /** @description 线路 ID 或代号 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    delete_routes_id: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description 调用方自报的身份（例如某个 Agent 会话），只写入审计，不参与权限判断 */
+                "X-Actor"?: components["parameters"]["XActor"];
+                /** @description 同一个 key 重复提交返回首次结果；换了请求内容返回 422 */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                /** @description 线路 ID 或代号 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @description 为 true 时只预演，返回变更计划 */
+                    dry_run?: boolean;
+                    /** @description 用户的原始指令，显示在审批卡片上 */
+                    instruction?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 预演结果或已执行的变更计划 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangePlan"];
+                };
+            };
+            /** @description 敏感操作，已生成审批 */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangePlan"];
+                };
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    patch_routes_id: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description 调用方自报的身份（例如某个 Agent 会话），只写入审计，不参与权限判断 */
+                "X-Actor"?: components["parameters"]["XActor"];
+                /** @description 同一个 key 重复提交返回首次结果；换了请求内容返回 422 */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                /** @description 线路 ID 或代号 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @description 为 true 时只预演，返回变更计划 */
+                    dry_run?: boolean;
+                    /** @description 用户的原始指令，显示在审批卡片上 */
+                    instruction?: string;
+                    name?: string;
+                    hops?: string[];
+                };
+            };
+        };
+        responses: {
+            /** @description 预演结果或已执行的变更计划 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangePlan"];
+                };
+            };
+            /** @description 敏感操作，已生成审批 */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangePlan"];
+                };
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    get_routes_id_traffic: {
+        parameters: {
+            query?: {
+                days?: number;
+            };
+            header?: {
+                /** @description 调用方自报的身份（例如某个 Agent 会话），只写入审计，不参与权限判断 */
+                "X-Actor"?: components["parameters"]["XActor"];
+            };
+            path: {
+                /** @description 线路 ID 或代号 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    post_routes_id_apply: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description 调用方自报的身份（例如某个 Agent 会话），只写入审计，不参与权限判断 */
+                "X-Actor"?: components["parameters"]["XActor"];
+                /** @description 同一个 key 重复提交返回首次结果；换了请求内容返回 422 */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                /** @description 线路 ID 或代号 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @description 为 true 时只预演，返回变更计划 */
+                    dry_run?: boolean;
+                    /** @description 用户的原始指令，显示在审批卡片上 */
+                    instruction?: string;
+                    /** @description 套餐 ID 或代号 */
+                    plan?: string;
+                    nodes?: string[];
+                    /** @description 入口名后缀，默认线路名 */
+                    suffix?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 预演结果或已执行的变更计划 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangePlan"];
+                };
+            };
+            /** @description 敏感操作，已生成审批 */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangePlan"];
+                };
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    get_nodes_id_entries: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description 调用方自报的身份（例如某个 Agent 会话），只写入审计，不参与权限判断 */
+                "X-Actor"?: components["parameters"]["XActor"];
+            };
+            path: {
+                /** @description 节点 ID 或代号 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    post_nodes_id_entries: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description 调用方自报的身份（例如某个 Agent 会话），只写入审计，不参与权限判断 */
+                "X-Actor"?: components["parameters"]["XActor"];
+                /** @description 同一个 key 重复提交返回首次结果；换了请求内容返回 422 */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                /** @description 节点 ID 或代号 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @description 为 true 时只预演，返回变更计划 */
+                    dry_run?: boolean;
+                    /** @description 用户的原始指令，显示在审批卡片上 */
+                    instruction?: string;
+                    /** @description 线路 ID 或代号；不传时为直连或自定义地址入口 */
+                    route?: string;
+                    suffix?: string;
+                    /** @description 订阅里的完整名称，覆盖「节点名 · 后缀」 */
+                    name?: string;
+                    /** @description 自定义入口地址（例如 IPLC）；中转入口时覆盖第一跳地址 */
+                    address?: string;
+                    port?: number;
+                    sort?: number;
+                    enabled?: boolean;
+                    /** @description 登记运营者手写的转发，不下发、不计流量 */
+                    manual?: boolean;
+                    forwards?: {
+                        machine?: string;
+                        listen_port: number;
+                        public_port?: number;
+                        target_host: string;
+                        target_port: number;
+                    }[];
+                };
+            };
+        };
+        responses: {
+            /** @description 预演结果或已执行的变更计划 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangePlan"];
+                };
+            };
+            /** @description 敏感操作，已生成审批 */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangePlan"];
+                };
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    delete_nodes_id_entries_entry: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description 调用方自报的身份（例如某个 Agent 会话），只写入审计，不参与权限判断 */
+                "X-Actor"?: components["parameters"]["XActor"];
+                /** @description 同一个 key 重复提交返回首次结果；换了请求内容返回 422 */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                /** @description 节点 ID 或代号 */
+                id: string;
+                /** @description 入口 ID */
+                entry: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @description 为 true 时只预演，返回变更计划 */
+                    dry_run?: boolean;
+                    /** @description 用户的原始指令，显示在审批卡片上 */
+                    instruction?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 预演结果或已执行的变更计划 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangePlan"];
+                };
+            };
+            /** @description 敏感操作，已生成审批 */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangePlan"];
+                };
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    post_nodes_id_entries_entry_enable: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description 调用方自报的身份（例如某个 Agent 会话），只写入审计，不参与权限判断 */
+                "X-Actor"?: components["parameters"]["XActor"];
+                /** @description 同一个 key 重复提交返回首次结果；换了请求内容返回 422 */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                /** @description 节点 ID 或代号 */
+                id: string;
+                /** @description 入口 ID */
+                entry: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @description 为 true 时只预演，返回变更计划 */
+                    dry_run?: boolean;
+                    /** @description 用户的原始指令，显示在审批卡片上 */
+                    instruction?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 预演结果或已执行的变更计划 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangePlan"];
+                };
+            };
+            /** @description 敏感操作，已生成审批 */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangePlan"];
+                };
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    post_nodes_id_entries_entry_disable: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description 调用方自报的身份（例如某个 Agent 会话），只写入审计，不参与权限判断 */
+                "X-Actor"?: components["parameters"]["XActor"];
+                /** @description 同一个 key 重复提交返回首次结果；换了请求内容返回 422 */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                /** @description 节点 ID 或代号 */
+                id: string;
+                /** @description 入口 ID */
+                entry: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @description 为 true 时只预演，返回变更计划 */
+                    dry_run?: boolean;
+                    /** @description 用户的原始指令，显示在审批卡片上 */
+                    instruction?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 预演结果或已执行的变更计划 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangePlan"];
+                };
+            };
+            /** @description 敏感操作，已生成审批 */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangePlan"];
+                };
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    post_nodes_id_entries_entry_adopt: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description 调用方自报的身份（例如某个 Agent 会话），只写入审计，不参与权限判断 */
+                "X-Actor"?: components["parameters"]["XActor"];
+                /** @description 同一个 key 重复提交返回首次结果；换了请求内容返回 422 */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                /** @description 节点 ID 或代号 */
+                id: string;
+                /** @description 入口 ID */
+                entry: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @description 为 true 时只预演，返回变更计划 */
+                    dry_run?: boolean;
+                    /** @description 用户的原始指令，显示在审批卡片上 */
+                    instruction?: string;
+                    route: string;
+                    forwards: {
+                        machine?: string;
+                        listen_port: number;
+                        public_port?: number;
+                        target_host: string;
+                        target_port: number;
+                    }[];
                 };
             };
         };
@@ -6722,6 +7836,88 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    get_nodes_id_destinations: {
+        parameters: {
+            query?: {
+                /** @description 时间段，例如 24h、7d；不超过保留天数 */
+                since?: string;
+                /** @description 只看这个用户（ID 或邮箱） */
+                user?: string;
+                limit?: number;
+            };
+            header?: {
+                /** @description 调用方自报的身份（例如某个 Agent 会话），只写入审计，不参与权限判断 */
+                "X-Actor"?: components["parameters"]["XActor"];
+            };
+            path: {
+                /** @description 节点 ID 或代号 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DestinationRanking"];
+                };
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    get_users_id_destinations: {
+        parameters: {
+            query?: {
+                /** @description 时间段，例如 24h、7d；不超过保留天数 */
+                since?: string;
+                /** @description 只看这个节点（ID 或代号） */
+                node?: string;
+                limit?: number;
+            };
+            header?: {
+                /** @description 调用方自报的身份（例如某个 Agent 会话），只写入审计，不参与权限判断 */
+                "X-Actor"?: components["parameters"]["XActor"];
+            };
+            path: {
+                /** @description 用户 ID 或邮箱 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DestinationRanking"];
+                };
             };
             /** @description 错误 */
             default: {

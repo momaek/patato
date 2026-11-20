@@ -42,7 +42,8 @@ make lint
 | `server/internal/billing` | 流量聚合与扣减、周期重置、到期与超额、节点离线检测 |
 | `server/internal/jobs` | River 周期任务与通知推送 |
 | `server/internal/notify` | Telegram 审批卡片与告警、邮件 |
-| `server/internal/xboard` | 从 Xboard 导入数据（含已完成订单、邀请关系、余额） |
+| `server/internal/xboard` | 从 Xboard 导入数据（含已完成订单、邀请关系、余额）；子节点导入为父节点的入口 |
+| `server/internal/relay` | 中转线路：机器网络属性与端口分配、入口可用性与下一跳、链路发现解析、每跳在线与流量汇总等周期任务（见 [中转线路设计](relay.md)） |
 | `server/internal/commerce` | 二期售卖：报价（灰度价格、优惠券、余额）、下单、易支付与 Stripe Checkout、回调履约、超时取消、返佣入账与风控 |
 | `server/internal/automation` | 二期事件分发：Webhook 推送（HMAC 签名、失败重试）、自动处置规则 |
 | `server/internal/store` | 迁移（`migrations/`）、查询（`queries/`，sqlc 生成到 `db/`） |
@@ -122,6 +123,8 @@ make lint
 **迁移**：`import-xboard` 现在也导入已完成的订单（`v2_order` 状态 3、4，金额沿用 Xboard 的分）、邀请关系（`invite_user_id`）和余额（`balance` + `commission_balance`）。
 
 **经 tolato-agent 接入**（`tolato.attest_enroll: true`）：安装命令里不再带注册码，而是 `patato-node enroll --tolato`。patato-node 从本机 tolato-agent 的 systemd unit 读出 `--server`、`--data-dir`，运行 `tolato-agent --attest <面板地址>`；tolato-agent 用自己的节点凭证（只有 root 可读）向 tolato 要一份只对这个面板有效、5 分钟内只能用一次的证明。Patato 拿证明调用 tolato 的 `/api/v1/attestations/verify` 核实，按 tolato 里的名称、别名或 IP 找到机器并签发机器 token。只接受已接入的机器（换发 token）或安装窗口开着的机器（生成安装命令时打开一小时），吊销后要重新生成安装命令才能再接入。
+
+**落地访问统计**（`monitoring.destinations`，默认关闭，见 [监控计划](monitoring.md) 阶段 4）：开启后 sync 的 `settings.destinations` 为 true，patato-node 在一个同步周期内开始（关闭时停止）嗅探 TLS SNI、HTTP Host、QUIC，按「用户 × 主域名或 IP」聚合，每 5 分钟随上报带一次，与流量在同一个事务里按序号去重，写进 `destination_stats_hourly`。`GET /nodes/{id}/destinations`（按用户求和，`?user=` 筛选）、`GET /users/{id}/destinations`（`?node=` 筛选），`?since=24h|7d` 不超过保留天数；周期任务 `destinations_retention` 每小时删除超过 `retention_days` 的数据。开启时用户侧「我的订阅」页显示统计范围与保留期限。
 
 ### 二期已知限制
 

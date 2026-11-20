@@ -127,3 +127,11 @@ anomaly:
   min_gb: 20
   # 这么多天内到期的用户发出「即将到期」事件，可以配合自动处置规则发提醒邮件；0 表示不发
   expiring_days: 3
+
+# 监控
+monitoring:
+  # 落地访问统计：patato-node 按用户统计访问最多的主域名和 IP（不含路径），用于排查流量异常、调整分流规则。
+  # 记录的是用户的访问去向，默认关闭；打开后用户侧「我的订阅」页会说明统计范围与保留期限。
+  destinations:
+    enabled: false
+    retention_days: 7
