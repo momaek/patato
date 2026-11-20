@@ -124,6 +124,8 @@ make lint
 
 **经 tolato-agent 接入**（`tolato.attest_enroll: true`）：安装命令里不再带注册码，而是 `patato-node enroll --tolato`。patato-node 从本机 tolato-agent 的 systemd unit 读出 `--server`、`--data-dir`，运行 `tolato-agent --attest <面板地址>`；tolato-agent 用自己的节点凭证（只有 root 可读）向 tolato 要一份只对这个面板有效、5 分钟内只能用一次的证明。Patato 拿证明调用 tolato 的 `/api/v1/attestations/verify` 核实，按 tolato 里的名称、别名或 IP 找到机器并签发机器 token。只接受已接入的机器（换发 token）或安装窗口开着的机器（生成安装命令时打开一小时），吊销后要重新生成安装命令才能再接入。
 
+**落地访问统计**（`monitoring.destinations`，默认关闭，见 [监控计划](monitoring.md) 阶段 4）：开启后 sync 的 `settings.destinations` 为 true，patato-node 在一个同步周期内开始（关闭时停止）嗅探 TLS SNI、HTTP Host、QUIC，按「用户 × 主域名或 IP」聚合，每 5 分钟随上报带一次，与流量在同一个事务里按序号去重，写进 `destination_stats_hourly`。`GET /nodes/{id}/destinations`（按用户求和，`?user=` 筛选）、`GET /users/{id}/destinations`（`?node=` 筛选），`?since=24h|7d` 不超过保留天数；周期任务 `destinations_retention` 每小时删除超过 `retention_days` 的数据。开启时用户侧「我的订阅」页显示统计范围与保留期限。
+
 ### 二期已知限制
 
 - **支付尚未完成真实商户联调**：易支付签名和验签用测试对照了 Xboard 线上在用的 EPay 实现，空参数兼容官方 SDK 和 Xboard 两种签法。Stripe 使用官方 Go SDK，测试覆盖模拟 Stripe HTTP 接口、真实 PostgreSQL 下单、验签、金额/币种/方式拒绝、延迟支付和并发幂等，但这不等于 Stripe 沙盒或正式商户验收；启用前仍需用商户测试环境验证支付、Webhook 可达性，以及账户地区、人民币收款能力和最低金额等限制。

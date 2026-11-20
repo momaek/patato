@@ -32,6 +32,7 @@ const usage = `patato：Patato 的命令行客户端（短别名 pat）
 查看
   patato status                                  需要处理的事、节点和用户概况
   patato node list [--state online|offline|pending] | show <节点>
+  patato node destinations <节点> [--user <用户>] [--since 24h]   访问最多的域名 / IP（需开启落地访问统计）
   patato machine list | show <机器>
   patato route list | show <线路> | traffic [<线路>] [--since 7d]   中转线路、入口状态与流量
   patato node entry list <节点>

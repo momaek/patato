@@ -2002,6 +2002,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/nodes/{id}/destinations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 节点访问最多的域名 / IP（按用户求和，可按用户筛选）
+         * @description 只在 monitoring.destinations.enabled 开启后有数据；域名记录可注册域名（例如 google.com），不含路径。超出每节点每周期 5000 条上限的目标合并为「其他」（kind other，merged 为被合并的目标数）。
+         */
+        get: operations["get_nodes_id_destinations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/users/{id}/destinations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 用户访问最多的域名 / IP（可按节点筛选） */
+        get: operations["get_users_id_destinations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/payment/{method}/notify": {
         parameters: {
             query?: never;
@@ -2073,6 +2110,52 @@ export interface components {
             approval_id?: string;
             result?: unknown;
             error?: string;
+        };
+        DestinationRanking: {
+            /** @description monitoring.destinations.enabled；关闭后不再有新数据，已有数据按保留期限清理 */
+            enabled: boolean;
+            retention_days: number;
+            /**
+             * Format: date-time
+             * @description 统计起点（整点）
+             */
+            since: string;
+            /** @description 请求的时间段，例如 24h */
+            period: string;
+            node?: {
+                id?: number;
+                code?: string;
+                name?: string;
+            };
+            user?: {
+                id?: number;
+                email?: string;
+            };
+            user_id?: number | null;
+            node_id?: number | null;
+            total: {
+                up?: number;
+                down?: number;
+                bytes?: number;
+                conns?: number;
+                destinations?: number;
+            };
+            items: {
+                /** @enum {string} */
+                kind: "domain" | "ip" | "other";
+                /** @description 可注册域名或 IP；other 为「其他」 */
+                dest: string;
+                up: number;
+                down: number;
+                bytes: number;
+                conns: number;
+                /** @description 只在 other 上：被合并的目标数 */
+                merged?: number;
+                /** @description 节点视图：访问过这个目标的用户数 */
+                users?: number;
+                /** @description 用户视图：经过的节点数 */
+                nodes?: number;
+            }[];
         };
     };
     responses: never;
@@ -7753,6 +7836,88 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    get_nodes_id_destinations: {
+        parameters: {
+            query?: {
+                /** @description 时间段，例如 24h、7d；不超过保留天数 */
+                since?: string;
+                /** @description 只看这个用户（ID 或邮箱） */
+                user?: string;
+                limit?: number;
+            };
+            header?: {
+                /** @description 调用方自报的身份（例如某个 Agent 会话），只写入审计，不参与权限判断 */
+                "X-Actor"?: components["parameters"]["XActor"];
+            };
+            path: {
+                /** @description 节点 ID 或代号 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DestinationRanking"];
+                };
+            };
+            /** @description 错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    get_users_id_destinations: {
+        parameters: {
+            query?: {
+                /** @description 时间段，例如 24h、7d；不超过保留天数 */
+                since?: string;
+                /** @description 只看这个节点（ID 或代号） */
+                node?: string;
+                limit?: number;
+            };
+            header?: {
+                /** @description 调用方自报的身份（例如某个 Agent 会话），只写入审计，不参与权限判断 */
+                "X-Actor"?: components["parameters"]["XActor"];
+            };
+            path: {
+                /** @description 用户 ID 或邮箱 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DestinationRanking"];
+                };
             };
             /** @description 错误 */
             default: {

@@ -240,6 +240,10 @@ func (s *Server) routes() []route {
 		{"POST", "/api/v1/me/tickets/{id}:close", accessPortal, "normal", "", "关闭工单", s.meTicketClose},
 		{"GET", "/api/v1/me/referral", accessPortal, "read", "", "邀请链接、返佣明细与余额", s.meReferral},
 
+		// 落地访问统计（monitoring.destinations）
+		{"GET", "/api/v1/nodes/{id}/destinations", accessAdmin, "read", "", "节点访问最多的域名 / IP（按用户求和，可按用户筛选）", s.nodeDestinations},
+		{"GET", "/api/v1/users/{id}/destinations", accessAdmin, "read", "", "用户访问最多的域名 / IP（可按节点筛选）", s.userDestinations},
+
 		// 支付回调（由支付平台调用，验签后才开通）
 		{"GET", "/api/v1/payment/{method}/notify", accessPublic, "normal", "", "支付平台异步回调", s.paymentNotify},
 		{"POST", "/api/v1/payment/{method}/notify", accessPublic, "normal", "", "支付平台异步回调", s.paymentNotify},

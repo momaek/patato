@@ -482,6 +482,8 @@ export interface MySubscription {
   /** 当前生效的分流规则；为空时用内置规则 */
   rule_profile: { code: string; name: string } | null
   service_name: string
+  /** 落地访问统计开启时才有：用于说明统计范围与保留期限 */
+  destination_stats?: { retention_days: number } | null
 }
 
 export interface MyRuleProfile {
@@ -668,4 +670,32 @@ export interface RouteTraffic {
   days: number
   since: string
   items: { route: Ref; up: number; down: number; series: { day: string; up: number; down: number }[] }[]
+}
+
+// ---- 落地访问统计 ------------------------------------------------------
+
+export interface DestinationItem {
+  kind: 'domain' | 'ip' | 'other'
+  dest: string
+  up: number
+  down: number
+  bytes: number
+  conns: number
+  /** 只在 other 上：被合并的目标数 */
+  merged?: number
+  /** 节点视图：访问过这个目标的用户数 */
+  users?: number
+  /** 用户视图：经过的节点数 */
+  nodes?: number
+}
+
+export interface DestinationRanking {
+  enabled: boolean
+  retention_days: number
+  since: string
+  period: string
+  node?: Ref
+  user?: { id: number; email: string }
+  total: { up: number; down: number; bytes: number; conns: number; destinations: number }
+  items: DestinationItem[]
 }

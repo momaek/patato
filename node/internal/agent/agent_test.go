@@ -157,3 +157,101 @@ func TestStandalone(t *testing.T) {
 	write(nodeapi.User{ID: 1, UUID: u1}, nodeapi.User{ID: 2, UUID: u2})
 	eventually(t, "user 2 connects after file change", func() bool { return fetch(u2) })
 }
+
+// TestDestinationToggle 面板设置决定是否采集落地访问统计：开启后随上报带上「用户 × 目标」聚合，
+// 关闭后在下一次同步时停止，之后的上报不再带统计。
+func TestDestinationToggle(t *testing.T) {
+	dir := t.TempDir()
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	tl, _ := net.Listen("tcp", "127.0.0.1:0")
+	srv := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { io.WriteString(w, "ok") })}
+	go srv.Serve(tl)
+	defer srv.Close()
+	target := "http://" + tl.Addr().String() + "/"
+	port := freePort(t)
+	const uid = "0f7c3a8e-1111-4222-8333-944455550001"
+	statePath := filepath.Join(dir, "state.json")
+	write := func(on bool, bump int) {
+		st := control.LocalState{
+			Nodes:    []control.LocalNode{{Config: nodeapi.Node{ID: 1, Code: "local", Protocol: "vless", Port: port}, Users: []nodeapi.User{{ID: 1, UUID: uid}}}},
+			Settings: nodeapi.Settings{ReportInterval: 1, SyncInterval: 60, DeviceTTL: 60, Destinations: on},
+		}
+		b, _ := json.Marshal(st)
+		if err := os.WriteFile(statePath, b, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		future := time.Now().Add(time.Duration(bump) * time.Second)
+		_ = os.Chtimes(statePath, future, future)
+	}
+	write(true, 1)
+	m := meter.New(time.Minute)
+	k, err := kernel.New(kernel.Options{DataDir: filepath.Join(dir, "kernel"), LogLevel: "error", Meter: m, Log: log})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer k.Close()
+	sp, err := spool.Open(filepath.Join(dir, "spool"), log)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reports := filepath.Join(dir, "reports.jsonl")
+	a := New(control.NewFile(statePath, reports), k, m, sp, "test", log)
+	a.destInterval = 0
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() { _ = a.Run(ctx); close(done) }()
+	defer func() { cancel(); <-done }()
+
+	fetch := func() bool {
+		resp, err := vlessClient(t, port, uid).Get(target)
+		if err != nil {
+			return false
+		}
+		resp.Body.Close()
+		return resp.StatusCode == 200
+	}
+	// lines 返回上报文件里的全部批次
+	lines := func() []nodeapi.ReportRequest {
+		b, _ := os.ReadFile(reports)
+		var out []nodeapi.ReportRequest
+		for _, l := range strings.Split(string(b), "\n") {
+			var r nodeapi.ReportRequest
+			if json.Unmarshal([]byte(l), &r) == nil {
+				out = append(out, r)
+			}
+		}
+		return out
+	}
+	hasDest := func(rs []nodeapi.ReportRequest) bool {
+		for _, r := range rs {
+			for _, n := range r.Nodes {
+				for _, d := range n.Destinations {
+					if d.User == 1 && d.Dest == "127.0.0.1" && d.Kind == "ip" && d.Down > 0 {
+						return true
+					}
+				}
+			}
+		}
+		return false
+	}
+	eventually(t, "user connects", fetch)
+	eventually(t, "destinations reported", func() bool { return hasDest(lines()) })
+
+	write(false, 2)
+	eventually(t, "collection stops", func() bool { return !m.DestinationsEnabled() })
+	before := len(lines())
+	eventually(t, "user connects after disable", fetch)
+	eventually(t, "traffic reported after disable", func() bool {
+		for _, r := range lines()[before:] {
+			for _, n := range r.Nodes {
+				if n.Traffic[1][1] > 0 {
+					return true
+				}
+			}
+		}
+		return false
+	})
+	if hasDest(lines()[before:]) {
+		t.Fatal("destinations reported after disable")
+	}
+}

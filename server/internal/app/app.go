@@ -144,7 +144,8 @@ func New(ctx context.Context, cfg *config.Config, log *slog.Logger) (*App, error
 	a.Approvals.SetNotifier(a.Jobs)
 	a.Native = native.New(st, native.Config{
 		ReportInterval: cfg.Node.PushInterval, SyncInterval: cfg.Node.PullInterval, DeviceTTL: cfg.Node.DeviceTTL.D(),
-		PublicURL: func() string { return cfg.PublicURL },
+		PublicURL:    func() string { return cfg.PublicURL },
+		Destinations: cfg.Monitoring.Destinations.Enabled,
 	}, a.Events, log)
 	if cfg.Tolato.AttestEnroll && a.Tolato != nil {
 		a.Native.SetAttestor(tolatoAttestor{a.Tolato})
@@ -210,7 +211,22 @@ func (a *App) tasks() []jobs.Task {
 		{Name: "anomalies", Every: time.Hour, Run: func(ctx context.Context) error {
 			return a.Billing.CheckAnomalies(ctx, a.Cfg.Anomaly.Factor, billing.GB(a.Cfg.Anomaly.MinGB))
 		}},
+		// 落地访问统计：按保留天数删除过期的小时数据；关闭采集后已有数据同样到期删除
+		{Name: "destinations_retention", Every: time.Hour, Run: a.CleanupDestinations},
 	}
+}
+
+// CleanupDestinations 删除超过 monitoring.destinations.retention_days 的落地访问统计。
+func (a *App) CleanupDestinations(ctx context.Context) error {
+	days := a.Cfg.Monitoring.Destinations.RetentionDays
+	if days < 1 {
+		days = 7
+	}
+	n, err := a.Store.DeleteDestinationStatsBefore(ctx, time.Now().Add(-time.Duration(days)*24*time.Hour).Truncate(time.Hour))
+	if err == nil && n > 0 {
+		a.Log.Info("destination stats expired", "rows", n, "retention_days", days)
+	}
+	return err
 }
 
 const panelCursorKey = "tolato.panel_host_cursor"

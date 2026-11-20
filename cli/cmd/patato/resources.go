@@ -38,6 +38,8 @@ func (a *app) node(args []string) error {
 		return a.nodeEntry(rest)
 	case "install-cmd":
 		return a.installCmd(rest, "node install-cmd", "patato node install-cmd <节点> [--command-only]\n\n输出在机器上安装节点后端的命令（含节点密钥或注册码，需要可写 token）。\n原样交给 tolato exec 执行：tolato exec <机器> -- \"$(patato node install-cmd <节点> --command-only)\"", epNodeInstall)
+	case "destinations", "dest":
+		return a.nodeDestinations(rest)
 	}
 	return fmt.Errorf("未知命令 node %s\n\n%s", sub, usage)
 }

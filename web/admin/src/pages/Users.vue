@@ -5,6 +5,7 @@ import { useInfiniteQuery, useQuery } from '@tanstack/vue-query'
 import { api, errorText, fmt, type List, type Plan, type User, type UserDetail } from '@patato/api'
 import { Badge, Button, Card, Empty, Field, LoadState, Progress, Section } from '@patato/ui'
 import ChangeDialog from '../components/ChangeDialog.vue'
+import DestinationRanking from '../components/DestinationRanking.vue'
 import PageHeader from '../components/PageHeader.vue'
 import Table from '../components/Table.vue'
 import type { ChangeRequest } from '../lib/change'
@@ -205,6 +206,7 @@ function expiry(u: User) {
             <RouterLink :to="{ name: 'orders', query: { q: detail.data.value.user.email } }">订单</RouterLink>
             <RouterLink :to="{ name: 'referrals', query: {} }">邀请返佣</RouterLink>
           </div>
+          <DestinationRanking view="user" :target="detail.data.value.user.id" />
           <Section title="最近记录">
             <ul class="flex flex-col gap-2 text-[13px]">
               <li v-for="a in detail.data.value.recent_audit" :key="a.id" class="flex gap-3">

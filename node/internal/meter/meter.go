@@ -48,6 +48,7 @@ type Meter struct {
 	remote    map[int64]int                     // 用户在其他机器上的在线设备数
 	deviceTTL time.Duration
 	now       func() time.Time
+	dest      *destinations // 落地访问统计，见 destinations.go
 }
 
 type ipState struct {
@@ -59,7 +60,7 @@ func New(deviceTTL time.Duration) *Meter {
 	return &Meter{
 		policies: map[int64]map[int64]policy{}, counters: map[key]*counter{}, sessions: map[key]map[*Session]bool{},
 		limiters: map[int64]*userLimiter{}, ips: map[int64]map[netip.Addr]*ipState{}, nodeIPs: map[key]map[netip.Addr]time.Time{},
-		remote: map[int64]int{}, deviceTTL: deviceTTL, now: time.Now,
+		remote: map[int64]int{}, deviceTTL: deviceTTL, now: time.Now, dest: newDestinations(),
 	}
 }
 
@@ -299,17 +300,28 @@ type Session struct {
 	up, down *rate.Limiter
 	closer   io.Closer
 	closed   atomic.Bool
+
+	// 落地访问统计：TCP 连接的目标在建立时确定；UDP 按包的目标地址缓存计数器
+	tcpDest  atomic.Pointer[destCounter]
+	dmu      sync.Mutex
+	udpDests map[string]*destCounter
 }
 
 // Up 记录上行（客户端发往节点）字节数，限速时会等待。
 func (s *Session) Up(n int) {
 	s.counter.up.Add(int64(n))
+	if c := s.tcpDest.Load(); c != nil {
+		c.up.Add(int64(n))
+	}
 	wait(s.up, n)
 }
 
 // Down 记录下行字节数，限速时会等待。
 func (s *Session) Down(n int) {
 	s.counter.down.Add(int64(n))
+	if c := s.tcpDest.Load(); c != nil {
+		c.down.Add(int64(n))
+	}
 	wait(s.down, n)
 }
 
@@ -333,6 +345,7 @@ func (s *Session) Close() {
 	if !s.closed.CompareAndSwap(false, true) {
 		return
 	}
+	s.releaseDests()
 	m := s.m
 	m.mu.Lock()
 	defer m.mu.Unlock()

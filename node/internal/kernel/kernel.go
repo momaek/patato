@@ -47,6 +47,7 @@ type Kernel struct {
 	opts  Options
 	ctx   context.Context
 	box   *box.Box
+	mode  *modeSwitch // 落地访问统计的开关
 	mu    sync.Mutex
 	nodes map[int64]*applied
 }
@@ -88,7 +89,8 @@ func New(opts Options) (*Kernel, error) {
 		return nil, err
 	}
 	ctx := service.ContextWithDefaultRegistry(include.Context(context.Background()))
-	rules := []map[string]any{}
+	// 嗅探规则放最前：它不结束匹配，只在开启落地访问统计时读出目标域名
+	rules := []map[string]any{sniffRule()}
 	if opts.BlockPrivate {
 		rules = append(rules, map[string]any{"ip_is_private": true, "action": "reject"})
 	}
@@ -100,6 +102,8 @@ func New(opts Options) (*Kernel, error) {
 		"route":     map[string]any{"rules": rules, "final": "direct", "default_domain_resolver": "local"},
 	}
 	raw, _ := json.Marshal(base)
+	mode := newModeSwitch()
+	service.MustRegister[adapter.ClashServer](ctx, mode)
 	options, err := singjson.UnmarshalExtendedContext[option.Options](ctx, raw)
 	if err != nil {
 		return nil, fmt.Errorf("kernel options: %w", err)
@@ -108,12 +112,12 @@ func New(opts Options) (*Kernel, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create kernel: %w", err)
 	}
-	b.Router().AppendTracker(&tracker{meter: opts.Meter})
+	b.Router().AppendTracker(&tracker{meter: opts.Meter, mode: mode})
 	if err := b.Start(); err != nil {
 		_ = b.Close()
 		return nil, fmt.Errorf("start kernel: %w", err)
 	}
-	return &Kernel{opts: opts, ctx: ctx, box: b, nodes: map[int64]*applied{}}, nil
+	return &Kernel{opts: opts, ctx: ctx, box: b, mode: mode, nodes: map[int64]*applied{}}, nil
 }
 
 func (k *Kernel) Close() error { return k.box.Close() }

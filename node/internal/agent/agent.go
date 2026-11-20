@@ -35,6 +35,10 @@ type Agent struct {
 	report   chan struct{}
 	now      func() time.Time
 	gap      time.Duration // 即 RebuildGap，测试里调小
+
+	// 落地访问统计：上次带上统计的上报时间与周期（即 nodeapi.DestinationInterval，测试里调小）
+	lastDest     time.Time
+	destInterval time.Duration
 }
 
 // local 是一个节点在本地已应用的状态。
@@ -53,6 +57,7 @@ func New(src control.Source, k *kernel.Kernel, m *meter.Meter, sp *spool.Spool, 
 		nodes:    map[int64]*local{},
 		settings: nodeapi.Settings{ReportInterval: 60, SyncInterval: 60, DeviceTTL: 300},
 		syncNow:  make(chan struct{}, 1), report: make(chan struct{}, 1), now: time.Now, gap: RebuildGap,
+		destInterval: nodeapi.DestinationInterval,
 	}
 }
 
@@ -92,7 +97,7 @@ func (a *Agent) Run(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
-			a.collect()
+			a.collect(true)
 			flushCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			a.flush(flushCtx)
 			cancel()
@@ -114,10 +119,10 @@ func (a *Agent) Run(ctx context.Context) error {
 			}
 		case <-reportSoon:
 			reportSoon = nil
-			a.collect()
+			a.collect(false)
 			a.flush(ctx)
 		case <-reportT.C:
-			a.collect()
+			a.collect(false)
 			a.flush(ctx)
 		case <-maintT.C:
 			a.maintain()
@@ -176,8 +181,13 @@ func (a *Agent) apply(resp *nodeapi.SyncResponse) bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if resp.Settings.ReportInterval > 0 {
+		if resp.Settings.Destinations != a.settings.Destinations {
+			a.log.Info("destination stats", "enabled", resp.Settings.Destinations)
+			a.lastDest = a.now()
+		}
 		a.settings = resp.Settings
 		a.meter.SetDeviceTTL(time.Duration(resp.Settings.DeviceTTL) * time.Second)
+		a.kernel.SetDestinations(resp.Settings.Destinations)
 	}
 	a.meter.SetRemote(resp.Remote)
 	changed := false
@@ -285,8 +295,25 @@ func (l *local) userList() []nodeapi.User {
 }
 
 // collect 把这段时间的流量、在线 IP 和每个节点的状态写成一批上报放进本地队列。
-func (a *Agent) collect() {
+// 落地访问统计每 destInterval 随上报带一次；final 为 true（退出前）时不论间隔都带上。
+func (a *Agent) collect(final bool) {
 	data := a.meter.Collect()
+	a.mu.Lock()
+	withDest := a.meter.DestinationsEnabled() && (final || a.now().Sub(a.lastDest) >= a.destInterval)
+	if withDest {
+		a.lastDest = a.now()
+	}
+	a.mu.Unlock()
+	if withDest {
+		for id, d := range a.meter.CollectDestinations() {
+			nr := data[id]
+			if nr == nil {
+				nr = &nodeapi.NodeReport{ID: id}
+				data[id] = nr
+			}
+			nr.Destinations, nr.DestinationsMerged = d.Destinations, d.DestinationsMerged
+		}
+	}
 	r := nodeapi.ReportRequest{At: a.now().UTC()}
 	for _, id := range a.kernel.Nodes() {
 		nr := data[id]
@@ -299,8 +326,9 @@ func (a *Agent) collect() {
 	}
 	// 已经移除的节点在移除前产生的流量也要上报
 	for _, nr := range data {
-		if len(nr.Traffic) > 0 {
-			r.Nodes = append(r.Nodes, nodeapi.NodeReport{ID: nr.ID, Traffic: nr.Traffic})
+		if len(nr.Traffic) > 0 || len(nr.Destinations) > 0 {
+			r.Nodes = append(r.Nodes, nodeapi.NodeReport{ID: nr.ID, Traffic: nr.Traffic,
+				Destinations: nr.Destinations, DestinationsMerged: nr.DestinationsMerged})
 		}
 	}
 	if a.relay != nil {

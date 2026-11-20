@@ -64,6 +64,23 @@ type Config struct {
 	Registration RegistrationConfig `yaml:"registration"`
 	Approval     ApprovalConfig     `yaml:"approval"`
 	Anomaly      AnomalyConfig      `yaml:"anomaly"`
+
+	Monitoring MonitoringConfig `yaml:"monitoring"`
+}
+
+// ---- 监控 ----
+
+type MonitoringConfig struct {
+	Destinations DestinationsConfig `yaml:"destinations"`
+}
+
+// DestinationsConfig 是落地访问统计：patato-node 按「节点 × 用户 × 目标（主域名或 IP）」聚合流量。
+// 记录的是用户的访问去向，默认关闭；开启后在用户侧「我的订阅」页告知统计范围与保留期限。
+type DestinationsConfig struct {
+	// Enabled 为 true 时所有 patato-node 落地开始采集，关闭后在一个同步周期内停止。
+	Enabled bool `yaml:"enabled"`
+	// RetentionDays 是保留天数，过期的小时数据由周期任务删除。
+	RetentionDays int `yaml:"retention_days"`
 }
 
 type PaymentConfig struct {
@@ -231,6 +248,8 @@ func Default() *Config {
 		Payment:  PaymentConfig{OrderTimeout: Duration(30 * time.Minute)},
 		Approval: ApprovalConfig{Required: 1},
 		Anomaly:  AnomalyConfig{Factor: 5, MinGB: 20, ExpiringDays: 3},
+
+		Monitoring: MonitoringConfig{Destinations: DestinationsConfig{RetentionDays: 7}},
 	}
 }
 
@@ -339,6 +358,9 @@ func (c *Config) Validate() error {
 	}
 	if c.Approval.Required < 1 {
 		errs = append(errs, errors.New("approval.required must be at least 1"))
+	}
+	if d := c.Monitoring.Destinations.RetentionDays; d < 1 || d > 90 {
+		errs = append(errs, errors.New("monitoring.destinations.retention_days must be between 1 and 90"))
 	}
 	return errors.Join(errs...)
 }
