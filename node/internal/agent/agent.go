@@ -10,6 +10,7 @@ import (
 	"github.com/momaek/patato/node/internal/control"
 	"github.com/momaek/patato/node/internal/kernel"
 	"github.com/momaek/patato/node/internal/meter"
+	"github.com/momaek/patato/node/internal/relay"
 	"github.com/momaek/patato/node/internal/spool"
 	"github.com/momaek/patato/nodeapi"
 )
@@ -23,6 +24,7 @@ type Agent struct {
 	kernel  *kernel.Kernel
 	meter   *meter.Meter
 	spool   *spool.Spool
+	relay   *relay.Manager // 中转转发；没有时为 nil
 	log     *slog.Logger
 	version string
 
@@ -54,6 +56,9 @@ func New(src control.Source, k *kernel.Kernel, m *meter.Meter, sp *spool.Spool, 
 	}
 }
 
+// SetRelay 接上中转转发管理器。
+func (a *Agent) SetRelay(r *relay.Manager) { a.relay = r }
+
 // TriggerSync 让调度尽快同步一次，面板推送 changed 时调用。
 func (a *Agent) TriggerSync() {
 	select {
@@ -78,9 +83,11 @@ func (a *Agent) Run(ctx context.Context) error {
 	syncT := time.NewTicker(a.interval(a.settings.SyncInterval))
 	reportT := time.NewTicker(a.interval(a.settings.ReportInterval))
 	maintT := time.NewTicker(10 * time.Second)
+	probeT := time.NewTicker(a.interval(a.settings.ProbeInterval))
 	defer syncT.Stop()
 	defer reportT.Stop()
 	defer maintT.Stop()
+	defer probeT.Stop()
 	var reportSoon <-chan time.Time
 	for {
 		select {
@@ -96,6 +103,7 @@ func (a *Agent) Run(ctx context.Context) error {
 			if a.settings != before {
 				syncT.Reset(a.interval(a.settings.SyncInterval))
 				reportT.Reset(a.interval(a.settings.ReportInterval))
+				probeT.Reset(a.interval(a.settings.ProbeInterval))
 			}
 		case <-syncT.C:
 			a.syncOnce(ctx)
@@ -113,6 +121,10 @@ func (a *Agent) Run(ctx context.Context) error {
 			a.flush(ctx)
 		case <-maintT.C:
 			a.maintain()
+		case <-probeT.C:
+			if a.relay != nil && a.settings.ProbeInterval > 0 {
+				go a.relay.Probe(ctx)
+			}
 		}
 	}
 }
@@ -132,6 +144,9 @@ func (a *Agent) syncOnce(ctx context.Context) {
 		req.Nodes[id] = nodeapi.KnownNode{ConfigRev: l.configRev, UsersRev: l.usersRev}
 	}
 	a.mu.Unlock()
+	if a.relay != nil {
+		req.ForwardsRev = a.relay.Rev()
+	}
 	resp, err := a.src.Sync(ctx, req)
 	if err != nil {
 		if ctx.Err() == nil {
@@ -143,7 +158,15 @@ func (a *Agent) syncOnce(ctx context.Context) {
 		}
 		return
 	}
-	if a.apply(resp) {
+	changed := a.apply(resp)
+	if a.relay != nil {
+		a.relay.SetMode(resp.Settings.ForwardMode)
+		if resp.Forwards != nil {
+			a.relay.Sync(resp.Forwards)
+			changed = true
+		}
+	}
+	if changed {
 		a.triggerReport()
 	}
 }
@@ -248,6 +271,9 @@ func (a *Agent) maintain() {
 	}
 	a.mu.Unlock()
 	a.kernel.Retry()
+	if a.relay != nil {
+		a.relay.Recheck()
+	}
 }
 
 func (l *local) userList() []nodeapi.User {
@@ -276,6 +302,11 @@ func (a *Agent) collect() {
 		if len(nr.Traffic) > 0 {
 			r.Nodes = append(r.Nodes, nodeapi.NodeReport{ID: nr.ID, Traffic: nr.Traffic})
 		}
+	}
+	if a.relay != nil {
+		r.Forwards = a.relay.Collect()
+		r.Relay = a.relay.Status()
+		r.Listening = relay.ListeningPorts()
 	}
 	if _, err := a.spool.Append(r); err != nil {
 		a.log.Error("write report to spool", "err", err)

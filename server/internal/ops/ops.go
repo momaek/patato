@@ -68,6 +68,8 @@ func All(d *Deps) []change.Operation {
 	return []change.Operation{
 		&NodeProvision{d}, &NodeUpdate{d}, &NodeAttach{d, true}, &NodeAttach{d, false},
 		&NodeDelete{d}, &NodeRotateKey{d}, &MachineRevoke{d},
+		&MachineSetNetwork{d}, &RouteCreate{d}, &RouteUpdate{d}, &RouteDelete{d}, &RouteApply{d},
+		&EntryAdd{d}, &EntrySetEnabled{d, true}, &EntrySetEnabled{d, false}, &EntryDelete{d}, &EntryAdopt{d},
 		&TemplateCreate{d}, &TemplateUpdate{d},
 		&PlanCreate{d}, &PlanUpdate{d}, &PlanDelete{d},
 		&RuleProfileCreate{d}, &RuleProfileUpdate{d}, &RuleProfileRefresh{d}, &RuleProfileDelete{d},

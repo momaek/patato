@@ -123,6 +123,11 @@ func (hub *Hub) check(ctx context.Context) {
 			continue
 		}
 		fp := fingerprint(states)
+		if cur, err := hub.h.st.GetMachine(ctx, m.ID); err == nil {
+			if fw, err := hub.h.forwardState(ctx, cur); err == nil && fw != nil {
+				fp += "|f:" + fw.Rev
+			}
+		}
 		hub.mu.Lock()
 		if hub.last[id] != fp {
 			hub.last[id] = fp

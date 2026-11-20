@@ -410,7 +410,7 @@ paths:
       requestBody:
         content:
           application/json:
-            schema: {"type": "object", "properties": {"dry_run": {"type": "boolean", "description": "为 true 时只预演，返回变更计划"}, "instruction": {"type": "string", "description": "用户的原始指令，显示在审批卡片上"}, "name": {"type": "string"}, "address": {"type": "string"}, "port": {"type": "integer"}, "rate": {"type": "number"}, "tags": {"type": "array", "items": {"type": "string"}}, "settings": {"type": "object"}, "sort": {"type": "integer"}, "backend": {"type": "string", "enum": ["native", "uniproxy"]}, "monthly_cost": {"type": "integer", "description": "每月成本（分），只用于成本报表"}}}
+            schema: {"type": "object", "properties": {"dry_run": {"type": "boolean", "description": "为 true 时只预演，返回变更计划"}, "instruction": {"type": "string", "description": "用户的原始指令，显示在审批卡片上"}, "name": {"type": "string"}, "address": {"type": "string"}, "port": {"type": "integer", "description": "客户端连接的对外端口"}, "server_port": {"type": "integer", "description": "节点实际监听的端口；与 port 分别修改"}, "rate": {"type": "number"}, "tags": {"type": "array", "items": {"type": "string"}}, "settings": {"type": "object"}, "sort": {"type": "integer"}, "backend": {"type": "string", "enum": ["native", "uniproxy"]}, "monthly_cost": {"type": "integer", "description": "每月成本（分），只用于成本报表"}}}
       responses:
         '200': {description: 预演结果或已执行的变更计划, content: {application/json: {schema: {$ref: '#/components/schemas/ChangePlan'}}}}
         '202': {description: 敏感操作，已生成审批, content: {application/json: {schema: {$ref: '#/components/schemas/ChangePlan'}}}}
@@ -584,6 +584,288 @@ paths:
         '200': {description: 预演结果或已执行的变更计划, content: {application/json: {schema: {$ref: '#/components/schemas/ChangePlan'}}}}
         '202': {description: 敏感操作，已生成审批, content: {application/json: {schema: {$ref: '#/components/schemas/ChangePlan'}}}}
         default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  # ---- 中转线路（docs/relay.md）----------------------------------------
+  /api/v1/machines/{id}/network:
+    patch:
+      operationId: patch_machines_id_network
+      summary: "设置机器的网络属性：对外地址、端口段（NAT 映射）、转发模式（改已在使用的入口地址时为敏感）"
+      x-risk: normal
+      x-access: admin
+      x-operation: machine.set_network
+      security: [{token: []}, {operatorSession: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}, description: 机器名}
+        - $ref: '#/components/parameters/XActor'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        content:
+          application/json:
+            schema: {"type": "object", "properties": {"dry_run": {"type": "boolean", "description": "为 true 时只预演，返回变更计划"}, "instruction": {"type": "string", "description": "用户的原始指令，显示在审批卡片上"}, "public_address": {"type": "string", "description": "别的机器和客户端连它用的地址（IP 或域名）；空串表示用 tolato 上报的 IP"}, "port_ranges": {"type": "array", "items": {"type": "object", "properties": {"local": {"type": "string", "description": "本机端口段，例如 40000-49999"}, "public_from": {"type": "integer", "description": "NAT 映射时外网端口起点，对应本机段的起点"}}, "required": ["local"]}, "description": "可分配的端口段；空数组为默认段 40000-49999"}, "nat": {"type": "boolean", "description": "为 true 时只在 port_ranges 内分配"}, "forward_mode": {"type": "string", "enum": ["auto", "nft", "userspace"]}, "reserved_ports": {"type": "array", "items": {"type": "object", "properties": {"local": {"type": "string", "description": "本机端口段，例如 40000-49999"}, "public_from": {"type": "integer", "description": "NAT 映射时外网端口起点，对应本机段的起点"}}, "required": ["local"]}, "description": "机器上现有规则占用的端口段，分配时避开"}}}
+      responses:
+        '200': {description: 预演结果或已执行的变更计划, content: {application/json: {schema: {$ref: '#/components/schemas/ChangePlan'}}}}
+        '202': {description: 敏感操作，已生成审批, content: {application/json: {schema: {$ref: '#/components/schemas/ChangePlan'}}}}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /api/v1/routes:
+    get:
+      operationId: get_routes
+      summary: "线路列表：跳、入口状态、今日与本月流量"
+      x-risk: read
+      x-access: admin
+      security: [{token: []}, {operatorSession: []}]
+      parameters:
+        - $ref: '#/components/parameters/XActor'
+      responses:
+        '200': {description: 成功}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+    post:
+      operationId: post_routes
+      summary: "新建线路（有序的中转机器列表）"
+      x-risk: normal
+      x-access: admin
+      x-operation: route.create
+      security: [{token: []}, {operatorSession: []}]
+      parameters:
+        - $ref: '#/components/parameters/XActor'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        content:
+          application/json:
+            schema: {"type": "object", "properties": {"dry_run": {"type": "boolean", "description": "为 true 时只预演，返回变更计划"}, "instruction": {"type": "string", "description": "用户的原始指令，显示在审批卡片上"}, "code": {"type": "string"}, "name": {"type": "string", "description": "订阅里入口名为「节点名 · 线路名」"}, "hops": {"type": "array", "items": {"type": "string"}, "description": "机器名，按客户端到落地的顺序"}}, "required": ["code", "name", "hops"]}
+      responses:
+        '200': {description: 预演结果或已执行的变更计划, content: {application/json: {schema: {$ref: '#/components/schemas/ChangePlan'}}}}
+        '202': {description: 敏感操作，已生成审批, content: {application/json: {schema: {$ref: '#/components/schemas/ChangePlan'}}}}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /api/v1/routes/traffic:
+    get:
+      operationId: get_routes_traffic
+      summary: "全部线路每天的流量"
+      x-risk: read
+      x-access: admin
+      security: [{token: []}, {operatorSession: []}]
+      parameters:
+        - $ref: '#/components/parameters/XActor'
+        - {name: days, in: query, schema: {type: integer, default: 7}}
+      responses:
+        '200': {description: 成功}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /api/v1/routes:discover:
+    post:
+      operationId: post_routes_discover
+      summary: "链路发现（只读）：按各机器的转发现状从入口追到落地节点"
+      x-risk: read
+      x-access: admin
+      security: [{token: []}, {operatorSession: []}]
+      parameters:
+        - $ref: '#/components/parameters/XActor'
+      requestBody:
+        content:
+          application/json:
+            schema: {"type": "object", "properties": {"node": {"type": "string"}, "entry": {"type": "integer"}, "host": {"type": "string"}, "port": {"type": "integer"}, "snapshots": {"type": "object", "additionalProperties": {"type": "string"}, "description": "机器名 → 在该机器上执行 discover_command 的输出；为空时返回 discover_command"}}}
+      responses:
+        '200': {description: 成功}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /api/v1/routes/{id}:
+    get:
+      operationId: get_routes_id
+      summary: "线路详情：入口、各跳转发与探测"
+      x-risk: read
+      x-access: admin
+      security: [{token: []}, {operatorSession: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}, description: 线路 ID 或代号}
+        - $ref: '#/components/parameters/XActor'
+      responses:
+        '200': {description: 成功}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+    patch:
+      operationId: patch_routes_id
+      summary: "修改线路名称或跳（已有入口时不能改跳）"
+      x-risk: normal
+      x-access: admin
+      x-operation: route.update
+      security: [{token: []}, {operatorSession: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}, description: 线路 ID 或代号}
+        - $ref: '#/components/parameters/XActor'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        content:
+          application/json:
+            schema: {"type": "object", "properties": {"dry_run": {"type": "boolean", "description": "为 true 时只预演，返回变更计划"}, "instruction": {"type": "string", "description": "用户的原始指令，显示在审批卡片上"}, "name": {"type": "string"}, "hops": {"type": "array", "items": {"type": "string"}}}}
+      responses:
+        '200': {description: 预演结果或已执行的变更计划, content: {application/json: {schema: {$ref: '#/components/schemas/ChangePlan'}}}}
+        '202': {description: 敏感操作，已生成审批, content: {application/json: {schema: {$ref: '#/components/schemas/ChangePlan'}}}}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+    delete:
+      operationId: delete_routes_id
+      summary: "删除线路（没有入口时）"
+      x-risk: sensitive
+      x-access: admin
+      x-operation: route.delete
+      security: [{token: []}, {operatorSession: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}, description: 线路 ID 或代号}
+        - $ref: '#/components/parameters/XActor'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        content:
+          application/json:
+            schema: {"type": "object", "properties": {"dry_run": {"type": "boolean", "description": "为 true 时只预演，返回变更计划"}, "instruction": {"type": "string", "description": "用户的原始指令，显示在审批卡片上"}}}
+      responses:
+        '200': {description: 预演结果或已执行的变更计划, content: {application/json: {schema: {$ref: '#/components/schemas/ChangePlan'}}}}
+        '202': {description: 敏感操作，已生成审批, content: {application/json: {schema: {$ref: '#/components/schemas/ChangePlan'}}}}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /api/v1/routes/{id}/traffic:
+    get:
+      operationId: get_routes_id_traffic
+      summary: "线路每天的流量"
+      x-risk: read
+      x-access: admin
+      security: [{token: []}, {operatorSession: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}, description: 线路 ID 或代号}
+        - $ref: '#/components/parameters/XActor'
+        - {name: days, in: query, schema: {type: integer, default: 7}}
+      responses:
+        '200': {description: 成功}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /api/v1/routes/{id}:apply:
+    post:
+      operationId: post_routes_id_apply
+      summary: "让套餐或指定节点经这条线路各开一个入口"
+      x-risk: normal
+      x-access: admin
+      x-operation: route.apply
+      security: [{token: []}, {operatorSession: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}, description: 线路 ID 或代号}
+        - $ref: '#/components/parameters/XActor'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        content:
+          application/json:
+            schema: {"type": "object", "properties": {"dry_run": {"type": "boolean", "description": "为 true 时只预演，返回变更计划"}, "instruction": {"type": "string", "description": "用户的原始指令，显示在审批卡片上"}, "plan": {"type": "string", "description": "套餐 ID 或代号"}, "nodes": {"type": "array", "items": {"type": "string"}}, "suffix": {"type": "string", "description": "入口名后缀，默认线路名"}}}
+      responses:
+        '200': {description: 预演结果或已执行的变更计划, content: {application/json: {schema: {$ref: '#/components/schemas/ChangePlan'}}}}
+        '202': {description: 敏感操作，已生成审批, content: {application/json: {schema: {$ref: '#/components/schemas/ChangePlan'}}}}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /api/v1/nodes/{id}/entries:
+    get:
+      operationId: get_nodes_id_entries
+      summary: "节点的入口：链路、状态与今日流量"
+      x-risk: read
+      x-access: admin
+      security: [{token: []}, {operatorSession: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}, description: 节点 ID 或代号}
+        - $ref: '#/components/parameters/XActor'
+      responses:
+        '200': {description: 成功}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+    post:
+      operationId: post_nodes_id_entries
+      summary: "给节点加入口：直连、经线路（自动分配端口）、手写转发或自定义地址"
+      x-risk: normal
+      x-access: admin
+      x-operation: entry.add
+      security: [{token: []}, {operatorSession: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}, description: 节点 ID 或代号}
+        - $ref: '#/components/parameters/XActor'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        content:
+          application/json:
+            schema: {"type": "object", "properties": {"dry_run": {"type": "boolean", "description": "为 true 时只预演，返回变更计划"}, "instruction": {"type": "string", "description": "用户的原始指令，显示在审批卡片上"}, "route": {"type": "string", "description": "线路 ID 或代号；不传时为直连或自定义地址入口"}, "suffix": {"type": "string"}, "name": {"type": "string", "description": "订阅里的完整名称，覆盖「节点名 · 后缀」"}, "address": {"type": "string", "description": "自定义入口地址（例如 IPLC）；中转入口时覆盖第一跳地址"}, "port": {"type": "integer"}, "sort": {"type": "integer"}, "enabled": {"type": "boolean"}, "manual": {"type": "boolean", "description": "登记运营者手写的转发，不下发、不计流量"}, "forwards": {"type": "array", "items": {"type": "object", "properties": {"machine": {"type": "string"}, "listen_port": {"type": "integer"}, "public_port": {"type": "integer"}, "target_host": {"type": "string"}, "target_port": {"type": "integer"}}, "required": ["listen_port", "target_host", "target_port"]}}}}
+      responses:
+        '200': {description: 预演结果或已执行的变更计划, content: {application/json: {schema: {$ref: '#/components/schemas/ChangePlan'}}}}
+        '202': {description: 敏感操作，已生成审批, content: {application/json: {schema: {$ref: '#/components/schemas/ChangePlan'}}}}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /api/v1/nodes/{id}/entries/{entry}:
+    delete:
+      operationId: delete_nodes_id_entries_entry
+      summary: "删除入口并释放端口"
+      x-risk: sensitive
+      x-access: admin
+      x-operation: entry.delete
+      security: [{token: []}, {operatorSession: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}, description: 节点 ID 或代号}
+        - {name: entry, in: path, required: true, schema: {type: string}, description: 入口 ID}
+        - $ref: '#/components/parameters/XActor'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        content:
+          application/json:
+            schema: {"type": "object", "properties": {"dry_run": {"type": "boolean", "description": "为 true 时只预演，返回变更计划"}, "instruction": {"type": "string", "description": "用户的原始指令，显示在审批卡片上"}}}
+      responses:
+        '200': {description: 预演结果或已执行的变更计划, content: {application/json: {schema: {$ref: '#/components/schemas/ChangePlan'}}}}
+        '202': {description: 敏感操作，已生成审批, content: {application/json: {schema: {$ref: '#/components/schemas/ChangePlan'}}}}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /api/v1/nodes/{id}/entries/{entry}:enable:
+    post:
+      operationId: post_nodes_id_entries_entry_enable
+      summary: "启用入口"
+      x-risk: normal
+      x-access: admin
+      x-operation: entry.enable
+      security: [{token: []}, {operatorSession: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}, description: 节点 ID 或代号}
+        - {name: entry, in: path, required: true, schema: {type: string}, description: 入口 ID}
+        - $ref: '#/components/parameters/XActor'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        content:
+          application/json:
+            schema: {"type": "object", "properties": {"dry_run": {"type": "boolean", "description": "为 true 时只预演，返回变更计划"}, "instruction": {"type": "string", "description": "用户的原始指令，显示在审批卡片上"}}}
+      responses:
+        '200': {description: 预演结果或已执行的变更计划, content: {application/json: {schema: {$ref: '#/components/schemas/ChangePlan'}}}}
+        '202': {description: 敏感操作，已生成审批, content: {application/json: {schema: {$ref: '#/components/schemas/ChangePlan'}}}}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /api/v1/nodes/{id}/entries/{entry}:disable:
+    post:
+      operationId: post_nodes_id_entries_entry_disable
+      summary: "停用入口"
+      x-risk: sensitive
+      x-access: admin
+      x-operation: entry.disable
+      security: [{token: []}, {operatorSession: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}, description: 节点 ID 或代号}
+        - {name: entry, in: path, required: true, schema: {type: string}, description: 入口 ID}
+        - $ref: '#/components/parameters/XActor'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        content:
+          application/json:
+            schema: {"type": "object", "properties": {"dry_run": {"type": "boolean", "description": "为 true 时只预演，返回变更计划"}, "instruction": {"type": "string", "description": "用户的原始指令，显示在审批卡片上"}}}
+      responses:
+        '200': {description: 预演结果或已执行的变更计划, content: {application/json: {schema: {$ref: '#/components/schemas/ChangePlan'}}}}
+        '202': {description: 敏感操作，已生成审批, content: {application/json: {schema: {$ref: '#/components/schemas/ChangePlan'}}}}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /api/v1/nodes/{id}/entries/{entry}:adopt:
+    post:
+      operationId: post_nodes_id_entries_entry_adopt
+      summary: "把自定义入口登记为经过线路的手写转发（链路发现确认后）"
+      x-risk: normal
+      x-access: admin
+      x-operation: entry.adopt
+      security: [{token: []}, {operatorSession: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}, description: 节点 ID 或代号}
+        - {name: entry, in: path, required: true, schema: {type: string}, description: 入口 ID}
+        - $ref: '#/components/parameters/XActor'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        content:
+          application/json:
+            schema: {"type": "object", "properties": {"dry_run": {"type": "boolean", "description": "为 true 时只预演，返回变更计划"}, "instruction": {"type": "string", "description": "用户的原始指令，显示在审批卡片上"}, "route": {"type": "string"}, "forwards": {"type": "array", "items": {"type": "object", "properties": {"machine": {"type": "string"}, "listen_port": {"type": "integer"}, "public_port": {"type": "integer"}, "target_host": {"type": "string"}, "target_port": {"type": "integer"}}, "required": ["listen_port", "target_host", "target_port"]}}}, "required": ["route", "forwards"]}
+      responses:
+        '200': {description: 预演结果或已执行的变更计划, content: {application/json: {schema: {$ref: '#/components/schemas/ChangePlan'}}}}
+        '202': {description: 敏感操作，已生成审批, content: {application/json: {schema: {$ref: '#/components/schemas/ChangePlan'}}}}
+        default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  # ---- 中转线路结束 ----------------------------------------------------
   /api/v1/node/enroll:
     post:
       operationId: post_node_enroll

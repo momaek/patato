@@ -192,3 +192,30 @@ func (c *Client) CommandsSince(ctx context.Context, machine string, since time.T
 	}
 	return out, nil
 }
+
+// DirectoryMachine 是 tolato 里的一台机器：可匹配的名字（名称、别名、IP）、IP 和是否在线。
+type DirectoryMachine struct {
+	Names  []string
+	IP     string
+	Online bool
+}
+
+// Machines 列出 tolato 中的全部机器，用于刷新中转与落地机器的 IP（动态 IP）和在线状态。只读。
+func (c *Client) Machines(ctx context.Context) ([]DirectoryMachine, error) {
+	nodes, err := c.listNodes(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]DirectoryMachine, 0, len(nodes))
+	for _, n := range nodes {
+		names := []string{n.Name}
+		if n.Alias != nil && *n.Alias != "" {
+			names = append(names, *n.Alias)
+		}
+		if n.IP != "" {
+			names = append(names, n.IP)
+		}
+		out = append(out, DirectoryMachine{Names: names, IP: n.IP, Online: n.Status == "online"})
+	}
+	return out, nil
+}

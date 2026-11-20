@@ -26,11 +26,19 @@ const (
 	ReferralFrozen      = "referral_frozen"
 	TicketCreated       = "ticket_created"
 	TicketReplied       = "ticket_replied"
+
+	// 中转线路
+	RouteHopOffline    = "route_hop_offline"
+	RouteHopOnline     = "route_hop_online"
+	RouteProbeFailed   = "route_probe_failed"
+	ForwardApplyFailed = "forward_apply_failed"
+	RouteIdle          = "route_idle"
 )
 
 // Kinds 是全部事件类型，供 Webhook 和自动处置规则校验。
 var Kinds = []string{NodeOffline, NodeOnline, UserExpired, UserOverQuota, PanelHostExec, UserExpiring, TrafficAnomaly,
-	OrderPaid, OrderRefunded, OrderNeedsAttention, ReferralFrozen, TicketCreated, TicketReplied}
+	OrderPaid, OrderRefunded, OrderNeedsAttention, ReferralFrozen, TicketCreated, TicketReplied,
+	RouteHopOffline, RouteHopOnline, RouteProbeFailed, ForwardApplyFailed, RouteIdle}
 
 // Notifier 在事件写入后被调用，负责推送到 Telegram 等渠道。
 type Notifier interface {

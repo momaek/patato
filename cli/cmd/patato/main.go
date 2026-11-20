@@ -33,6 +33,8 @@ const usage = `patato：Patato 的命令行客户端（短别名 pat）
   patato status                                  需要处理的事、节点和用户概况
   patato node list [--state online|offline|pending] | show <节点>
   patato machine list | show <机器>
+  patato route list | show <线路> | traffic [<线路>] [--since 7d]   中转线路、入口状态与流量
+  patato node entry list <节点>
   patato template list | show <模板>
   patato plan list | show <套餐>
   patato rules list | presets | show <规则>          分流规则（ACL4SSR 等 ini 模板）
@@ -49,11 +51,17 @@ const usage = `patato：Patato 的命令行客户端（短别名 pat）
 
 变更（都支持 --dry-run 预演、--wait 等待审批、--instruction 记录用户原话）
   patato node provision --template <模板> --plan <套餐> (--host <机器> | --address <地址>)
-  patato node update <节点> [--name ...] [--port ...] [--rate ...] [--backend native|uniproxy]
+  patato node update <节点> [--name ...] [--port ...] [--server-port ...] [--rate ...] [--backend native|uniproxy]
   patato node attach | detach <节点> --plan <套餐>
   patato node rotate-key | delete <节点>
   patato node install-cmd <节点> [--command-only]
   patato machine install-cmd <机器> [--command-only] | revoke <机器>
+  patato machine set <机器> [--public-address ...] [--port-range 本机段[:外网起点]]... [--nat] [--reserve 段]... [--forward-mode ...]
+  patato route create <代号> --name <名称> --via <机器>,<机器> | update | delete <线路>
+  patato route apply <线路> (--plan <套餐> | --node <节点>...)   套餐里每个节点经这条线路开一个入口
+  patato route discover --node <节点> --entry <入口> [--snapshot 机器=@文件]...   链路发现（只读）
+  patato node entry add <节点> [--route <线路>] [--suffix ...] | enable | disable | delete <节点> <入口>
+  patato node entry adopt <节点> <入口> --route <线路> --forward 机器:端口=下一跳:端口...
   patato template create | update ...
   patato plan create | update | delete ...       价格用 --price monthly=19.9（单位元）；灰度调价用 --rollout-price
   patato plan history <套餐>
@@ -158,6 +166,8 @@ func run(args []string, out io.Writer) error {
 		return a.node(rest)
 	case "machine", "machines":
 		return a.machine(rest)
+	case "route", "routes":
+		return a.route(rest)
 	case "template", "templates":
 		return a.template(rest)
 	case "plan", "plans":

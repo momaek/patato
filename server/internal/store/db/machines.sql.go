@@ -40,7 +40,7 @@ UPDATE machines SET token_hash = $1, enroll_hash = NULL, enroll_cipher = NULL, e
     hostname = $2, agent_version = $3, enrolled_at = now(), last_seen_at = now(),
     updated_at = now(), version = version + 1
 WHERE enroll_hash = $4 AND enroll_expires_at > now()
-RETURNING id, host, token_hash, enroll_hash, enroll_cipher, enroll_expires_at, hostname, agent_version, kernel, enrolled_at, last_seen_at, created_at, updated_at, version
+RETURNING id, host, token_hash, enroll_hash, enroll_cipher, enroll_expires_at, hostname, agent_version, kernel, enrolled_at, last_seen_at, created_at, updated_at, version, public_address, port_ranges, nat, forward_mode, reserved_ports, listening_ports, tolato_ip, tolato_online, state, state_changed_at, relay_runtime
 `
 
 type ClaimMachineEnrollmentParams struct {
@@ -74,6 +74,17 @@ func (q *Queries) ClaimMachineEnrollment(ctx context.Context, arg ClaimMachineEn
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Version,
+		&i.PublicAddress,
+		&i.PortRanges,
+		&i.Nat,
+		&i.ForwardMode,
+		&i.ReservedPorts,
+		&i.ListeningPorts,
+		&i.TolatoIp,
+		&i.TolatoOnline,
+		&i.State,
+		&i.StateChangedAt,
+		&i.RelayRuntime,
 	)
 	return i, err
 }
@@ -109,7 +120,7 @@ UPDATE machines SET token_hash = $1, enroll_hash = NULL, enroll_cipher = NULL, e
     hostname = $2, agent_version = $3, enrolled_at = now(), last_seen_at = now(),
     updated_at = now(), version = version + 1
 WHERE id = $4 AND (token_hash IS NOT NULL OR enroll_expires_at > now())
-RETURNING id, host, token_hash, enroll_hash, enroll_cipher, enroll_expires_at, hostname, agent_version, kernel, enrolled_at, last_seen_at, created_at, updated_at, version
+RETURNING id, host, token_hash, enroll_hash, enroll_cipher, enroll_expires_at, hostname, agent_version, kernel, enrolled_at, last_seen_at, created_at, updated_at, version, public_address, port_ranges, nat, forward_mode, reserved_ports, listening_ports, tolato_ip, tolato_online, state, state_changed_at, relay_runtime
 `
 
 type EnrollMachineByAttestationParams struct {
@@ -144,6 +155,17 @@ func (q *Queries) EnrollMachineByAttestation(ctx context.Context, arg EnrollMach
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Version,
+		&i.PublicAddress,
+		&i.PortRanges,
+		&i.Nat,
+		&i.ForwardMode,
+		&i.ReservedPorts,
+		&i.ListeningPorts,
+		&i.TolatoIp,
+		&i.TolatoOnline,
+		&i.State,
+		&i.StateChangedAt,
+		&i.RelayRuntime,
 	)
 	return i, err
 }
@@ -151,7 +173,7 @@ func (q *Queries) EnrollMachineByAttestation(ctx context.Context, arg EnrollMach
 const ensureMachine = `-- name: EnsureMachine :one
 INSERT INTO machines (host) VALUES ($1)
 ON CONFLICT (host) DO UPDATE SET host = EXCLUDED.host
-RETURNING id, host, token_hash, enroll_hash, enroll_cipher, enroll_expires_at, hostname, agent_version, kernel, enrolled_at, last_seen_at, created_at, updated_at, version
+RETURNING id, host, token_hash, enroll_hash, enroll_cipher, enroll_expires_at, hostname, agent_version, kernel, enrolled_at, last_seen_at, created_at, updated_at, version, public_address, port_ranges, nat, forward_mode, reserved_ports, listening_ports, tolato_ip, tolato_online, state, state_changed_at, relay_runtime
 `
 
 func (q *Queries) EnsureMachine(ctx context.Context, host string) (Machine, error) {
@@ -172,12 +194,23 @@ func (q *Queries) EnsureMachine(ctx context.Context, host string) (Machine, erro
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Version,
+		&i.PublicAddress,
+		&i.PortRanges,
+		&i.Nat,
+		&i.ForwardMode,
+		&i.ReservedPorts,
+		&i.ListeningPorts,
+		&i.TolatoIp,
+		&i.TolatoOnline,
+		&i.State,
+		&i.StateChangedAt,
+		&i.RelayRuntime,
 	)
 	return i, err
 }
 
 const getMachineByHost = `-- name: GetMachineByHost :one
-SELECT id, host, token_hash, enroll_hash, enroll_cipher, enroll_expires_at, hostname, agent_version, kernel, enrolled_at, last_seen_at, created_at, updated_at, version FROM machines WHERE host = $1
+SELECT id, host, token_hash, enroll_hash, enroll_cipher, enroll_expires_at, hostname, agent_version, kernel, enrolled_at, last_seen_at, created_at, updated_at, version, public_address, port_ranges, nat, forward_mode, reserved_ports, listening_ports, tolato_ip, tolato_online, state, state_changed_at, relay_runtime FROM machines WHERE host = $1
 `
 
 func (q *Queries) GetMachineByHost(ctx context.Context, host string) (Machine, error) {
@@ -198,12 +231,23 @@ func (q *Queries) GetMachineByHost(ctx context.Context, host string) (Machine, e
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Version,
+		&i.PublicAddress,
+		&i.PortRanges,
+		&i.Nat,
+		&i.ForwardMode,
+		&i.ReservedPorts,
+		&i.ListeningPorts,
+		&i.TolatoIp,
+		&i.TolatoOnline,
+		&i.State,
+		&i.StateChangedAt,
+		&i.RelayRuntime,
 	)
 	return i, err
 }
 
 const getMachineByTokenHash = `-- name: GetMachineByTokenHash :one
-SELECT id, host, token_hash, enroll_hash, enroll_cipher, enroll_expires_at, hostname, agent_version, kernel, enrolled_at, last_seen_at, created_at, updated_at, version FROM machines WHERE token_hash = $1
+SELECT id, host, token_hash, enroll_hash, enroll_cipher, enroll_expires_at, hostname, agent_version, kernel, enrolled_at, last_seen_at, created_at, updated_at, version, public_address, port_ranges, nat, forward_mode, reserved_ports, listening_ports, tolato_ip, tolato_online, state, state_changed_at, relay_runtime FROM machines WHERE token_hash = $1
 `
 
 func (q *Queries) GetMachineByTokenHash(ctx context.Context, tokenHash []byte) (Machine, error) {
@@ -224,13 +268,24 @@ func (q *Queries) GetMachineByTokenHash(ctx context.Context, tokenHash []byte) (
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Version,
+		&i.PublicAddress,
+		&i.PortRanges,
+		&i.Nat,
+		&i.ForwardMode,
+		&i.ReservedPorts,
+		&i.ListeningPorts,
+		&i.TolatoIp,
+		&i.TolatoOnline,
+		&i.State,
+		&i.StateChangedAt,
+		&i.RelayRuntime,
 	)
 	return i, err
 }
 
 const listMachines = `-- name: ListMachines :many
 
-SELECT id, host, token_hash, enroll_hash, enroll_cipher, enroll_expires_at, hostname, agent_version, kernel, enrolled_at, last_seen_at, created_at, updated_at, version FROM machines ORDER BY host
+SELECT id, host, token_hash, enroll_hash, enroll_cipher, enroll_expires_at, hostname, agent_version, kernel, enrolled_at, last_seen_at, created_at, updated_at, version, public_address, port_ranges, nat, forward_mode, reserved_ports, listening_ports, tolato_ip, tolato_online, state, state_changed_at, relay_runtime FROM machines ORDER BY host
 `
 
 // 机器（patato-node）-----------------------------------------------------
@@ -258,6 +313,17 @@ func (q *Queries) ListMachines(ctx context.Context) ([]Machine, error) {
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.Version,
+			&i.PublicAddress,
+			&i.PortRanges,
+			&i.Nat,
+			&i.ForwardMode,
+			&i.ReservedPorts,
+			&i.ListeningPorts,
+			&i.TolatoIp,
+			&i.TolatoOnline,
+			&i.State,
+			&i.StateChangedAt,
+			&i.RelayRuntime,
 		); err != nil {
 			return nil, err
 		}

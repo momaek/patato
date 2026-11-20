@@ -28,14 +28,14 @@ func BuildNode(n db.Node) (nodeapi.Node, error) {
 		out.Flow = s.Str("flow")
 		switch s.Int("tls") {
 		case 1:
-			out.TLS = tlsOf(s, "tls_settings", n.Address)
+			out.TLS = tlsOf(s, "tls_settings")
 		case 2:
 			out.TLS = realityOf(s)
 		}
 		out.Transport = transportOf(s)
 	case "vmess":
 		if s.Int("tls") > 0 {
-			out.TLS = tlsOf(s, "tls_settings", n.Address)
+			out.TLS = tlsOf(s, "tls_settings")
 		}
 		out.Transport = transportOf(s)
 	case "trojan":
@@ -43,7 +43,7 @@ func BuildNode(n db.Node) (nodeapi.Node, error) {
 			out.TLS = realityOf(s)
 		} else {
 			out.TLS = &nodeapi.TLS{Mode: "tls", ServerName: s.TrojanSNI()}
-			out.TLS.Cert = certOf(s, firstNonEmpty(out.TLS.ServerName, n.Address))
+			out.TLS.Cert = certOf(s, out.TLS.ServerName)
 		}
 		out.Transport = transportOf(s)
 	case "shadowsocks":
@@ -66,7 +66,7 @@ func BuildNode(n db.Node) (nodeapi.Node, error) {
 			return out, fmt.Errorf("只支持 Hysteria 2（当前为 v%d）", v)
 		}
 		out.Protocol = "hysteria2"
-		out.TLS = tlsOf(s, "tls", n.Address)
+		out.TLS = tlsOf(s, "tls")
 		out.TLS.ALPN = []string{"h3"}
 		out.UpMbps, out.DownMbps = s.Int("bandwidth.up"), s.Int("bandwidth.down")
 		if s.Bool("obfs.open") {
@@ -75,12 +75,12 @@ func BuildNode(n db.Node) (nodeapi.Node, error) {
 		}
 		out.Multiplex = false
 	case "tuic":
-		out.TLS = tlsOf(s, "tls", n.Address)
+		out.TLS = tlsOf(s, "tls")
 		out.TLS.ALPN = []string{"h3"}
 		out.Congestion = firstNonEmpty(s.Str("congestion_control"), "bbr")
 		out.Multiplex = false
 	case "anytls":
-		out.TLS = tlsOf(s, "tls", n.Address)
+		out.TLS = tlsOf(s, "tls")
 		out.Padding = s.Strings("padding_scheme")
 		out.Multiplex = false
 	default:
@@ -89,9 +89,11 @@ func BuildNode(n db.Node) (nodeapi.Node, error) {
 	return out, nil
 }
 
-func tlsOf(s proto.Settings, prefix, address string) *nodeapi.TLS {
+// tlsOf 读取 TLS 设置。证书域名取 cert_config 里的域名或 server_name，不取节点的 address：
+// address 是客户端的连接地址，经中转或改入口后会变，证书不能跟着它走。
+func tlsOf(s proto.Settings, prefix string) *nodeapi.TLS {
 	t := &nodeapi.TLS{Mode: "tls", ServerName: s.Str(prefix + ".server_name")}
-	t.Cert = certOf(s, firstNonEmpty(t.ServerName, address))
+	t.Cert = certOf(s, t.ServerName)
 	return t
 }
 

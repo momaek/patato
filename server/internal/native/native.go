@@ -46,6 +46,7 @@ type Handler struct {
 	log      *slog.Logger
 	users    *userCache
 	hub      *Hub
+	resolver Resolver
 }
 
 func New(st *store.Store, cfg Config, ev *events.Recorder, log *slog.Logger) *Handler {
@@ -278,6 +279,18 @@ func (h *Handler) Sync(c *gin.Context) {
 			resp.Removed = append(resp.Removed, id)
 		}
 	}
+	fw, err := h.forwardState(c, m)
+	if err != nil {
+		fail(c, err)
+		return
+	}
+	// 转发列表每次都比对版本：空列表也有版本，patato-node 重启后据此清掉上次留下、现在已经不需要的规则
+	if fw != nil {
+		resp.Settings.ForwardMode, resp.Settings.ProbeInterval = m.ForwardMode, ProbeInterval
+		if req.ForwardsRev != fw.Rev {
+			resp.Forwards = fw
+		}
+	}
 	if len(limited) > 0 {
 		rows, err := h.st.RemoteDeviceCounts(c, db.RemoteDeviceCountsParams{
 			Since: time.Now().Add(-h.cfg.DeviceTTL), Host: m.Host, UserIds: limited,
@@ -341,10 +354,15 @@ func (h *Handler) Report(c *gin.Context) {
 	}
 	var accepted bool
 	stored := 0
+	var relayEvents []events.Event
+	var relayResolved []string
 	err = h.st.Tx(c, func(q *db.Queries, _ pgx.Tx) error {
 		var err error
 		accepted, err = q.AdvanceMachineSpool(c, db.AdvanceMachineSpoolParams{MachineID: m.ID, Spool: req.Spool, LastSeq: req.Seq})
 		if err != nil || !accepted {
+			return err
+		}
+		if relayEvents, relayResolved, err = storeForwards(c, q, m, req); err != nil {
 			return err
 		}
 		for _, r := range req.Nodes {
@@ -390,6 +408,19 @@ func (h *Handler) Report(c *gin.Context) {
 		return
 	}
 	metrics.TrafficReports.Add(float64(stored))
+	for _, key := range relayResolved {
+		h.events.Resolve(c, nil, key)
+	}
+	for _, e := range relayEvents {
+		h.events.Emit(c, nil, e)
+	}
+	if req.Listening != nil {
+		_ = h.st.SetMachineListening(c, db.SetMachineListeningParams{ID: m.ID, ListeningPorts: listeningPorts(req.Listening)})
+	}
+	if req.Relay != nil {
+		b, _ := json.Marshal(req.Relay)
+		_ = h.st.SetMachineRelayRuntime(c, db.SetMachineRelayRuntimeParams{ID: m.ID, RelayRuntime: b})
+	}
 	for _, r := range req.Nodes {
 		n, ok := byID[r.ID]
 		if !ok {

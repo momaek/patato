@@ -27,6 +27,7 @@ const items = computed(() => [
   { to: { name: 'approvals' }, label: '审批', match: ['approvals', 'approval'], count: pendingCount.value },
   { to: { name: 'nodes' }, label: '节点', match: ['nodes', 'node'] },
   { to: { name: 'machines' }, label: '机器', match: ['machines'] },
+  { to: { name: 'routes' }, label: '线路', match: ['routes'] },
   { to: { name: 'plans' }, label: '套餐', match: ['plans'] },
   { to: { name: 'rules' }, label: '分流规则', match: ['rules'] },
   { to: { name: 'users' }, label: '用户', match: ['users'] },

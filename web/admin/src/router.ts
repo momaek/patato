@@ -18,6 +18,7 @@ export const router = createRouter({
         { path: 'nodes', name: 'nodes', component: () => import('./pages/Nodes.vue') },
         { path: 'nodes/:id', name: 'node', component: () => import('./pages/Node.vue') },
         { path: 'machines', name: 'machines', component: () => import('./pages/Machines.vue') },
+        { path: 'routes', name: 'routes', component: () => import('./pages/Routes.vue') },
         { path: 'plans', name: 'plans', component: () => import('./pages/Plans.vue') },
         { path: 'rules', name: 'rules', component: () => import('./pages/RuleProfiles.vue') },
         { path: 'users', name: 'users', component: () => import('./pages/Users.vue') },

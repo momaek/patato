@@ -88,6 +88,7 @@ export interface Node {
   protocol: string
   backend: 'native' | 'uniproxy'
   port: number
+  server_port: number
   state: NodeState
   in_subscription: boolean
   rate: number
@@ -116,6 +117,7 @@ export interface Machine {
   enrolled_at: string | null
   last_seen_at: string | null
   nodes: Ref[]
+  network: MachineNetwork | null
 }
 
 // ---- 套餐 --------------------------------------------------------------
@@ -572,4 +574,98 @@ export interface MyReferral {
   pending: number
   settled: number
   items: Commission[]
+}
+
+// ---- 中转线路 ------------------------------------------------------------
+
+export interface PortRange {
+  local: string
+  public_from?: number
+}
+
+export interface MachineNetwork {
+  public_address: string
+  address: string
+  port_ranges: PortRange[]
+  effective_port_ranges: PortRange[]
+  reserved_ports: PortRange[]
+  nat: boolean
+  forward_mode: 'auto' | 'nft' | 'userspace'
+  tolato_ip: string
+  state: 'online' | 'offline' | 'unknown'
+  runtime: { mode: string; error?: string } | null
+  forwards: number
+  failed_forwards: number
+  ports_used: number
+  ports_total: number
+  today_up: number
+  today_down: number
+  month_up: number
+  month_down: number
+}
+
+export interface RelayForward {
+  id: number
+  hop: number
+  machine: string
+  machine_state: 'online' | 'offline' | 'unknown'
+  listen_port: number
+  public_port: number
+  target_host: string
+  target_ip: string
+  target_port: number
+  mode: 'manual' | 'nft' | 'userspace'
+  status: 'pending' | 'active' | 'failed' | 'manual'
+  applied_mode: string
+  applied_at: string | null
+  error: string
+  probe_ok: boolean | null
+  probe_ms: number | null
+  probe_at: string | null
+  probe_failures: number
+  probe_success_rate_24h: number | null
+  probe_avg_ms_24h: number | null
+  today_up: number
+  today_down: number
+}
+
+export interface NodeEntry {
+  id: number
+  node_id: number
+  node: string
+  kind: 'direct' | 'custom' | 'relay'
+  route: Ref | null
+  name: string
+  suffix: string
+  host: string
+  port: number
+  enabled: boolean
+  available: boolean
+  reason?: string
+  sort: number
+  implicit?: boolean
+  forwards: RelayForward[]
+  today_up: number
+  today_down: number
+  version: number
+}
+
+export interface RelayRoute {
+  id: number
+  code: string
+  name: string
+  hops: { id: number; host: string; address: string; state: 'online' | 'offline' | 'unknown' }[]
+  nodes: number
+  entries: NodeEntry[]
+  today_up: number
+  today_down: number
+  month_up: number
+  month_down: number
+  version: number
+}
+
+export interface RouteTraffic {
+  days: number
+  since: string
+  items: { route: Ref; up: number; down: number; series: { day: string; up: number; down: number }[] }[]
 }

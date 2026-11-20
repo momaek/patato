@@ -114,6 +114,24 @@ func (s *Server) routes() []route {
 		{"GET", "/api/v1/machines/{id}", accessAdmin, "read", "", "机器详情", s.machineGet},
 		{"GET", "/api/v1/machines/{id}/install-cmd", accessAdmin, "normal", "", "patato-node 安装命令（含一次性注册码，需要可写 token）", s.machineInstallCmd},
 		{"POST", "/api/v1/machines/{id}:revoke", accessAdmin, "normal", "machine.revoke", "吊销机器的 patato-node 凭证", s.mutate("machine.revoke", pathRef("machine"))},
+		{"PATCH", "/api/v1/machines/{id}/network", accessAdmin, "normal", "machine.set_network", "设置机器的网络属性：对外地址、端口段（NAT 映射）、转发模式（改已在使用的入口地址时为敏感）", s.mutate("machine.set_network", pathRef("machine"))},
+
+		// 中转线路
+		{"GET", "/api/v1/routes", accessAdmin, "read", "", "线路列表：跳、入口状态、今日与本月流量", s.routeList},
+		{"GET", "/api/v1/routes/traffic", accessAdmin, "read", "", "全部线路每天的流量", s.routeTraffic},
+		{"POST", "/api/v1/routes:discover", accessAdmin, "read", "", "链路发现（只读）：按各机器的转发现状从入口追到落地节点", s.routeDiscover},
+		{"GET", "/api/v1/routes/{id}", accessAdmin, "read", "", "线路详情：入口、各跳转发与探测", s.routeGet},
+		{"GET", "/api/v1/routes/{id}/traffic", accessAdmin, "read", "", "线路每天的流量", s.routeTraffic},
+		{"POST", "/api/v1/routes", accessAdmin, "normal", "route.create", "新建线路（有序的中转机器列表）", s.mutate("route.create", nil)},
+		{"PATCH", "/api/v1/routes/{id}", accessAdmin, "normal", "route.update", "修改线路名称或跳（已有入口时不能改跳）", s.mutate("route.update", pathRef("route"))},
+		{"DELETE", "/api/v1/routes/{id}", accessAdmin, "sensitive", "route.delete", "删除线路（没有入口时）", s.mutate("route.delete", pathRef("route"))},
+		{"POST", "/api/v1/routes/{id}:apply", accessAdmin, "normal", "route.apply", "让套餐或指定节点经这条线路各开一个入口", s.mutate("route.apply", pathRef("route"))},
+		{"GET", "/api/v1/nodes/{id}/entries", accessAdmin, "read", "", "节点的入口：链路、状态与今日流量", s.nodeEntryList},
+		{"POST", "/api/v1/nodes/{id}/entries", accessAdmin, "normal", "entry.add", "给节点加入口：直连、经线路（自动分配端口）、手写转发或自定义地址", s.mutate("entry.add", pathRef("node"))},
+		{"POST", "/api/v1/nodes/{id}/entries/{entry}:enable", accessAdmin, "normal", "entry.enable", "启用入口", s.mutate("entry.enable", entryRef)},
+		{"POST", "/api/v1/nodes/{id}/entries/{entry}:disable", accessAdmin, "sensitive", "entry.disable", "停用入口", s.mutate("entry.disable", entryRef)},
+		{"POST", "/api/v1/nodes/{id}/entries/{entry}:adopt", accessAdmin, "normal", "entry.adopt", "把自定义入口登记为经过线路的手写转发（链路发现确认后）", s.mutate("entry.adopt", entryRef)},
+		{"DELETE", "/api/v1/nodes/{id}/entries/{entry}", accessAdmin, "sensitive", "entry.delete", "删除入口并释放端口", s.mutate("entry.delete", entryRef)},
 
 		// 原生节点协议（patato-node 调用）
 		{"POST", "/api/v1/node/enroll", accessPublic, "normal", "", "patato-node 凭注册码换取机器 token", s.nativeHandler("enroll")},

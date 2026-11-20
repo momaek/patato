@@ -212,6 +212,24 @@ type machine struct {
 	EnrolledAt   *time.Time `json:"enrolled_at"`
 	LastSeenAt   *time.Time `json:"last_seen_at"`
 	Nodes        []ref      `json:"nodes"`
+	Network      *struct {
+		Address        string `json:"address"`
+		PublicAddress  string `json:"public_address"`
+		NAT            bool   `json:"nat"`
+		ForwardMode    string `json:"forward_mode"`
+		EffectiveRange []struct {
+			Local      string `json:"local"`
+			PublicFrom int    `json:"public_from"`
+		} `json:"effective_port_ranges"`
+		Forwards   int   `json:"forwards"`
+		Failed     int   `json:"failed_forwards"`
+		PortsUsed  int   `json:"ports_used"`
+		PortsTotal int   `json:"ports_total"`
+		TodayUp    int64 `json:"today_up"`
+		TodayDown  int64 `json:"today_down"`
+		MonthUp    int64 `json:"month_up"`
+		MonthDown  int64 `json:"month_down"`
+	} `json:"network"`
 }
 
 type installCmd struct {

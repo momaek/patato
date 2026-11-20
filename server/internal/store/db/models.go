@@ -173,6 +173,56 @@ type Event struct {
 	NotifiedAt *time.Time
 }
 
+type Forward struct {
+	ID            int64
+	EntryID       int64
+	Hop           int32
+	MachineID     int64
+	ListenPort    int32
+	PublicPort    int32
+	TargetHost    string
+	TargetPort    int32
+	TargetIp      string
+	Mode          string
+	Status        string
+	AppliedMode   string
+	AppliedAt     *time.Time
+	Error         string
+	ReportedAt    *time.Time
+	ProbeOk       *bool
+	ProbeMs       *int32
+	ProbeAt       *time.Time
+	ProbeFailures int32
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+}
+
+type ForwardProbeHourly struct {
+	ForwardID int64
+	Hour      time.Time
+	Ok        int32
+	Fail      int32
+	LatencyMs int64
+}
+
+type ForwardTrafficDaily struct {
+	ForwardID int64
+	Day       time.Time
+	RouteID   *int64
+	MachineID int64
+	Up        int64
+	Down      int64
+}
+
+type ForwardTrafficHourly struct {
+	ForwardID int64
+	Hour      time.Time
+	RouteID   *int64
+	MachineID int64
+	Up        int64
+	Down      int64
+}
+
 type IdempotencyKey struct {
 	Subject     string
 	Key         string
@@ -197,6 +247,17 @@ type Machine struct {
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
 	Version         int64
+	PublicAddress   string
+	PortRanges      json.RawMessage
+	Nat             bool
+	ForwardMode     string
+	ReservedPorts   json.RawMessage
+	ListeningPorts  []int32
+	TolatoIp        string
+	TolatoOnline    *bool
+	State           string
+	StateChangedAt  *time.Time
+	RelayRuntime    json.RawMessage
 }
 
 type MachineSpool struct {
@@ -241,6 +302,21 @@ type NodeAlive struct {
 	UserID    int64
 	Ips       []string
 	UpdatedAt time.Time
+}
+
+type NodeEntry struct {
+	ID        int64
+	NodeID    int64
+	RouteID   *int64
+	Suffix    string
+	Name      string
+	Address   string
+	Port      int32
+	Enabled   bool
+	Sort      int32
+	CreatedAt time.Time
+	UpdatedAt time.Time
+	Version   int64
 }
 
 type NodeTemplate struct {
@@ -359,6 +435,16 @@ type PlanRevision struct {
 	Version   int64
 	Snapshot  json.RawMessage
 	CreatedAt time.Time
+}
+
+type Route struct {
+	ID        int64
+	Code      string
+	Name      string
+	Hops      []int64
+	CreatedAt time.Time
+	UpdatedAt time.Time
+	Version   int64
 }
 
 type RuleList struct {
