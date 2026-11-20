@@ -102,7 +102,7 @@ const pct = (v: number | null) => (v === null ? '—' : `${Math.round(v * 100)}%
             <span class="text-[13px] text-muted">第 {{ i + 1 }} 跳</span>
             <span class="font-medium">{{ h.host }}</span>
             <span class="font-mono text-[13px] text-muted">{{ h.address }}</span>
-            <Badge :tone="hopStates[h.state].tone">{{ hopStates[h.state].label }}</Badge>
+            <Badge :tone="hopStates[h.state].tone" class="self-start">{{ hopStates[h.state].label }}</Badge>
           </Card>
         </div>
       </Section>
@@ -118,28 +118,28 @@ const pct = (v: number | null) => (v === null ? '—' : `${Math.round(v * 100)}%
                 <RouterLink :to="{ name: 'node', params: { id: e.node_id } }" class="font-medium">{{ e.name }}</RouterLink>
                 <p class="font-mono text-[13px] text-muted">{{ e.host }}:{{ e.port }}</p>
                 <Badge :tone="entryTone(e)">{{ !e.enabled ? '停用' : e.available ? '可用' : '不可用' }}</Badge>
-                <p v-if="e.enabled && !e.available" class="text-[13px] text-bad">{{ e.reason }}</p>
+                <p v-if="e.enabled && !e.available" class="max-w-[260px] text-[13px] text-bad">{{ e.reason }}</p>
               </td>
               <td class="align-top font-mono text-[13px]">
-                <p v-for="f in e.forwards" :key="f.id">
+                <p v-for="f in e.forwards" :key="f.id" class="flex h-6 items-center whitespace-nowrap">
                   {{ f.machine }}:{{ f.listen_port }}<span v-if="f.public_port !== f.listen_port" class="text-muted">（外网 {{ f.public_port }}）</span>
                   → {{ f.target_host }}<span v-if="f.target_ip && f.target_ip !== f.target_host" class="text-muted">（{{ f.target_ip }}）</span>:{{ f.target_port }}
                 </p>
               </td>
               <td class="align-top text-[13px]">
-                <p v-for="f in e.forwards" :key="f.id">
+                <p v-for="f in e.forwards" :key="f.id" class="flex h-6 items-center gap-1 whitespace-nowrap">
                   <Badge :tone="forwardStatus[f.status].tone">{{ forwardStatus[f.status].label }}</Badge>
-                  <span v-if="f.applied_mode" class="ml-1 text-muted">{{ f.applied_mode }}</span>
-                  <span v-if="f.applied_at" class="ml-1 text-muted">{{ fmt.ago(f.applied_at) }}</span>
-                  <span v-if="f.error" class="ml-1 text-bad">{{ f.error }}</span>
+                  <span v-if="f.applied_mode" class="text-muted">{{ f.applied_mode }}</span>
+                  <span v-if="f.error" class="max-w-[220px] truncate text-bad" :title="f.error">{{ f.error }}</span>
+                  <span v-else-if="f.applied_at" class="text-muted">{{ fmt.ago(f.applied_at) }}</span>
                 </p>
               </td>
               <td class="align-top text-right text-[13px] tabular">
-                <p v-for="f in e.forwards" :key="f.id">
+                <p v-for="f in e.forwards" :key="f.id" class="flex h-6 items-center justify-end whitespace-nowrap">
                   {{ pct(f.probe_success_rate_24h) }}<span v-if="f.probe_avg_ms_24h !== null" class="text-muted"> · {{ f.probe_avg_ms_24h }} ms</span>
                 </p>
               </td>
-              <td class="align-top text-right tabular">{{ fmt.bytes(e.today_up + e.today_down) }}</td>
+              <td class="align-top text-right whitespace-nowrap tabular">{{ fmt.bytes(e.today_up + e.today_down) }}</td>
             </tr>
             <tr v-if="current.entries.length === 0">
               <td colspan="5"><Empty title="这条线路上还没有入口" /></td>

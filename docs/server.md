@@ -42,7 +42,8 @@ make lint
 | `server/internal/billing` | 流量聚合与扣减、周期重置、到期与超额、节点离线检测 |
 | `server/internal/jobs` | River 周期任务与通知推送 |
 | `server/internal/notify` | Telegram 审批卡片与告警、邮件 |
-| `server/internal/xboard` | 从 Xboard 导入数据（含已完成订单、邀请关系、余额） |
+| `server/internal/xboard` | 从 Xboard 导入数据（含已完成订单、邀请关系、余额）；子节点导入为父节点的入口 |
+| `server/internal/relay` | 中转线路：机器网络属性与端口分配、入口可用性与下一跳、链路发现解析、每跳在线与流量汇总等周期任务（见 [中转线路设计](relay.md)） |
 | `server/internal/commerce` | 二期售卖：报价（灰度价格、优惠券、余额）、下单、易支付与 Stripe Checkout、回调履约、超时取消、返佣入账与风控 |
 | `server/internal/automation` | 二期事件分发：Webhook 推送（HMAC 签名、失败重试）、自动处置规则 |
 | `server/internal/store` | 迁移（`migrations/`）、查询（`queries/`，sqlc 生成到 `db/`） |
