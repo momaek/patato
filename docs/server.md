@@ -36,7 +36,7 @@ make lint
 | `server/internal/ops` | 所有写操作（节点、模板、套餐、用户），每个都是一个变更计划操作 |
 | `server/internal/approval` | 审批：批准、拒绝、过期；只接受运营者会话和绑定过的 Telegram 账号 |
 | `server/internal/auth` | 运营者 passkey 与会话、CLI 设备授权与 token、终端用户登录与找回密码 |
-| `server/internal/uniproxy` | 与 Xboard 兼容的节点接口，按节点密钥鉴权 |
+| `server/internal/uniproxy` | 与 Xboard 兼容的节点接口，按节点密钥鉴权；含 xboard-node 用的 `/api/v2/server/*`（handshake 关闭 WebSocket，走 REST 轮询；不支持 machine 模式） |
 | `server/internal/subscribe` | 订阅：通用 base64、Clash / Mihomo、sing-box，按 UA 分发 |
 | `server/internal/rules` | 分流规则：解析 subconverter 格式的 ini 模板（ACL4SSR 等）、按节点展开策略组、缓存并转换规则文件 |
 | `server/internal/billing` | 流量聚合与扣减、周期重置、到期与超额、节点离线检测 |

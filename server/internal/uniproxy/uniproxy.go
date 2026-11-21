@@ -1,5 +1,5 @@
-// Package uniproxy 实现与 Xboard / V2board 兼容的节点接口（/api/v1/server/UniProxy/*），
-// 让 V2bX、XrayR 等节点后端不改代码即可接入。
+// Package uniproxy 实现与 Xboard / V2board 兼容的节点接口（/api/v1/server/UniProxy/*，
+// 以及 xboard-node 使用的 /api/v2/server/*），让 V2bX、XrayR、xboard-node 等节点后端不改代码即可接入。
 //
 // 与 Xboard 的差异只在鉴权：每个节点有自己的密钥；旧的全局 token 只对标记了
 // allow_legacy_token 的节点在迁移过渡期内有效。
@@ -60,6 +60,18 @@ func (h *Handler) Register(r gin.IRouter) {
 	g.POST("/alive", h.alive)
 	g.GET("/alivelist", h.aliveList)
 	g.POST("/status", h.status)
+
+	// Xboard 2025 起的节点接口（xboard-node 使用）：先 handshake，流量、在线 IP、负载合并到 report。
+	// 只支持 token + node_id 鉴权，不支持 machine 模式。
+	v2 := r.Group("/api/v2/server", h.auth)
+	v2.Match([]string{http.MethodGet, http.MethodPost}, "/handshake", h.handshake)
+	v2.POST("/report", h.report)
+	v2.GET("/config", h.config)
+	v2.GET("/user", h.users)
+	v2.POST("/push", h.push)
+	v2.POST("/alive", h.alive)
+	v2.GET("/alivelist", h.aliveList)
+	v2.POST("/status", h.status)
 }
 
 const (
@@ -201,8 +213,53 @@ func (h *Handler) users(c *gin.Context) {
 // push 接收流量上报：先原样落库再返回，聚合扣减由后台任务完成，缩短「已入账但节点以为失败」的窗口。
 func (h *Handler) push(c *gin.Context) {
 	n := node(c)
+	if err := h.storeTraffic(c, n, body(c)); err != nil {
+		fail(c, http.StatusInternalServerError, "internal error")
+		return
+	}
+	_ = h.st.TouchNodePush(c, n.ID)
+	c.JSON(http.StatusOK, gin.H{"data": true})
+}
+
+// handshake 告诉节点不走 WebSocket，改用 REST 轮询。
+func (h *Handler) handshake(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{
+		"websocket": gin.H{"enabled": false},
+		"settings":  gin.H{"push_interval": h.cfg.PushInterval, "pull_interval": h.cfg.PullInterval},
+	})
+}
+
+// report 是 push、alive、status 的合并版：{"traffic": {...}, "alive": {...}, "status": {...}}。
+// online（在线连接数）和 metrics 不使用。
+func (h *Handler) report(c *gin.Context) {
+	n := node(c)
+	b := body(c)
+	field := func(key string) map[string]json.RawMessage {
+		var m map[string]json.RawMessage
+		if raw, ok := b[key]; ok {
+			_ = json.Unmarshal(raw, &m)
+		}
+		return m
+	}
+	if err := h.storeTraffic(c, n, field("traffic")); err != nil {
+		fail(c, http.StatusInternalServerError, "internal error")
+		return
+	}
+	h.storeAlive(c, n, field("alive"))
+	if status := field("status"); len(status) > 0 {
+		load, _ := json.Marshal(status)
+		if err := h.st.SetNodeLoad(c, db.SetNodeLoadParams{ID: n.ID, Load: load}); err != nil {
+			h.log.Error("store node load", "node", n.ID, "err", err)
+		}
+	}
+	_ = h.st.TouchNodePush(c, n.ID)
+	c.JSON(http.StatusOK, gin.H{"data": true})
+}
+
+// storeTraffic 把 {用户 ID: [上行, 下行]} 原样落库，非法条目跳过。
+func (h *Handler) storeTraffic(ctx context.Context, n db.Node, raw map[string]json.RawMessage) error {
 	data := map[string][2]float64{}
-	for uid, raw := range body(c) {
+	for uid, raw := range raw {
 		var pair []float64
 		if json.Unmarshal(raw, &pair) != nil || len(pair) != 2 {
 			continue
@@ -217,20 +274,23 @@ func (h *Handler) push(c *gin.Context) {
 	}
 	if len(data) > 0 {
 		payload, _ := json.Marshal(data)
-		if err := h.st.InsertTrafficReport(c, db.InsertTrafficReportParams{NodeID: n.ID, Rate: n.Rate, Payload: payload}); err != nil {
+		if err := h.st.InsertTrafficReport(ctx, db.InsertTrafficReportParams{NodeID: n.ID, Rate: n.Rate, Payload: payload}); err != nil {
 			h.log.Error("store traffic report", "node", n.ID, "err", err)
-			fail(c, http.StatusInternalServerError, "internal error")
-			return
+			return err
 		}
 		metrics.TrafficReports.Inc()
 	}
-	_ = h.st.TouchNodePush(c, n.ID)
-	c.JSON(http.StatusOK, gin.H{"data": true})
+	return nil
 }
 
 func (h *Handler) alive(c *gin.Context) {
-	n := node(c)
-	for uid, raw := range body(c) {
+	h.storeAlive(c, node(c), body(c))
+	c.JSON(http.StatusOK, gin.H{"data": true})
+}
+
+// storeAlive 保存 {用户 ID: [IP...]}，非法条目跳过。
+func (h *Handler) storeAlive(ctx context.Context, n db.Node, raw map[string]json.RawMessage) {
+	for uid, raw := range raw {
 		userID, err := strconv.ParseInt(uid, 10, 64)
 		if err != nil {
 			continue
@@ -239,11 +299,10 @@ func (h *Handler) alive(c *gin.Context) {
 		if json.Unmarshal(raw, &ips) != nil {
 			continue
 		}
-		if err := h.st.ReplaceNodeAlive(c, db.ReplaceNodeAliveParams{NodeID: n.ID, UserID: userID, Ips: normalizeIPs(ips)}); err != nil {
+		if err := h.st.ReplaceNodeAlive(ctx, db.ReplaceNodeAliveParams{NodeID: n.ID, UserID: userID, Ips: normalizeIPs(ips)}); err != nil {
 			h.log.Error("store alive", "node", n.ID, "err", err)
 		}
 	}
-	c.JSON(http.StatusOK, gin.H{"data": true})
 }
 
 func (h *Handler) aliveList(c *gin.Context) {
