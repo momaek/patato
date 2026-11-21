@@ -987,7 +987,7 @@ func (q *Queries) TouchNodePush(ctx context.Context, id int64) error {
 const updateNode = `-- name: UpdateNode :one
 UPDATE nodes SET
     name = $2, address = $3, port = $4, server_port = $5, rate = $6, tags = $7, settings = $8,
-    sort = $9, backend = $10, updated_at = now(), version = version + 1
+    sort = $9, backend = $10, host = $11, updated_at = now(), version = version + 1
 WHERE id = $1
 RETURNING id, code, name, template_id, host, address, region, protocol, port, server_port, settings, rate, state, tags, sort, key_hash, key_cipher, allow_legacy_token, last_heartbeat_at, last_push_at, load, created_at, updated_at, version, backend, runtime, monthly_cost
 `
@@ -1003,6 +1003,7 @@ type UpdateNodeParams struct {
 	Settings   json.RawMessage
 	Sort       int32
 	Backend    string
+	Host       string
 }
 
 func (q *Queries) UpdateNode(ctx context.Context, arg UpdateNodeParams) (Node, error) {
@@ -1017,6 +1018,7 @@ func (q *Queries) UpdateNode(ctx context.Context, arg UpdateNodeParams) (Node, e
 		arg.Settings,
 		arg.Sort,
 		arg.Backend,
+		arg.Host,
 	)
 	var i Node
 	err := row.Scan(

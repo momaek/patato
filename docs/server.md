@@ -24,7 +24,7 @@ make lint
 2. 生成第一个运营者的邀请链接：`patato-server operator invite -name <名字>`，在 Admin 上用它注册 passkey。
 3. CLI 登录：`patato auth login` 发起设备授权（`POST /api/v1/auth/cli/grants`），运营者在 Admin 上核对短码并批准，CLI 换取 token。
 4. 配置 Telegram 后，运营者在 Admin 上生成绑定码（`POST /api/v1/auth/telegram:bind`），给机器人发送 `/bind <码>`，之后可以直接在 Telegram 里批准或拒绝。
-5. 从 Xboard 迁移：先 `patato-server import-xboard -dsn '<user>:<pass>@tcp(<host>:3306)/<db>' -dry-run` 看报告，确认后去掉 `-dry-run`。迁移后在配置里填 `node.legacy_token`（Xboard 的 server_token），节点不改配置即可连上；之后逐台换成 `patato node install-cmd` 给出的节点密钥。
+5. 从 Xboard 迁移：先 `patato-server import-xboard -dsn '<user>:<pass>@tcp(<host>:3306)/<db>' -dry-run` 看报告，确认后去掉 `-dry-run`。迁移后在配置里填 `node.legacy_token`（Xboard 的 server_token），节点不改配置即可连上；之后逐台换成 `patato node install-cmd` 给出的节点密钥。导入的节点没有机器名，要改由 patato-node 承载时一起填上：`patato node update <节点> --host <机器> --backend native`。
 
 ## 代码结构
 

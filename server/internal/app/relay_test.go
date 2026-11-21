@@ -445,3 +445,46 @@ func TestNodeUpdatePortsSeparately(t *testing.T) {
 		t.Fatalf("server_port: %+v", n)
 	}
 }
+
+// TestNodeUpdateHost 从 Xboard 导入的节点没有机器名：先填上 host 才能改由 patato-node 承载，填的时候检查监听端口冲突。
+func TestNodeUpdateHost(t *testing.T) {
+	h := newHarness(t, nil)
+	ctx := context.Background()
+	setup(h)
+	expect(t, h.api("POST", "/api/v1/nodes:provision", map[string]any{
+		"template": "jp-premium", "address": "203.0.113.20", "code": "imported", "plans": []string{"premium"}, "backend": "uniproxy",
+	}), 200)
+	expect(t, h.api("POST", "/api/v1/nodes:provision", map[string]any{
+		"template": "jp-premium", "address": "203.0.113.21", "host": "tokyo-01", "plans": []string{"premium"}, "backend": "uniproxy",
+	}), 200)
+	n, err := h.a.Store.GetNodeByCode(ctx, "imported")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n.Host != "" {
+		t.Fatalf("node provisioned by address must have no host: %+v", n)
+	}
+
+	r := h.api("PATCH", "/api/v1/nodes/imported", map[string]any{"backend": "native", "dry_run": true})
+	expect(t, r, 400)
+	if r.str("error.code") != "missing_host" {
+		t.Fatalf("want missing_host: %s", r.raw)
+	}
+	// tokyo-01 上同一个监听端口已有节点
+	r = h.api("PATCH", "/api/v1/nodes/imported", map[string]any{"host": "tokyo-01", "dry_run": true})
+	expect(t, r, 409)
+	if r.str("error.code") != "port_taken" {
+		t.Fatalf("want port_taken: %s", r.raw)
+	}
+
+	expect(t, h.api("PATCH", "/api/v1/nodes/imported", map[string]any{"host": " tokyo-02 ", "backend": "native"}), 200)
+	n, _ = h.a.Store.GetNode(ctx, n.ID)
+	if n.Host != "tokyo-02" || n.Backend != "native" {
+		t.Fatalf("host and backend: %+v", n)
+	}
+	r = h.api("PATCH", "/api/v1/nodes/imported", map[string]any{"host": "", "dry_run": true})
+	expect(t, r, 400)
+	if r.str("error.code") != "missing_host" {
+		t.Fatalf("native node must keep host: %s", r.raw)
+	}
+}

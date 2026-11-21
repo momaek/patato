@@ -3112,6 +3112,8 @@ export interface operations {
                     /** @description 用户的原始指令，显示在审批卡片上 */
                     instruction?: string;
                     name?: string;
+                    /** @description 节点所在的机器（tolato 中的机器名）；从 Xboard 导入的节点要先填上才能改由 patato-node 承载 */
+                    host?: string;
                     address?: string;
                     /** @description 客户端连接的对外端口 */
                     port?: number;

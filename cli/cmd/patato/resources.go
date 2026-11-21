@@ -161,6 +161,7 @@ func (a *app) nodeProvision(args []string) error {
 func (a *app) nodeUpdate(args []string) error {
 	c := newCommand("node update", "patato node update <节点> [选项]\n\n只修改给出的字段。")
 	nm := c.fs.String("name", "", "名称")
+	host := c.fs.String("host", "", "节点所在的机器（tolato 中的机器名）；从 Xboard 导入的节点要先填上才能用 --backend native")
 	address := c.fs.String("address", "", "客户端连接地址")
 	port := c.fs.Int("port", 0, "客户端连接的对外端口")
 	serverPort := c.fs.Int("server-port", 0, "节点实际监听的端口（与对外端口分别修改）")
@@ -180,7 +181,7 @@ func (a *app) nodeUpdate(args []string) error {
 		return err
 	}
 	body := map[string]any{}
-	c.copy(body, map[string]any{"name": *nm, "address": *address, "port": *port, "server_port": *serverPort, "rate": *rate, "sort": *sort, "backend": *backend})
+	c.copy(body, map[string]any{"name": *nm, "host": *host, "address": *address, "port": *port, "server_port": *serverPort, "rate": *rate, "sort": *sort, "backend": *backend})
 	if c.set["tag"] {
 		body["tags"] = append([]string{}, tags...)
 	}
