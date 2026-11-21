@@ -436,3 +436,72 @@ func TestSkillAndTools(t *testing.T) {
 		t.Fatalf("tools: %d", len(tools))
 	}
 }
+
+// TestXboardNodeV2 按 xboard-node 的调用方式走一遍 /api/v2/server：handshake 关闭 WebSocket，
+// GET 的鉴权参数在 query 里，POST 的在 JSON 请求体里；report 合并上报流量、在线 IP 和负载。
+func TestXboardNodeV2(t *testing.T) {
+	h := newHarness(t, nil)
+	ctx := context.Background()
+	_, _, userIDs, _ := setup(h)
+	expect(t, h.api("POST", "/api/v1/nodes:provision", map[string]any{
+		"template": "jp-premium", "address": "203.0.113.30", "host": "la-01", "plans": []string{"premium"}, "backend": "uniproxy",
+	}), 200)
+	n, err := h.a.Store.GetNodeByCode(ctx, "la-01")
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := h.api("GET", "/api/v1/nodes/la-01/install-cmd", nil)
+	expect(t, r, 200)
+	nodesCfg, _ := dig(r.body, "config.Nodes").([]any)
+	key := fmt.Sprint(nodesCfg[0].(map[string]any)["ApiKey"])
+	id := fmt.Sprint(n.ID)
+	q := "?token=" + key + "&node_id=" + id
+
+	expect(t, h.do("POST", "/api/v2/server/handshake", map[string]any{"token": "wrong", "node_id": n.ID}, nil), 403)
+	r = h.do("POST", "/api/v2/server/handshake", map[string]any{"token": key, "node_id": n.ID}, nil)
+	expect(t, r, 200)
+	if r.str("websocket.enabled") != "false" || r.str("settings.push_interval") == "" {
+		t.Fatalf("handshake: %s", r.raw)
+	}
+	if n, _ = h.a.Store.GetNode(ctx, n.ID); n.State != "online" {
+		t.Fatalf("handshake must count as heartbeat: %s", n.State)
+	}
+	r = h.do("GET", "/api/v2/server/config"+q, nil, nil)
+	expect(t, r, 200)
+	if r.str("protocol") != "vless" {
+		t.Fatalf("config: %s", r.raw)
+	}
+	r = h.do("GET", "/api/v2/server/user"+q, nil, nil)
+	expect(t, r, 200)
+	if users, _ := r.body["users"].([]any); len(users) != 3 {
+		t.Fatalf("users: %s", r.raw)
+	}
+
+	gb := int64(1 << 30)
+	expect(t, h.do("POST", "/api/v2/server/report", map[string]any{
+		"token": key, "node_id": n.ID,
+		"traffic": map[string]any{userIDs[0]: []int64{gb, 2 * gb}},
+		"alive":   map[string]any{userIDs[0]: []string{"198.51.100.1_5555", "198.51.100.2"}},
+		"online":  map[string]any{userIDs[0]: 2},
+		"status":  map[string]any{"cpu": 12.5, "mem": map[string]any{"total": 100, "used": 50}},
+		"metrics": map[string]any{"active_connections": 3},
+	}, nil), 200)
+	if c, err := h.a.Billing.ProcessReports(ctx); err != nil || c != 1 {
+		t.Fatalf("process reports: %d %v", c, err)
+	}
+	u1, _ := h.a.Store.GetUserByEmail(ctx, "u1@example.com")
+	if u1.UsedUp != gb || u1.UsedDown != 2*gb {
+		t.Fatalf("u1 usage: %d %d", u1.UsedUp, u1.UsedDown)
+	}
+	r = h.do("GET", "/api/v2/server/alivelist"+q, nil, nil)
+	expect(t, r, 200)
+	if r.str("alive."+userIDs[0]) != "2" {
+		t.Fatalf("alivelist: %s", r.raw)
+	}
+	n, _ = h.a.Store.GetNode(ctx, n.ID)
+	if !strings.Contains(string(n.Load), "12.5") {
+		t.Fatalf("load: %s", n.Load)
+	}
+	// 空的 report 也算一次上报
+	expect(t, h.do("POST", "/api/v2/server/report", map[string]any{"token": key, "node_id": n.ID}, nil), 200)
+}
