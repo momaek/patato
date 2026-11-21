@@ -235,8 +235,10 @@ func (*NodeUpdate) Kind() string      { return "node.update" }
 func (*NodeUpdate) Risk() change.Risk { return change.Normal }
 
 type nodeUpdateParams struct {
-	Node    Ref     `json:"node"`
-	Name    *string `json:"name"`
+	Node Ref     `json:"node"`
+	Name *string `json:"name"`
+	// Host 是节点所在的机器（tolato 中的机器名）。从 Xboard 导入的节点没有它，要先填上才能改由 patato-node 承载。
+	Host    *string `json:"host"`
 	Address *string `json:"address"`
 	// Port 是客户端连接的对外端口，ServerPort 是节点实际监听的端口。两者分别修改：
 	// 对外地址经 NAT 或中转映射时它们不同，改对外端口不能把监听端口一起改掉。
@@ -282,6 +284,29 @@ func (o *NodeUpdate) Plan(ctx context.Context, q *db.Queries, raw json.RawMessag
 		}
 		add("server_port", n.ServerPort, *p.ServerPort)
 	}
+	host := n.Host
+	if p.Host != nil {
+		host = strings.TrimSpace(*p.Host)
+		if host == "" && n.Backend == "native" {
+			return nil, apierr.BadRequest("missing_host", "patato-node 按机器承载节点，不能清空 host")
+		}
+		if host != n.Host {
+			add("host", n.Host, host)
+		}
+	}
+	serverPort := n.ServerPort
+	if p.ServerPort != nil {
+		serverPort = int32(*p.ServerPort)
+	}
+	if host != "" && (host != n.Host || serverPort != n.ServerPort) {
+		used, err := q.UsedServerPorts(ctx, host)
+		if err != nil {
+			return nil, err
+		}
+		if slices.Contains(used, serverPort) {
+			return nil, apierr.Conflict("port_taken", "机器 %s 上端口 %d 已被占用", host, serverPort)
+		}
+	}
 	if p.Rate != nil && *p.Rate != n.Rate {
 		if *p.Rate <= 0 {
 			return nil, apierr.BadRequest("invalid_rate", "倍率必须大于 0")
@@ -312,13 +337,13 @@ func (o *NodeUpdate) Plan(ctx context.Context, q *db.Queries, raw json.RawMessag
 	}
 	steps := []string{}
 	if p.Backend != nil && *p.Backend != n.Backend {
-		b, err := chooseBackend(ctx, q, n.Host, *p.Backend)
+		b, err := chooseBackend(ctx, q, host, *p.Backend)
 		if err != nil {
 			return nil, err
 		}
 		add("backend", n.Backend, b)
 		if b == "native" {
-			steps = append(steps, fmt.Sprintf("改由机器 %s 上的 patato-node 承载；先停掉机器上原来的 V2bX / XrayR，避免端口冲突", n.Host))
+			steps = append(steps, fmt.Sprintf("改由机器 %s 上的 patato-node 承载；先停掉机器上原来的 V2bX / XrayR，避免端口冲突", host))
 		} else {
 			steps = append(steps, fmt.Sprintf("patato-node 停掉这个节点；之后用 patato node install-cmd %s 安装 V2bX", n.Code))
 		}
@@ -359,7 +384,10 @@ func (o *NodeUpdate) Apply(ctx context.Context, q *db.Queries, raw json.RawMessa
 	}
 	args := db.UpdateNodeParams{
 		ID: n.ID, Name: n.Name, Address: n.Address, Port: n.Port, ServerPort: n.ServerPort,
-		Rate: n.Rate, Tags: n.Tags, Settings: n.Settings, Sort: n.Sort, Backend: n.Backend,
+		Rate: n.Rate, Tags: n.Tags, Settings: n.Settings, Sort: n.Sort, Backend: n.Backend, Host: n.Host,
+	}
+	if p.Host != nil {
+		args.Host = strings.TrimSpace(*p.Host)
 	}
 	if p.Backend != nil {
 		args.Backend = *p.Backend

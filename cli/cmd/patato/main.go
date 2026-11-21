@@ -52,7 +52,7 @@ const usage = `patato：Patato 的命令行客户端（短别名 pat）
 
 变更（都支持 --dry-run 预演、--wait 等待审批、--instruction 记录用户原话）
   patato node provision --template <模板> --plan <套餐> (--host <机器> | --address <地址>)
-  patato node update <节点> [--name ...] [--port ...] [--server-port ...] [--rate ...] [--backend native|uniproxy]
+  patato node update <节点> [--name ...] [--host ...] [--port ...] [--server-port ...] [--rate ...] [--backend native|uniproxy]
   patato node attach | detach <节点> --plan <套餐>
   patato node rotate-key | delete <节点>
   patato node install-cmd <节点> [--command-only]
