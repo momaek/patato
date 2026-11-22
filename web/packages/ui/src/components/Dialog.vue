@@ -7,7 +7,7 @@ const open = defineModel<boolean>('open', { default: false })
 <template>
   <DialogRoot v-model:open="open">
     <DialogPortal>
-      <DialogOverlay class="fixed inset-0 z-40 bg-ink/30" />
+      <DialogOverlay class="fixed inset-0 z-40 bg-scrim" />
       <DialogContent
         class="fixed top-1/2 left-1/2 z-50 flex max-h-[85vh] w-[min(92vw,440px)] -translate-x-1/2 -translate-y-1/2 flex-col gap-4 overflow-y-auto rounded-xl border border-line bg-card p-6 shadow-[0_12px_40px_rgba(24,32,29,0.18)]"
       >

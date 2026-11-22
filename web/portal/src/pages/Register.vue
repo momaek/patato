@@ -41,8 +41,8 @@ async function submit() {
 
 <template>
   <AuthShell back>
-    <div class="flex flex-col gap-1.5">
-      <h1 class="text-2xl font-semibold">{{ t('register.title') }}</h1>
+    <div class="flex flex-col gap-2">
+      <h1 class="text-[28px] leading-tight font-bold tracking-tight">{{ t('register.title') }}</h1>
       <p class="text-muted">{{ t('register.lead') }}</p>
     </div>
     <Alert v-if="config.data.value && !config.data.value.registration" tone="warn">{{ t('register.closed') }}</Alert>

@@ -5,7 +5,9 @@ import { useI18n } from 'vue-i18n'
 import { useQueryClient } from '@tanstack/vue-query'
 import { api, errorText, fmt, type Ticket, type TicketMessage } from '@patato/api'
 import { Alert, Badge, Button, Card, LoadState, type Tone } from '@patato/ui'
+import { Headset, SendHorizontal, UserRound } from 'lucide-vue-next'
 import AppShell from '../components/AppShell.vue'
+import PageHeader from '../components/PageHeader.vue'
 import { useAuthed, useSubscription } from '../session'
 
 type Detail = { ticket: Ticket; messages: TicketMessage[] }
@@ -41,32 +43,43 @@ async function act(kind: 'send' | 'close') {
 
 <template>
   <AppShell :service-name="serviceName">
-    <RouterLink :to="{ name: 'tickets' }" class="-mb-3 font-medium">← {{ t('tickets.back') }}</RouterLink>
     <LoadState :loading="q.isPending.value" :error="q.error.value" :message="q.error.value ? errorText(q.error.value) : undefined" @retry="q.refetch()">
       <template v-if="q.data.value">
-        <div class="flex flex-wrap items-center justify-between gap-2">
-          <h1 class="text-xl font-semibold">{{ q.data.value.ticket.subject }}</h1>
-          <Badge :tone="tone[q.data.value.ticket.status]">{{ t(`tickets.status.${q.data.value.ticket.status}`) }}</Badge>
-        </div>
-        <ol class="flex flex-col gap-3">
-          <li v-for="m in q.data.value.messages" :key="m.id" :class="['flex', m.author === 'user' ? 'justify-end' : '']">
-            <Card :class="'flex max-w-[88%] flex-col gap-1 px-4 py-3' + (m.author === 'user' ? ' bg-accent-soft/50' : '')">
-              <p class="text-[13px] text-muted">{{ m.author === 'user' ? t('tickets.you') : t('tickets.support') }} · {{ fmt.dateTime(m.created_at) }}</p>
-              <p class="whitespace-pre-wrap">{{ m.body }}</p>
-            </Card>
+        <PageHeader :title="q.data.value.ticket.subject" :back="{ name: 'tickets' }" :back-label="t('tickets.back')">
+          <template #action><Badge :tone="tone[q.data.value.ticket.status]" class="px-2.5 py-1 text-[13px]">{{ t(`tickets.status.${q.data.value.ticket.status}`) }}</Badge></template>
+        </PageHeader>
+        <ol class="flex flex-col gap-4">
+          <li v-for="m in q.data.value.messages" :key="m.id" :class="['flex gap-2.5', m.author === 'user' ? 'flex-row-reverse' : '']">
+            <span
+              aria-hidden="true"
+              :class="['inline-flex size-9 shrink-0 items-center justify-center rounded-full', m.author === 'user' ? 'bg-accent text-on-accent' : 'bg-card text-accent ring-1 ring-line']"
+            >
+              <component :is="m.author === 'user' ? UserRound : Headset" class="size-4" />
+            </span>
+            <div :class="['flex max-w-[82%] flex-col gap-1', m.author === 'user' ? 'items-end' : '']">
+              <p class="px-1 text-[12px] text-muted">{{ m.author === 'user' ? t('tickets.you') : t('tickets.support') }} · {{ fmt.dateTime(m.created_at) }}</p>
+              <div
+                :class="[
+                  'rounded-2xl px-4 py-3 whitespace-pre-wrap',
+                  m.author === 'user' ? 'rounded-tr-md bg-accent text-on-accent' : 'rounded-tl-md border border-line bg-card shadow-card',
+                ]"
+              >{{ m.body }}</div>
+            </div>
           </li>
         </ol>
         <Alert v-if="q.data.value.ticket.status === 'closed'" tone="accent">{{ t('tickets.closed') }}</Alert>
-        <form class="flex flex-col gap-3" @submit.prevent="act('send')">
+        <Card as="form" class="flex flex-col gap-3 p-4" @submit.prevent="act('send')">
           <label class="sr-only" for="reply">{{ t('tickets.reply') }}</label>
-          <textarea id="reply" v-model="body" rows="4" maxlength="5000" class="field-input py-2" :placeholder="t('tickets.reply')" />
+          <textarea id="reply" v-model="body" rows="4" maxlength="5000" class="field-input py-2.5" :placeholder="t('tickets.reply')" />
           <Alert v-if="error">{{ error }}</Alert>
-          <div class="flex justify-between gap-2">
-            <Button v-if="q.data.value.ticket.status !== 'closed'" variant="ghost" :loading="busy === 'close'" @click="act('close')">{{ t('tickets.close') }}</Button>
+          <div class="flex items-center justify-between gap-2">
+            <Button v-if="q.data.value.ticket.status !== 'closed'" variant="ghost" class="min-h-11" :loading="busy === 'close'" @click="act('close')">{{ t('tickets.close') }}</Button>
             <span v-else />
-            <Button type="submit" variant="primary" :loading="busy === 'send'" :disabled="!body.trim()">{{ t('tickets.send') }}</Button>
+            <Button type="submit" variant="primary" class="min-h-11" :loading="busy === 'send'" :disabled="!body.trim()">
+              <SendHorizontal v-if="busy !== 'send'" class="size-4" aria-hidden="true" />{{ t('tickets.send') }}
+            </Button>
           </div>
-        </form>
+        </Card>
       </template>
     </LoadState>
   </AppShell>

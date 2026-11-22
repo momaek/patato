@@ -36,19 +36,21 @@ async function submit() {
 
 <template>
   <AuthShell>
-    <div class="flex flex-col gap-1.5">
-      <h1 class="text-2xl font-semibold">{{ t('login.title') }}</h1>
+    <div class="flex flex-col gap-2">
+      <h1 class="text-[28px] leading-tight font-bold tracking-tight">{{ t('login.title') }}</h1>
       <p class="text-muted">{{ t('login.lead') }}</p>
     </div>
     <form class="flex flex-col gap-4" novalidate @submit.prevent="submit">
       <Field v-model="email" :label="t('common.email')" type="email" autocomplete="username" inputmode="email" required />
       <div class="flex flex-col gap-1.5">
         <Field v-model="password" :label="t('common.password')" type="password" autocomplete="current-password" required />
-        <RouterLink :to="{ name: 'forgot', query: email ? { email } : {} }" class="self-end text-[14px] font-medium">{{ t('login.forgot') }}</RouterLink>
+        <RouterLink :to="{ name: 'forgot', query: email ? { email } : {} }" class="-mt-0.5 inline-flex min-h-9 items-center self-end text-[14px] font-medium">{{ t('login.forgot') }}</RouterLink>
       </div>
       <Alert v-if="error">{{ error }}</Alert>
       <Button type="submit" variant="primary" size="lg" block :loading="busy" :disabled="!email || !password">{{ t('login.submit') }}</Button>
     </form>
-    <RouterLink v-if="config.data.value?.registration" :to="{ name: 'register' }" class="self-center font-medium">{{ t('register.toRegister') }}</RouterLink>
+    <p v-if="config.data.value?.registration" class="border-t border-line pt-6 text-center text-muted">
+      {{ t('register.noAccount') }}<RouterLink :to="{ name: 'register' }" class="ml-1 font-medium">{{ t('register.toRegisterShort') }}</RouterLink>
+    </p>
   </AuthShell>
 </template>
