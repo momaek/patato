@@ -202,6 +202,11 @@ func (a *App) tasks() []jobs.Task {
 			_, err := a.Native.RefreshTargets(ctx)
 			return err
 		}},
+		// 入口组：入口域名当前指向哪台机器，决定入口可用性看哪台
+		{Name: "relay_entry_dns", Every: time.Minute, Run: func(ctx context.Context) error {
+			_, err := a.Native.RefreshEntryAddresses(ctx)
+			return err
+		}},
 		{Name: "relay_rollup", Every: 10 * time.Minute, Run: a.Relay.Rollup},
 		{Name: "relay_cleanup", Every: 24 * time.Hour, Run: a.Relay.Cleanup},
 		{Name: "relay_idle", Every: time.Hour, Run: a.Relay.CheckIdle},

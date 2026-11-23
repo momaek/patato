@@ -659,7 +659,7 @@ paths:
       requestBody:
         content:
           application/json:
-            schema: {"type": "object", "properties": {"dry_run": {"type": "boolean", "description": "为 true 时只预演，返回变更计划"}, "instruction": {"type": "string", "description": "用户的原始指令，显示在审批卡片上"}, "code": {"type": "string"}, "name": {"type": "string", "description": "订阅里入口名为「节点名 · 线路名」"}, "hops": {"type": "array", "items": {"type": "string"}, "description": "机器名，按客户端到落地的顺序"}}, "required": ["code", "name", "hops"]}
+            schema: {"type": "object", "properties": {"dry_run": {"type": "boolean", "description": "为 true 时只预演，返回变更计划"}, "instruction": {"type": "string", "description": "用户的原始指令，显示在审批卡片上"}, "code": {"type": "string"}, "name": {"type": "string", "description": "订阅里入口名为「节点名 · 线路名」"}, "hops": {"type": "array", "items": {"type": "string"}, "description": "机器名，按客户端到落地的顺序"}, "entry_peers": {"type": "array", "items": {"type": "string"}, "description": "入口组：和第一跳一起承担入口的其他机器，共用 entry_address，每个入口在这些机器上用同一个对外端口"}, "entry_address": {"type": "string", "description": "订阅里的入口地址（解析到入口组机器的域名）；有 entry_peers 时必填"}}, "required": ["code", "name", "hops"]}
       responses:
         '200': {description: 预演结果或已执行的变更计划, content: {application/json: {schema: {$ref: '#/components/schemas/ChangePlan'}}}}
         '202': {description: 敏感操作，已生成审批, content: {application/json: {schema: {$ref: '#/components/schemas/ChangePlan'}}}}
@@ -708,7 +708,7 @@ paths:
         default: {description: 错误, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
     patch:
       operationId: patch_routes_id
-      summary: "修改线路名称或跳（已有入口时就地增删跳，保留的跳不变）"
+      summary: "修改线路名称、跳（已有入口时就地增删跳，保留的跳不变）或入口组"
       x-risk: normal
       x-access: admin
       x-operation: route.update
@@ -720,7 +720,7 @@ paths:
       requestBody:
         content:
           application/json:
-            schema: {"type": "object", "properties": {"dry_run": {"type": "boolean", "description": "为 true 时只预演，返回变更计划"}, "instruction": {"type": "string", "description": "用户的原始指令，显示在审批卡片上"}, "name": {"type": "string"}, "hops": {"type": "array", "items": {"type": "string"}}}}
+            schema: {"type": "object", "properties": {"dry_run": {"type": "boolean", "description": "为 true 时只预演，返回变更计划"}, "instruction": {"type": "string", "description": "用户的原始指令，显示在审批卡片上"}, "name": {"type": "string"}, "hops": {"type": "array", "items": {"type": "string"}}, "entry_peers": {"type": "array", "items": {"type": "string"}, "description": "完整的新入口组成员列表，空数组取消入口组；已有入口时给新成员建镜像转发，不能与 hops 同时修改"}, "entry_address": {"type": "string", "description": "入口地址"}}}
       responses:
         '200': {description: 预演结果或已执行的变更计划, content: {application/json: {schema: {$ref: '#/components/schemas/ChangePlan'}}}}
         '202': {description: 敏感操作，已生成审批, content: {application/json: {schema: {$ref: '#/components/schemas/ChangePlan'}}}}

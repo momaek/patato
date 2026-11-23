@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/momaek/patato/server/internal/store/db"
 )
@@ -43,13 +44,15 @@ type World struct {
 	Machines map[int64]db.Machine
 	// MachinesByHost 用于找落地节点所在的机器
 	MachinesByHost map[string]db.Machine
-	// Forwards 是每个入口的转发，按跳排序
+	// Forwards 是每个入口每一跳的转发，按跳排序，不含入口组成员上的镜像
 	Forwards map[int64][]db.Forward
+	// Mirrors 是每个入口在入口组成员上的镜像转发（与第一跳监听同一端口、转到同一下一跳）
+	Mirrors map[int64][]db.Forward
 }
 
 func NewWorld(routes []db.Route, machines []db.Machine, forwards []db.Forward) *World {
 	w := &World{Routes: map[int64]db.Route{}, Machines: map[int64]db.Machine{}, MachinesByHost: map[string]db.Machine{},
-		Forwards: map[int64][]db.Forward{}}
+		Forwards: map[int64][]db.Forward{}, Mirrors: map[int64][]db.Forward{}}
 	for _, r := range routes {
 		w.Routes[r.ID] = r
 	}
@@ -58,6 +61,10 @@ func NewWorld(routes []db.Route, machines []db.Machine, forwards []db.Forward) *
 		w.MachinesByHost[m.Host] = m
 	}
 	for _, f := range forwards {
+		if f.Mirror {
+			w.Mirrors[f.EntryID] = append(w.Mirrors[f.EntryID], f)
+			continue
+		}
 		w.Forwards[f.EntryID] = append(w.Forwards[f.EntryID], f)
 	}
 	for id := range w.Forwards {
@@ -81,6 +88,7 @@ type Endpoint struct {
 //
 // 入口可用 = 节点在线 ∧ 每一跳机器没有离线 ∧ 每一跳托管转发已生效 ∧ 没有连续 3 次探测失败。
 // 手写（manual）转发没有生效状态，只看所在机器是否在线；机器状态未知（没接入 patato-node 也没有 tolato）时不撤下。
+// 线路有入口组时，第一跳只看入口地址当前解析到的成员；解析结果未知或不指向任何成员时，任一成员可用即可。
 func (w *World) Resolve(n db.Node, e db.NodeEntry) Endpoint {
 	ep := Endpoint{Entry: e, Name: EntryName(n, e, w.Routes), Host: n.Address, Port: int(n.Port), Available: n.State == "online"}
 	if !ep.Available {
@@ -103,7 +111,7 @@ func (w *World) Resolve(n db.Node, e db.NodeEntry) Endpoint {
 		return ep
 	}
 	first := w.Machines[fs[0].MachineID]
-	ep.Host = firstNonEmpty(e.Address, Address(first))
+	ep.Host = firstNonEmpty(e.Address, route.EntryAddress, Address(first))
 	ep.Port = int(fs[0].PublicPort)
 	if e.Port > 0 {
 		ep.Port = int(e.Port)
@@ -111,7 +119,11 @@ func (w *World) Resolve(n db.Node, e db.NodeEntry) Endpoint {
 	if !ep.Available {
 		return ep
 	}
-	for _, f := range fs {
+	if why := w.firstHopProblem(route, fs[0], w.Mirrors[e.ID]); why != "" {
+		ep.Available, ep.Reason = false, why
+		return ep
+	}
+	for _, f := range fs[1:] {
 		m := w.Machines[f.MachineID]
 		if why := forwardProblem(m, f); why != "" {
 			ep.Available, ep.Reason = false, why
@@ -119,6 +131,96 @@ func (w *World) Resolve(n db.Node, e db.NodeEntry) Endpoint {
 		}
 	}
 	return ep
+}
+
+// firstHopProblem 判断入口第一跳是否可用。没有入口组时就是第一跳那条转发；有入口组时：
+// 入口地址当前解析到的每个成员都要可用（客户端可能连到其中任何一台）；解析结果未知或不指向任何成员时，任一成员可用即可。
+func (w *World) firstHopProblem(r db.Route, first db.Forward, mirrors []db.Forward) string {
+	if len(r.EntryPeers) == 0 || first.Mode == "manual" {
+		return forwardProblem(w.Machines[first.MachineID], first)
+	}
+	byMachine := map[int64]db.Forward{first.MachineID: first}
+	for _, f := range mirrors {
+		byMachine[f.MachineID] = f
+	}
+	if active := w.ActiveMembers(r); len(active) > 0 {
+		for _, id := range active {
+			m := w.Machines[id]
+			f, ok := byMachine[id]
+			if !ok {
+				return "入口地址 " + r.EntryAddress + " 指向 " + m.Host + "，但它上面没有这个入口的转发"
+			}
+			if why := forwardProblem(m, f); why != "" {
+				return why
+			}
+		}
+		return ""
+	}
+	why := ""
+	for _, id := range GroupMemberIDs(r) {
+		f, ok := byMachine[id]
+		if !ok {
+			continue
+		}
+		p := forwardProblem(w.Machines[id], f)
+		if p == "" {
+			return ""
+		}
+		if why == "" {
+			why = p
+		}
+	}
+	if why == "" {
+		why = "入口组里没有可用的成员"
+	}
+	return why
+}
+
+// GroupMemberIDs 是承担线路入口的机器：第一跳和入口组成员，按顺序。
+func GroupMemberIDs(r db.Route) []int64 {
+	out := make([]int64, 0, 1+len(r.EntryPeers))
+	if len(r.Hops) > 0 {
+		out = append(out, r.Hops[0])
+	}
+	return append(out, r.EntryPeers...)
+}
+
+// EntryIPsTTL 是入口地址解析结果的有效期：解析任务每分钟一次，连续失败超过这么久就不再采信旧结果，
+// 按「不知道指向哪台」处理（任一成员可用即可）。
+const EntryIPsTTL = 5 * time.Minute
+
+// ActiveMembers 返回入口地址最近一次解析结果指向的入口组成员；没有入口组、还没解析过、结果过期或不指向任何成员时为空。
+func (w *World) ActiveMembers(r db.Route) []int64 {
+	if len(r.EntryPeers) == 0 || len(r.EntryIps) == 0 || r.EntryResolvedAt == nil || time.Since(*r.EntryResolvedAt) > EntryIPsTTL {
+		return nil
+	}
+	ips := map[string]bool{}
+	for _, ip := range r.EntryIps {
+		ips[ip] = true
+	}
+	var out []int64
+	for _, id := range GroupMemberIDs(r) {
+		for _, ip := range MachineIPs(w.Machines[id]) {
+			if ips[ip] {
+				out = append(out, id)
+				break
+			}
+		}
+	}
+	return out
+}
+
+// MachineIPs 是一台机器已知的公网 IP：对外地址本身是 IP 时算一个，加上 tolato 上报的 IP。
+// 用来判断入口域名当前解析到哪台机器。
+func MachineIPs(m db.Machine) []string {
+	var out []string
+	if ip := LiteralIP(m.PublicAddress); ip != "" {
+		out = append(out, ip)
+	}
+	if ip := LiteralIP(m.TolatoIp); ip != "" && !slices.Contains(out, ip) {
+		out = append(out, ip)
+	}
+	return out
 }
 
 func forwardProblem(m db.Machine, f db.Forward) string {

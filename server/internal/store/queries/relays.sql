@@ -30,8 +30,8 @@ WHERE machines.id = prev.id AND prev.state <> sqlc.arg(state)
 RETURNING prev.state AS previous_state;
 
 -- name: ListRelayMachines :many
--- 出现在任意线路里的机器。
-SELECT * FROM machines WHERE id IN (SELECT unnest(hops) FROM routes) ORDER BY id;
+-- 出现在任意线路里的机器，含入口组成员。
+SELECT * FROM machines WHERE id IN (SELECT unnest(hops || entry_peers) FROM routes) ORDER BY id;
 
 -- 线路 -------------------------------------------------------------------
 
@@ -45,10 +45,22 @@ SELECT * FROM routes WHERE id = $1;
 SELECT * FROM routes WHERE code = $1;
 
 -- name: CreateRoute :one
-INSERT INTO routes (code, name, hops) VALUES ($1, $2, $3) RETURNING *;
+INSERT INTO routes (code, name, hops, entry_peers, entry_address) VALUES ($1, $2, $3, $4, $5) RETURNING *;
 
 -- name: UpdateRoute :one
 UPDATE routes SET name = $2, hops = $3, updated_at = now(), version = version + 1 WHERE id = $1 RETURNING *;
+
+-- name: SetRouteEntryGroup :one
+-- 入口组成员或入口地址变化；入口地址变了时清空上次的解析结果。
+UPDATE routes SET entry_peers = $2, entry_address = $3,
+    entry_ips = CASE WHEN entry_address = $3 THEN entry_ips ELSE '{}' END,
+    entry_resolved_at = CASE WHEN entry_address = $3 THEN entry_resolved_at ELSE NULL END,
+    updated_at = now(), version = version + 1
+WHERE id = $1 RETURNING *;
+
+-- name: SetRouteEntryIPs :exec
+-- 入口地址的解析结果，由周期任务刷新；不改版本号。解析期间入口地址被改过时不写。
+UPDATE routes SET entry_ips = $2, entry_resolved_at = now() WHERE id = $1 AND entry_address = $3;
 
 -- name: DeleteRoute :exec
 DELETE FROM routes WHERE id = $1;
@@ -57,7 +69,7 @@ DELETE FROM routes WHERE id = $1;
 SELECT version FROM routes WHERE id = $1 FOR UPDATE;
 
 -- name: ListRoutesWithMachine :many
-SELECT * FROM routes WHERE sqlc.arg(machine_id)::bigint = ANY(hops) ORDER BY id;
+SELECT * FROM routes WHERE sqlc.arg(machine_id)::bigint = ANY(hops || entry_peers) ORDER BY id;
 
 -- 入口 -------------------------------------------------------------------
 
@@ -112,7 +124,11 @@ WHERE pn.node_id = ANY(sqlc.arg(node_ids)::bigint[]);
 SELECT * FROM forwards ORDER BY id;
 
 -- name: ListEntryForwards :many
-SELECT * FROM forwards WHERE entry_id = $1 ORDER BY hop;
+-- 入口每一跳的转发，不含入口组成员上的镜像。
+SELECT * FROM forwards WHERE entry_id = $1 AND NOT mirror ORDER BY hop;
+
+-- name: ListEntryMirrors :many
+SELECT * FROM forwards WHERE entry_id = $1 AND mirror ORDER BY machine_id;
 
 -- name: ListForwardsOfEntries :many
 SELECT * FROM forwards WHERE entry_id = ANY(sqlc.arg(entry_ids)::bigint[]) ORDER BY entry_id, hop;
@@ -130,8 +146,8 @@ ORDER BY f.listen_port;
 SELECT listen_port FROM forwards WHERE machine_id = $1;
 
 -- name: CreateForward :one
-INSERT INTO forwards (entry_id, hop, machine_id, listen_port, public_port, target_host, target_port, mode, target_ip)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+INSERT INTO forwards (entry_id, hop, machine_id, listen_port, public_port, target_host, target_port, mode, target_ip, mirror)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 RETURNING *;
 
 -- name: SetForwardEndpoints :exec
@@ -140,7 +156,7 @@ UPDATE forwards SET public_port = $2, target_host = $3, target_port = $4, target
 
 -- name: SetForwardHop :exec
 -- 线路增删跳后保留的转发换到新的序号；端口、计数和 patato-node 上的规则不变。
-UPDATE forwards SET hop = $2, updated_at = now() WHERE id = $1;
+UPDATE forwards SET hop = $2, updated_at = now() WHERE id = $1 AND NOT mirror;
 
 -- name: SetForwardTargetIP :exec
 UPDATE forwards SET target_ip = $2, updated_at = now() WHERE id = $1;
@@ -206,19 +222,19 @@ DELETE FROM forward_traffic_hourly WHERE hour < $1;
 DELETE FROM forward_probe_hourly WHERE hour < $1;
 
 -- name: RouteTrafficSince :many
--- 每条线路自某时刻起的流量（小时表）。同一条线路的多跳各算一次，取第一跳（入口机器）的读数作为线路流量。
+-- 每条线路自某时刻起的流量（小时表）。同一条线路的多跳各算一次，取第一跳（入口机器及入口组成员）的读数作为线路流量。
 SELECT t.route_id::bigint AS route_id, sum(t.up)::bigint AS up, sum(t.down)::bigint AS down
 FROM forward_traffic_hourly t
 JOIN routes r ON r.id = t.route_id
-WHERE t.hour >= sqlc.arg(since)::timestamptz AND t.machine_id = r.hops[1]
+WHERE t.hour >= sqlc.arg(since)::timestamptz AND t.machine_id = ANY(r.hops[1:1] || r.entry_peers)
 GROUP BY t.route_id;
 
 -- name: RouteTrafficDaily :many
--- 每条线路每天的流量（天表），取第一跳读数。
+-- 每条线路每天的流量（天表），取第一跳（含入口组成员）读数。
 SELECT t.route_id::bigint AS route_id, t.day, sum(t.up)::bigint AS up, sum(t.down)::bigint AS down
 FROM forward_traffic_daily t
 JOIN routes r ON r.id = t.route_id
-WHERE t.day >= sqlc.arg(since)::date AND t.machine_id = r.hops[1]
+WHERE t.day >= sqlc.arg(since)::date AND t.machine_id = ANY(r.hops[1:1] || r.entry_peers)
 GROUP BY t.route_id, t.day
 ORDER BY t.route_id, t.day;
 

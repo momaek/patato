@@ -3,6 +3,7 @@ package relay
 import (
 	"context"
 	"net"
+	"slices"
 
 	"github.com/momaek/patato/server/internal/store/db"
 )
@@ -25,7 +26,7 @@ func RefreshForwardTargets(ctx context.Context, q *db.Queries, machineID int64) 
 			continue
 		}
 		touches := false
-		for _, f := range fs {
+		for _, f := range append(slices.Clone(fs), w.Mirrors[e.ID]...) {
 			if f.MachineID == machineID {
 				touches = true
 			}
@@ -38,7 +39,7 @@ func RefreshForwardTargets(ctx context.Context, q *db.Queries, machineID int64) 
 		if !touches && !(hasLanding && landing.ID == machineID) {
 			continue
 		}
-		c, err := refreshEntry(ctx, q, w, node, fs)
+		c, err := refreshEntry(ctx, q, w, node, fs, w.Mirrors[e.ID])
 		if err != nil {
 			return n, err
 		}
@@ -48,7 +49,8 @@ func RefreshForwardTargets(ctx context.Context, q *db.Queries, machineID int64) 
 }
 
 // refreshEntry 按当前机器属性重算一个入口各跳的外网端口和下一跳，只更新有变化的转发。
-func refreshEntry(ctx context.Context, q *db.Queries, w *World, node db.Node, fs []db.Forward) (int, error) {
+// 入口组成员上的镜像与第一跳转到同一个下一跳。
+func refreshEntry(ctx context.Context, q *db.Queries, w *World, node db.Node, fs, mirrors []db.Forward) (int, error) {
 	hops := make([]db.Machine, len(fs))
 	ports := make([]HopPorts, len(fs))
 	for i, f := range fs {
@@ -60,13 +62,25 @@ func refreshEntry(ctx context.Context, q *db.Queries, w *World, node db.Node, fs
 		landing = &m
 	}
 	targets := Targets(node, landing, hops, ports)
-	n := 0
+	type want struct {
+		f      db.Forward
+		public int
+		t      Target
+	}
+	var all []want
 	for i, f := range fs {
+		all = append(all, want{f, ports[i].Public, targets[i]})
+	}
+	for _, f := range mirrors {
+		all = append(all, want{f, PublicPort(w.Machines[f.MachineID], int(f.ListenPort)), targets[0]})
+	}
+	n := 0
+	for _, x := range all {
+		f, t := x.f, x.t
 		if f.Mode == "manual" {
 			continue
 		}
-		t := targets[i]
-		if int(f.PublicPort) == ports[i].Public && f.TargetHost == t.Host && int(f.TargetPort) == t.Port {
+		if int(f.PublicPort) == x.public && f.TargetHost == t.Host && int(f.TargetPort) == t.Port {
 			continue
 		}
 		ip := f.TargetIp
@@ -74,7 +88,7 @@ func refreshEntry(ctx context.Context, q *db.Queries, w *World, node db.Node, fs
 			ip = LiteralIP(t.Host)
 		}
 		if err := q.SetForwardEndpoints(ctx, db.SetForwardEndpointsParams{
-			ID: f.ID, PublicPort: int32(ports[i].Public), TargetHost: t.Host, TargetPort: int32(t.Port), TargetIp: ip,
+			ID: f.ID, PublicPort: int32(x.public), TargetHost: t.Host, TargetPort: int32(t.Port), TargetIp: ip,
 		}); err != nil {
 			return n, err
 		}
@@ -116,7 +130,7 @@ func RefreshNodeForwards(ctx context.Context, q *db.Queries, nodeID int64) (int,
 		if len(fs) == 0 {
 			continue
 		}
-		c, err := refreshEntry(ctx, q, w, node, fs)
+		c, err := refreshEntry(ctx, q, w, node, fs, w.Mirrors[e.ID])
 		if err != nil {
 			return n, err
 		}

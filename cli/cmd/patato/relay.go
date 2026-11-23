@@ -40,6 +40,7 @@ type hopView struct {
 	Host    string `json:"host"`
 	Address string `json:"address"`
 	State   string `json:"state"`
+	Active  bool   `json:"active"`
 }
 
 type forwardView struct {
@@ -55,6 +56,8 @@ type forwardView struct {
 	ProbeFailures int      `json:"probe_failures"`
 	ProbeRate     *float64 `json:"probe_success_rate_24h"`
 	ProbeAvgMS    *int64   `json:"probe_avg_ms_24h"`
+	Mirror        bool     `json:"mirror"`
+	Active        bool     `json:"active"`
 }
 
 type entryView struct {
@@ -79,6 +82,9 @@ type routeView struct {
 	Code      string      `json:"code"`
 	Name      string      `json:"name"`
 	Hops      []hopView   `json:"hops"`
+	Peers     []hopView   `json:"entry_peers"`
+	EntryAddr string      `json:"entry_address"`
+	EntryIPs  []string    `json:"entry_ips"`
 	Nodes     int         `json:"nodes"`
 	Entries   []entryView `json:"entries"`
 	TodayUp   int64       `json:"today_up"`
@@ -98,6 +104,49 @@ func hopText(hs []hopView) string {
 		}
 	}
 	return strings.Join(parts, " → ")
+}
+
+// groupText 是入口组：第一跳和成员，标出入口地址当前指向的机器。
+func groupText(r routeView) string {
+	if len(r.Peers) == 0 {
+		return ""
+	}
+	ms := append([]hopView{r.Hops[0]}, r.Peers...)
+	parts := make([]string, len(ms))
+	for i, h := range ms {
+		parts[i] = h.Host
+		var marks []string
+		if h.Active {
+			marks = append(marks, "当前解析")
+		}
+		if h.State == "offline" {
+			marks = append(marks, "离线")
+		}
+		if len(marks) > 0 {
+			parts[i] += "（" + strings.Join(marks, "，") + "）"
+		}
+	}
+	return strings.Join(parts, "、")
+}
+
+// routeHops 是线路经过的机器；有入口组时第一跳写成「第一跳|成员|…」。
+func routeHops(r routeView) string {
+	if len(r.Peers) == 0 || len(r.Hops) == 0 {
+		return hopText(r.Hops)
+	}
+	first := append([]hopView{r.Hops[0]}, r.Peers...)
+	names := make([]string, len(first))
+	for i, h := range first {
+		names[i] = h.Host
+		if h.State == "offline" {
+			names[i] += "（离线）"
+		}
+	}
+	s := strings.Join(names, "|")
+	if rest := hopText(r.Hops[1:]); rest != "" {
+		s += " → " + rest
+	}
+	return s
 }
 
 func entryState(e entryView) string {
@@ -157,7 +206,7 @@ func (a *app) routeList(args []string) error {
 				avail++
 			}
 		}
-		rows = append(rows, []string{r.Code, r.Name, hopText(r.Hops), strconv.Itoa(r.Nodes),
+		rows = append(rows, []string{r.Code, r.Name, routeHops(r), strconv.Itoa(r.Nodes),
 			fmt.Sprintf("%d/%d", avail, len(r.Entries)), bytesText(r.TodayUp + r.TodayDown), bytesText(r.MonthUp + r.MonthDown)})
 	}
 	table(a.out, []string{"代号", "名称", "经过", "节点", "可用入口", "今日", "本月"}, rows, 3)
@@ -177,8 +226,18 @@ func (a *app) routeShow(args []string) error {
 	if printed, err := a.get(client.Path(epRoute, ref), nil, &r); printed || err != nil {
 		return err
 	}
-	kv(a.out, [][2]string{{"线路", r.Name + "（" + r.Code + "）"}, {"经过", hopText(r.Hops)},
-		{"今日流量", bytesText(r.TodayUp + r.TodayDown)}, {"本月流量", bytesText(r.MonthUp + r.MonthDown)}})
+	pairs := [][2]string{{"线路", r.Name + "（" + r.Code + "）"}, {"经过", hopText(r.Hops)}}
+	if len(r.Peers) > 0 {
+		ips := strings.Join(r.EntryIPs, ", ")
+		if ips == "" {
+			ips = "还没解析"
+		}
+		pairs = append(pairs, [2]string{"入口组", groupText(r)}, [2]string{"入口地址", r.EntryAddr + " → " + ips})
+	} else if r.EntryAddr != "" {
+		pairs = append(pairs, [2]string{"入口地址", r.EntryAddr})
+	}
+	pairs = append(pairs, [2]string{"今日流量", bytesText(r.TodayUp + r.TodayDown)}, [2]string{"本月流量", bytesText(r.MonthUp + r.MonthDown)})
+	kv(a.out, pairs)
 	a.printEntries(r.Entries, true)
 	return nil
 }
@@ -220,7 +279,14 @@ func (a *app) printEntries(es []entryView, withNode bool) {
 			if withNode {
 				sub = append(sub, "")
 			}
-			sub = append(sub, fmt.Sprintf("  └ %d. %s:%s → %s:%d", f.Hop+1, f.Machine, port, f.TargetHost, f.TargetPort), f.Mode, st, "")
+			label := fmt.Sprintf("%d.", f.Hop+1)
+			if f.Mirror {
+				label = "1'"
+			}
+			if f.Active {
+				st += "，当前解析"
+			}
+			sub = append(sub, fmt.Sprintf("  └ %s %s:%s → %s:%d", label, f.Machine, port, f.TargetHost, f.TargetPort), f.Mode, st, "")
 			rows = append(rows, sub)
 		}
 	}
@@ -232,9 +298,15 @@ func (a *app) printEntries(es []entryView, withNode bool) {
 }
 
 func (a *app) routeCreate(args []string) error {
-	c := newCommand("route create", "patato route create <代号> --name <名称> --via <机器>,<机器>...\n\n新建线路：按客户端到落地的顺序列出中转机器。线路本身不影响订阅。")
+	c := newCommand("route create", `patato route create <代号> --name <名称> --via <机器>,<机器>... [--entry-peers <机器>,... --entry-address <域名>]
+
+新建线路：按客户端到落地的顺序列出中转机器。线路本身不影响订阅。
+入口组：--entry-peers 列出和第一跳一起承担入口的其他机器，它们共用 --entry-address 这个域名，
+域名解析到哪台都能连上（每个入口在这些机器上用同一个对外端口）。切换由运营者改 DNS 完成。`)
 	nm := c.fs.String("name", "", "线路名称，订阅里入口名为「节点名 · 线路名」")
 	via := c.fs.String("via", "", "经过的中转机器，逗号分隔，按顺序")
+	peers := c.fs.String("entry-peers", "", "入口组：和第一跳一起承担入口的其他机器，逗号分隔")
+	addr := c.fs.String("entry-address", "", "订阅里的入口地址（解析到入口组机器的域名）")
 	w := c.writeFlags()
 	if err := c.parse(args); err != nil {
 		return err
@@ -243,13 +315,22 @@ func (a *app) routeCreate(args []string) error {
 	if err != nil {
 		return err
 	}
-	return a.mutate("POST", epRoutes, map[string]any{"code": code, "name": *nm, "hops": splitList(*via)}, w)
+	body := map[string]any{"code": code, "name": *nm, "hops": splitList(*via)}
+	if c.set["entry-peers"] {
+		body["entry_peers"] = splitList(*peers)
+	}
+	if c.set["entry-address"] {
+		body["entry_address"] = *addr
+	}
+	return a.mutate("POST", epRoutes, body, w)
 }
 
 func (a *app) routeUpdate(args []string) error {
-	c := newCommand("route update", "patato route update <线路> [--name ...] [--via ...]\n\n改名称为常规操作。--via 给出完整的新跳列表，可以增加或删除跳：线路上已有入口时就地修改每个入口的转发，\n保留的跳端口和规则不变，新增的跳优先沿用订阅或相邻跳的端口，删掉的跳由上一跳直接转到下一跳；保留的机器不能调换顺序。\n有入口时为敏感操作，需要审批。")
+	c := newCommand("route update", "patato route update <线路> [--name ...] [--via ...] [--entry-peers ...] [--entry-address ...]\n\n改名称为常规操作。--via 给出完整的新跳列表，可以增加或删除跳：线路上已有入口时就地修改每个入口的转发，\n保留的跳端口和规则不变，新增的跳优先沿用订阅或相邻跳的端口，删掉的跳由上一跳直接转到下一跳；保留的机器不能调换顺序。\n有入口时为敏感操作，需要审批。\n--entry-peers 给出完整的入口组成员列表（空串取消入口组）：新成员给每个入口建同端口的镜像转发；\n去掉成员和改已在使用的 --entry-address 为敏感操作。改跳和改入口组要分两次。")
 	nm := c.fs.String("name", "", "线路名称")
 	via := c.fs.String("via", "", "经过的中转机器，逗号分隔")
+	peers := c.fs.String("entry-peers", "", "入口组成员，逗号分隔，完整列表")
+	addr := c.fs.String("entry-address", "", "入口地址")
 	w := c.writeFlags()
 	if err := c.parse(args); err != nil {
 		return err
@@ -264,6 +345,12 @@ func (a *app) routeUpdate(args []string) error {
 	}
 	if c.set["via"] {
 		body["hops"] = splitList(*via)
+	}
+	if c.set["entry-peers"] {
+		body["entry_peers"] = splitList(*peers)
+	}
+	if c.set["entry-address"] {
+		body["entry_address"] = *addr
 	}
 	return a.mutate("PATCH", client.Path(epRoute, ref), body, w)
 }

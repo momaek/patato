@@ -687,7 +687,7 @@ export interface paths {
         delete: operations["delete_routes_id"];
         options?: never;
         head?: never;
-        /** 修改线路名称或跳（已有入口时就地增删跳，保留的跳不变） */
+        /** 修改线路名称、跳（已有入口时就地增删跳，保留的跳不变）或入口组 */
         patch: operations["patch_routes_id"];
         trace?: never;
     };
@@ -3704,6 +3704,10 @@ export interface operations {
                     name: string;
                     /** @description 机器名，按客户端到落地的顺序 */
                     hops: string[];
+                    /** @description 入口组：和第一跳一起承担入口的其他机器，共用 entry_address，每个入口在这些机器上用同一个对外端口 */
+                    entry_peers?: string[];
+                    /** @description 订阅里的入口地址（解析到入口组机器的域名）；有 entry_peers 时必填 */
+                    entry_address?: string;
                 };
             };
         };
@@ -3924,6 +3928,10 @@ export interface operations {
                     instruction?: string;
                     name?: string;
                     hops?: string[];
+                    /** @description 完整的新入口组成员列表，空数组取消入口组；已有入口时给新成员建镜像转发，不能与 hops 同时修改 */
+                    entry_peers?: string[];
+                    /** @description 入口地址 */
+                    entry_address?: string;
                 };
             };
         };
