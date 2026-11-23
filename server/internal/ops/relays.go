@@ -21,7 +21,7 @@ import (
 //	设置机器网络属性            常规；改已在使用的对外地址会改变订阅，升为敏感
 //	建线路、改线路名称          常规
 //	给节点加入口、按套餐应用线路  常规，按受影响用户数升级
-//	修改线路的跳                敏感（重建所有入口的转发）
+//	修改有入口的线路的跳        敏感（就地改这些入口的转发，见 relay_rehop.go）；没有入口时常规
 //	删除入口或线路、停用入口      敏感
 //	启用入口                    常规
 
@@ -417,6 +417,11 @@ func (o *RouteUpdate) Plan(ctx context.Context, q *db.Queries, raw json.RawMessa
 		return nil, err
 	}
 	draft := &change.Draft{Summary: fmt.Sprintf("修改线路 %s", r.Name), Targets: []change.Target{routeTarget(r)}}
+	res := routeUpdateResolved{RouteID: r.ID, Name: r.Name}
+	if p.Name != nil {
+		res.Name = strings.TrimSpace(*p.Name)
+	}
+	var rehopSteps []string
 	if p.Hops != nil {
 		cur, err := q.ListMachinesByIDs(ctx, r.Hops)
 		if err != nil {
@@ -429,10 +434,37 @@ func (o *RouteUpdate) Plan(ctx context.Context, q *db.Queries, raw json.RawMessa
 		}
 		if !slices.Equal(hostNames(before), hostNames(after)) {
 			diff = append(diff, change.DiffEntry{Field: "hops", Before: hostNames(before), After: hostNames(after)})
+			res.Hops = make([]int64, len(after))
+			for i, m := range after {
+				res.Hops[i] = m.ID
+			}
 			if len(entries) > 0 {
-				// 跳变了要重建入口的全部转发，端口和入口地址都可能变，固定为敏感
-				return nil, apierr.Conflict("route_in_use", "线路 %s 上还有 %d 个入口，不能直接修改跳", r.Name, len(entries)).
-					WithHint("新建一条线路，给节点开新入口并确认可用后，停用并删除旧入口，再删除旧线路")
+				// 就地改每个入口的转发：保留的跳不动，新增的跳分配端口，删除的跳撤掉。整条链路会重新下发，固定为敏感
+				planned, steps, subChanged, err := planRehop(ctx, q, r, before, after, entries)
+				if err != nil {
+					return nil, err
+				}
+				res.Entries, rehopSteps = planned, steps
+				ids := make([]int64, len(entries))
+				for i, e := range entries {
+					ids[i] = e.ID
+				}
+				users, err := q.CountUsersOfEntries(ctx, ids)
+				if err != nil {
+					return nil, err
+				}
+				draft.Impact = change.Impact{Users: users}
+				draft.Escalate = "修改有入口的线路的跳会重新下发这些入口的转发，升为敏感"
+				draft.Targets = append(draft.Targets, rehopTargets(entries)...)
+				rehopSteps = append(rehopSteps, fmt.Sprintf("%s：%d 个入口的转发就地修改，保留的跳端口和已建立的连接不受影响", r.Name, len(entries)))
+				if len(subChanged) > 0 {
+					rehopSteps = append(rehopSteps, fmt.Sprintf("%d 个入口的订阅地址或端口改变，%d 名用户需要刷新订阅；刷新前旧地址不再可用", len(subChanged), users))
+				} else {
+					rehopSteps = append(rehopSteps, "订阅内容不变，用户不需要刷新")
+				}
+			} else {
+				// 没有入口时只有线路本身变化；新机器在执行时登记
+				res.Hops = nil
 			}
 		}
 	}
@@ -440,7 +472,10 @@ func (o *RouteUpdate) Plan(ctx context.Context, q *db.Queries, raw json.RawMessa
 		return nil, apierr.BadRequest("nothing_to_change", "没有任何字段需要修改")
 	}
 	draft.Diff = diff
-	draft.Steps = []string{fmt.Sprintf("更新线路 %s 的 %d 项设置", r.Name, len(diff))}
+	draft.Steps = append([]string{fmt.Sprintf("更新线路 %s 的 %d 项设置", r.Name, len(diff))}, rehopSteps...)
+	if len(res.Entries) > 0 {
+		draft.Resolved = res
+	}
 	if p.Name != nil && len(entries) > 0 {
 		ids := make([]int64, len(entries))
 		for i, e := range entries {
@@ -456,6 +491,10 @@ func (o *RouteUpdate) Plan(ctx context.Context, q *db.Queries, raw json.RawMessa
 }
 
 func (o *RouteUpdate) Apply(ctx context.Context, q *db.Queries, raw json.RawMessage) (any, error) {
+	var probe map[string]json.RawMessage
+	if json.Unmarshal(raw, &probe) == nil && probe["route_id"] != nil {
+		return o.applyRehop(ctx, q, raw)
+	}
 	p, err := decode[routeUpdateParams](raw)
 	if err != nil {
 		return nil, err
@@ -483,6 +522,40 @@ func (o *RouteUpdate) Apply(ctx context.Context, q *db.Queries, raw json.RawMess
 		return nil, err
 	}
 	return map[string]any{"route_id": r.ID, "version": r.Version}, nil
+}
+
+// applyRehop 执行有入口的线路改跳：预演固定了每个入口每跳的端口，这里按它改转发，再更新线路。
+func (o *RouteUpdate) applyRehop(ctx context.Context, q *db.Queries, raw json.RawMessage) (any, error) {
+	res, err := decode[routeUpdateResolved](raw)
+	if err != nil {
+		return nil, err
+	}
+	r, err := q.GetRoute(ctx, res.RouteID)
+	if err != nil {
+		return nil, err
+	}
+	entries, err := q.ListRouteEntries(ctx, &r.ID)
+	if err != nil {
+		return nil, err
+	}
+	planned := map[int64]bool{}
+	for _, e := range res.Entries {
+		planned[e.EntryID] = true
+	}
+	for _, e := range entries {
+		if !planned[e.ID] {
+			return nil, apierr.Conflict("stale_plan", "线路 %s 在预演后多了入口 %d", r.Name, e.ID).WithHint("重新预演一次")
+		}
+	}
+	// 先改线路再改转发：RefreshNodeForwards 按线路和转发重算下一跳
+	r, err = q.UpdateRoute(ctx, db.UpdateRouteParams{ID: r.ID, Name: res.Name, Hops: res.Hops})
+	if err != nil {
+		return nil, err
+	}
+	if err := applyRehop(ctx, q, res.Entries); err != nil {
+		return nil, err
+	}
+	return map[string]any{"route_id": r.ID, "version": r.Version, "entries_updated": len(res.Entries)}, nil
 }
 
 func orderMachines(ms []db.Machine, ids []int64) []db.Machine {

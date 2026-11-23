@@ -347,8 +347,12 @@ func TestRelayPortExhaustedAndApply(t *testing.T) {
 	if r.str("error.code") != "port_exhausted" || !strings.Contains(r.str("error.message"), "gz-01") || !strings.Contains(r.str("error.message"), "21000-21001") {
 		t.Fatalf("port_exhausted: %s", r.raw)
 	}
-	// 线路上还有入口时不能改跳、不能删除
-	expect(t, h.api("PATCH", "/api/v1/routes/gz", map[string]any{"hops": []string{"hk-01"}, "dry_run": true}), 409)
+	// 线路上还有入口时可以改跳（就地改转发，订阅变化时提示刷新，敏感），但不能删除
+	r = h.api("PATCH", "/api/v1/routes/gz", map[string]any{"hops": []string{"hk-01"}, "dry_run": true})
+	expect(t, r, 200)
+	if r.str("risk") != "sensitive" || !strings.Contains(r.raw2(), "删除 gz-01:21000 的转发") || !strings.Contains(r.raw2(), "需要刷新订阅") {
+		t.Fatalf("rehop dry run: %s", r.raw)
+	}
 	expect(t, h.api("DELETE", "/api/v1/routes/gz", map[string]any{"dry_run": true}), 409)
 }
 

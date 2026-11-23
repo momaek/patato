@@ -256,6 +256,46 @@ func Allocate(hops []Hop) ([]HopPorts, error) {
 	return out, nil
 }
 
+// AllocateOne 在一台机器上分配一个端口：依次尝试 prefer 里的本机端口（在端口段内且空闲才用），都不行时取段内最小的空闲端口。
+// 给已有入口的线路插入一跳时用它，让新的一跳沿用相邻跳或订阅里的端口号。
+func AllocateOne(h Hop, prefer []int) (HopPorts, error) {
+	inRange := func(p int) bool {
+		for _, r := range Ranges(h.Machine) {
+			if r.Contains(p) {
+				return true
+			}
+		}
+		return false
+	}
+	pick := func(p int) HopPorts {
+		h.Occupied.Add(p, "本次计划已分配")
+		return HopPorts{MachineID: h.Machine.ID, Listen: p, Public: PublicPort(h.Machine, p)}
+	}
+	for _, p := range prefer {
+		if p > 0 && inRange(p) && h.Occupied.Why(p) == "" {
+			return pick(p), nil
+		}
+	}
+	for _, r := range Ranges(h.Machine) {
+		for p := r.From; p <= r.To; p++ {
+			if h.Occupied.Why(p) == "" {
+				return pick(p), nil
+			}
+		}
+	}
+	return HopPorts{}, Exhausted(h.Machine)
+}
+
+// LocalPort 返回外网端口在这台机器上对应的本机端口；不在任何 NAT 段内时本机端口等于外网端口。
+func LocalPort(m db.Machine, public int) int {
+	for _, r := range Ranges(m) {
+		if r.PublicFrom != 0 && public >= r.PublicFrom && public <= r.PublicFrom+(r.To-r.From) {
+			return r.From + (public - r.PublicFrom)
+		}
+	}
+	return public
+}
+
 // Exhausted 是端口段用尽的错误，指出哪台机器、哪几段。
 func Exhausted(m db.Machine) error {
 	rs := Ranges(m)

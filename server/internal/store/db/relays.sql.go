@@ -1237,6 +1237,22 @@ func (q *Queries) SetEntryEnabled(ctx context.Context, arg SetEntryEnabledParams
 	return err
 }
 
+const setEntryOverride = `-- name: SetEntryOverride :exec
+UPDATE node_entries SET address = $2, port = $3, updated_at = now(), version = version + 1 WHERE id = $1
+`
+
+type SetEntryOverrideParams struct {
+	ID      int64
+	Address string
+	Port    int32
+}
+
+// 入口覆盖的订阅地址和端口；线路第一跳变化后清空，订阅改用新第一跳。
+func (q *Queries) SetEntryOverride(ctx context.Context, arg SetEntryOverrideParams) error {
+	_, err := q.db.Exec(ctx, setEntryOverride, arg.ID, arg.Address, arg.Port)
+	return err
+}
+
 const setEntryRoute = `-- name: SetEntryRoute :exec
 UPDATE node_entries SET route_id = $2, updated_at = now(), version = version + 1 WHERE id = $1
 `
@@ -1273,6 +1289,21 @@ func (q *Queries) SetForwardEndpoints(ctx context.Context, arg SetForwardEndpoin
 		arg.TargetPort,
 		arg.TargetIp,
 	)
+	return err
+}
+
+const setForwardHop = `-- name: SetForwardHop :exec
+UPDATE forwards SET hop = $2, updated_at = now() WHERE id = $1
+`
+
+type SetForwardHopParams struct {
+	ID  int64
+	Hop int32
+}
+
+// 线路增删跳后保留的转发换到新的序号；端口、计数和 patato-node 上的规则不变。
+func (q *Queries) SetForwardHop(ctx context.Context, arg SetForwardHopParams) error {
+	_, err := q.db.Exec(ctx, setForwardHop, arg.ID, arg.Hop)
 	return err
 }
 
