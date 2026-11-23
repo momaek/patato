@@ -4,3 +4,6 @@
 /deploy/backups/
 /deploy/caddy-data/
 /deploy/web/
+/dist/
+/deploy/.env
+/deploy/*.bak

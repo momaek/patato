@@ -20,8 +20,8 @@ make lint
 
 ## 首次部署
 
-1. 按 `deploy/` 下的 Compose、Caddyfile 和 `config.example.yaml` 部署，填好 `admin_url`、`portal_url`、`webauthn.rp_id`。两个前端随服务端镜像内嵌，Caddy 只负责 HTTPS 和反向代理，无需挂载前端文件。源码部署执行 `docker compose -f deploy/docker-compose.yaml build server` 后再 `up -d`；本机构建完整二进制使用 `make build`（需要 pnpm）。
-2. 生成第一个运营者的邀请链接：`patato-server operator invite -name <名字>`，在 Admin 上用它注册 passkey。
+1. 一键部署：`curl -fsSL https://github.com/momaek/patato/releases/latest/download/install.sh | sudo bash -s -- --domain example.com`，详见 [部署与发布](deploy.md)。脚本生成 `config.yaml`（含 `admin_url`、`portal_url`、`webauthn.rp_id`），两个前端随服务端镜像内嵌，Caddy 只负责 HTTPS 和反向代理。源码部署在 `deploy/` 下执行 `docker compose -f docker-compose.yaml -f docker-compose.build.yaml up -d --build`；本机构建完整二进制使用 `make build`（需要 pnpm）。
+2. 一键部署会打印第一个运营者的邀请链接；手工部署时执行 `patato-server operator invite -name <名字>`（Compose 下为 `docker compose exec server patato-server operator invite -name <名字>`），在 Admin 上用它注册 passkey。
 3. CLI 登录：`patato auth login` 发起设备授权（`POST /api/v1/auth/cli/grants`），运营者在 Admin 上核对短码并批准，CLI 换取 token。
 4. 配置 Telegram 后，运营者在 Admin 上生成绑定码（`POST /api/v1/auth/telegram:bind`），给机器人发送 `/bind <码>`，之后可以直接在 Telegram 里批准或拒绝。
 5. 从 Xboard 迁移：先 `patato-server import-xboard -dsn '<user>:<pass>@tcp(<host>:3306)/<db>' -dry-run` 看报告，确认后去掉 `-dry-run`。迁移后在配置里填 `node.legacy_token`（Xboard 的 server_token），节点不改配置即可连上；之后逐台换成 `patato node install-cmd` 给出的节点密钥。导入的节点没有机器名，要改由 patato-node 承载时一起填上：`patato node update <节点> --host <机器> --backend native`。
@@ -75,7 +75,7 @@ make lint
 
 接入方式有两种：面板生成的一次性注册码（默认），或经 tolato-agent 引导身份（见下文「经 tolato-agent 接入」）。
 
-已知限制：只用 sing-box 内核，不支持 Hysteria v1、VLESS encryption、Shadowsocks 插件；二进制下载地址默认指向 GitHub Release（`node.binary_url`），发布流程还没加；已在真实 Linux 机器和真实客户端进行 [核心验收](acceptance-2026-11-04.md)，但 DNS 负缓存、间歇 HTTPS/UDP 失败及正式证书等问题尚未收口，不能据此宣布生产就绪。
+已知限制：只用 sing-box 内核，不支持 Hysteria v1、VLESS encryption、Shadowsocks 插件；二进制下载地址默认指向与服务端同版本的 GitHub Release（`node.binary_url`，见 [部署与发布](deploy.md)）；已在真实 Linux 机器和真实客户端进行 [核心验收](acceptance-2026-11-04.md)，但 DNS 负缓存、间歇 HTTPS/UDP 失败及正式证书等问题尚未收口，不能据此宣布生产就绪。
 
 ## 二期：售卖、工单、运营
 

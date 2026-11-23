@@ -32,6 +32,9 @@ node:
   # 迁移过渡期：Xboard 的全局 server_token。只对导入时标记了 allow_legacy_token 的节点生效。
   # 节点逐台换成自己的密钥后删掉这一项。
   legacy_token: ""
+  # patato-node 安装命令下载二进制的地址，{arch} 换成 amd64 或 arm64。
+  # 默认取与服务端同版本的 GitHub Release；节点访问不了 GitHub 时换成自己的镜像地址。
+  # binary_url: "https://github.com/momaek/patato/releases/download/v0.1.0/patato-node-linux-{arch}"
 
 risk:
   # 常规操作影响超过任一阈值时升为敏感，需要审批

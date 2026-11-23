@@ -1,5 +1,6 @@
-# 把下面三个域名换成你自己的，并与 config.yaml 里的 public_url、admin_url、portal_url 一致。
+# 三个域名来自 .env 的 PATATO_API_HOST、PATATO_ADMIN_HOST、PATATO_PORTAL_HOST（install.sh 会生成），
+# 须与 config.yaml 里的 public_url、admin_url、portal_url 一致。
 # 保留原始 Host，服务端据此提供 Admin 或用户侧前端；Caddy 负责 HTTPS。
-api.example.com, admin.example.com, my.example.com {
+{$PATATO_API_HOST:api.example.com}, {$PATATO_ADMIN_HOST:admin.example.com}, {$PATATO_PORTAL_HOST:my.example.com} {
 	reverse_proxy server:8080
 }

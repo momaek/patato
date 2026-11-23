@@ -1,0 +1,10 @@
+# 从源码构建服务端镜像（在仓库的 deploy/ 目录下执行）：
+#   docker compose -f docker-compose.yaml -f docker-compose.build.yaml up -d --build
+services:
+  server:
+    image: patato-server:local
+    build:
+      context: ..
+      dockerfile: server/Dockerfile
+      args:
+        VERSION: ${PATATO_VERSION:-dev}

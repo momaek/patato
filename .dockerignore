@@ -9,3 +9,5 @@ deploy/backups
 deploy/caddy-data
 deploy/web
 *.local
+dist
+deploy/.env

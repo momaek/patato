@@ -1,6 +1,6 @@
 SQLC := docker run --rm -v $(CURDIR):/src -w /src sqlc/sqlc:1.27.0
 
-.PHONY: build web install-cli test generate lint check-generated
+.PHONY: build web install-cli release test generate lint check-generated
 
 # patato-node 内嵌 sing-box，需要这些构建标签才包含 QUIC（Hysteria2 / TUIC）、Reality 和 ACME
 NODE_TAGS := with_quic,with_utls,with_acme
@@ -14,6 +14,10 @@ build: web
 install-cli:
 	go install ./cli/cmd/patato
 	ln -sf patato "$$(go env GOPATH)/bin/pat"
+
+# 准备 GitHub Release 附件到 dist/：make release VERSION=v0.1.0（正式发布推 tag，由 .github/workflows/release.yml 完成）
+release:
+	scripts/release.sh $(or $(VERSION),$(error 用法：make release VERSION=v0.1.0))
 
 # 构建两个前端，供 -tags embedweb 的服务端构建嵌入
 web:
