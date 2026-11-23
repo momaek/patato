@@ -7,9 +7,9 @@ import {
   Plug, Receipt, Route, ScrollText, Server, ShieldCheck, Sun, TicketPercent, Users, Waypoints, X,
 } from 'lucide-vue-next'
 import { api, type ApprovalItem, type List, type Status } from '@patato/api'
+import { cycleTheme, themePref } from '@patato/ui'
 import { useSession } from '../lib/session'
 import Logo from './Logo.vue'
-import { cycleTheme, themePref } from '../theme'
 
 const session = useSession()
 const router = useRouter()

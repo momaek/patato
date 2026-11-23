@@ -4,7 +4,7 @@
 
 /*
  * Admin 主题。浅色用 @patato/ui 的默认 token；深色参考 ui-ux-pro-max「Dark tech + status green」，
- * 由 <html data-theme> 决定：默认跟随系统，可在侧栏底部切换，见 src/theme.ts 和 index.html。
+ * 由 <html data-theme> 决定：默认跟随系统，可在侧栏底部切换，见 @patato/ui 的 lib/theme.ts 和 index.html。
  * 正文与次要文字对卡片底色的对比度都在 4.5:1 以上。
  */
 @layer theme {

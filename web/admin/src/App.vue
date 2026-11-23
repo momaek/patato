@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Toaster } from 'vue-sonner'
-import { isDark } from './theme'
+import { isDark } from '@patato/ui'
 </script>
 
 <template>
