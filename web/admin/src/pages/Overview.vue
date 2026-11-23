@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, type Component } from 'vue'
 import { useQuery } from '@tanstack/vue-query'
 import { api, errorText, fmt, type Audit, type List, type Node, type Status } from '@patato/api'
 import { Badge, Button, Card, Empty, LoadState, Section, StatusDot, type Tone } from '@patato/ui'
 import PageHeader from '../components/PageHeader.vue'
 import Table from '../components/Table.vue'
 import { results } from '../lib/labels'
+import { Activity, Banknote, RefreshCw, Server, Users } from 'lucide-vue-next'
 
 const status = useQuery({ queryKey: ['status'], queryFn: () => api.get<Status>('/api/v1/status'), refetchInterval: 15_000 })
 const audit = useQuery({ queryKey: ['audit', 'recent'], queryFn: () => api.get<List<Audit>>('/api/v1/audit', { query: { limit: 5 } }), refetchInterval: 30_000 })
@@ -31,6 +32,20 @@ function heartbeat(n: Node) {
   return fmt.ago(n.last_heartbeat_at)
 }
 
+const subTone = { ok: 'text-ok', bad: 'text-bad', muted: 'text-muted' } as const
+// 顶部指标条
+type Kpi = { label: string; value: string; sub: string; tone: keyof typeof subTone; icon: Component; to: { name: string } }
+const kpis = computed((): Kpi[] => {
+  const s = status.data.value
+  if (!s) return []
+  return [
+    { label: '节点在线', value: `${fmt.num(s.nodes.online)} / ${fmt.num(s.nodes.total)}`, sub: s.nodes.offline ? `${s.nodes.offline} 个离线` : '全部正常', tone: s.nodes.offline ? 'bad' : 'ok', icon: Server, to: { name: 'nodes' } },
+    { label: '在线用户', value: fmt.num(s.usage.online_users), sub: `${fmt.num(s.users.over_quota ?? 0)} 名超额停用`, tone: 'muted', icon: Users, to: { name: 'users' } },
+    { label: '今日流量', value: fmt.bytes(s.usage.today_bytes), sub: `${fmt.num(s.expiring.days_3)} 名用户 3 天内到期`, tone: 'muted', icon: Activity, to: { name: 'reports' } },
+    ...(s.sales ? [{ label: '今日收入', value: fmt.money(s.sales.today_revenue), sub: `${fmt.num(s.sales.today_orders)} 笔订单`, tone: 'muted', icon: Banknote, to: { name: 'orders' } } satisfies Kpi] : []),
+  ]
+})
+
 const panelTone: Record<string, Tone> = { ok: 'ok', alert: 'bad', unsupported: 'idle', error: 'bad', not_configured: 'idle' }
 const panelLabel: Record<string, string> = { ok: '无远程执行', alert: '发现远程执行', unsupported: '无法检查', error: '检查失败', not_configured: '未配置' }
 
@@ -47,22 +62,43 @@ function todoLink(kind: string, ref: string) {
 
 <template>
   <PageHeader title="总览" lead="日常操作交给 Agent 和 patato CLI，这里用来看状态、批变更。">
-    <p v-if="status.data.value" class="text-[13px] text-muted">数据更新于 {{ fmt.time(status.data.value.updated_at) }}</p>
+    <div v-if="status.data.value" class="flex items-center gap-2 text-[13px] text-muted">
+      <span class="inline-flex items-center gap-1.5" aria-live="polite">
+        <span :class="['size-1.5 rounded-full', status.isFetching.value ? 'animate-pulse bg-warn' : 'bg-ok']" aria-hidden="true" />
+        数据更新于 <span class="tabular">{{ fmt.time(status.data.value.updated_at) }}</span>
+      </span>
+      <Button size="icon" variant="ghost" class="size-8" aria-label="立即刷新" :disabled="status.isFetching.value" @click="status.refetch()">
+        <RefreshCw :class="status.isFetching.value && 'animate-spin'" aria-hidden="true" />
+      </Button>
+    </div>
   </PageHeader>
 
   <LoadState :loading="status.isPending.value" :error="status.error.value" :message="status.error.value ? errorText(status.error.value) : undefined" @retry="status.refetch()">
     <template v-if="status.data.value">
+      <ul class="grid grid-cols-2 gap-3 xl:grid-cols-4" aria-label="关键指标">
+        <li v-for="k in kpis" :key="k.label">
+          <RouterLink :to="k.to" class="group flex h-full flex-col gap-1.5 rounded-xl border border-line bg-card px-4 py-3.5 text-ink no-underline shadow-card transition-colors hover:border-control">
+            <span class="flex items-center justify-between gap-2 text-[13px] text-muted">
+              {{ k.label }}
+              <component :is="k.icon" class="size-4 text-muted/80 transition-colors group-hover:text-accent" aria-hidden="true" />
+            </span>
+            <span class="text-[22px] leading-tight font-semibold tracking-tight tabular">{{ k.value }}</span>
+            <span :class="['text-[12px]', subTone[k.tone]]">{{ k.sub }}</span>
+          </RouterLink>
+        </li>
+      </ul>
+
       <Section title="需要你处理" :meta="`${status.data.value.todo.length} 件`">
         <Card as="ul" class="divide-y divide-line-soft">
-          <li v-for="(item, i) in status.data.value.todo" :key="i" class="flex flex-wrap items-center gap-4 px-5 py-4">
+          <li v-for="(item, i) in status.data.value.todo" :key="i" class="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3.5">
             <Badge :tone="todoKinds[item.kind]?.tone ?? (item.severity === 'critical' ? 'bad' : 'warn')">{{ todoKinds[item.kind]?.label ?? '告警' }}</Badge>
             <div class="flex min-w-0 flex-[1_1_320px] flex-col gap-0.5">
-              <p class="text-base font-medium">{{ item.title }}</p>
+              <p class="font-medium">{{ item.title }}</p>
               <p v-if="item.detail" class="text-[13px] text-muted">{{ item.detail }}</p>
             </div>
             <span class="text-[13px] whitespace-nowrap text-muted">{{ item.expires_at ? fmt.until(item.expires_at) + '过期' : fmt.dateTime(item.at) }}</span>
             <RouterLink :to="todoLink(item.kind, item.ref)" class="no-underline">
-              <Button :variant="i === 0 && item.kind === 'approval' ? 'primary' : 'secondary'" tabindex="-1">{{ item.kind === 'approval' ? '查看并审批' : '查看' }}</Button>
+              <Button size="sm" :variant="i === 0 && item.kind === 'approval' ? 'primary' : 'secondary'" tabindex="-1">{{ item.kind === 'approval' ? '查看并审批' : '查看' }}</Button>
             </RouterLink>
           </li>
           <li v-if="status.data.value.todo.length === 0"><Empty title="没有需要处理的事">待审批的变更和告警会出现在这里，同时推送到 Telegram。</Empty></li>
@@ -92,28 +128,21 @@ function todoLink(kind: string, ref: string) {
         <div class="flex min-w-0 flex-[1_1_300px] flex-col gap-7">
           <Section v-if="status.data.value.sales" title="今日售卖">
             <template #action><RouterLink :to="{ name: 'reports' }" class="font-medium">报表</RouterLink></template>
-            <Card as="dl" class="grid grid-cols-2 gap-x-4 gap-y-3 px-4.5 py-4">
+            <Card as="dl" class="grid grid-cols-2 gap-x-4 gap-y-2.5 px-4 py-3.5">
               <dt class="text-muted">收入</dt><dd class="text-right font-medium tabular">{{ fmt.money(status.data.value.sales.today_revenue) }}</dd>
               <dt class="text-muted">订单</dt><dd class="text-right font-medium tabular">{{ fmt.num(status.data.value.sales.today_orders) }} 笔</dd>
               <dt class="text-muted">待回复工单</dt>
               <dd class="text-right font-medium tabular"><RouterLink :to="{ name: 'tickets' }">{{ fmt.num(status.data.value.tickets?.open ?? 0) }} 个</RouterLink></dd>
             </Card>
           </Section>
-          <Section title="今日用量">
-            <Card as="dl" class="grid grid-cols-2 gap-x-4 gap-y-3 px-4.5 py-4">
-              <dt class="text-muted">总流量</dt><dd class="text-right font-medium tabular">{{ fmt.bytes(status.data.value.usage.today_bytes) }}</dd>
-              <dt class="text-muted">在线用户</dt><dd class="text-right font-medium tabular">{{ fmt.num(status.data.value.usage.online_users) }} 名</dd>
-              <dt class="text-muted">超额停用</dt><dd class="text-right font-medium tabular">{{ fmt.num(status.data.value.users.over_quota ?? 0) }} 名用户</dd>
-            </Card>
-          </Section>
           <Section title="即将到期">
-            <Card as="dl" class="grid grid-cols-2 gap-x-4 gap-y-3 px-4.5 py-4">
+            <Card as="dl" class="grid grid-cols-2 gap-x-4 gap-y-2.5 px-4 py-3.5">
               <dt class="text-muted">今天</dt><dd class="text-right font-medium tabular">{{ fmt.num(status.data.value.expiring.today) }} 名用户</dd>
               <dt class="text-muted">3 天内</dt><dd class="text-right font-medium tabular">{{ fmt.num(status.data.value.expiring.days_3) }} 名用户</dd>
               <dt class="text-muted">7 天内</dt><dd class="text-right font-medium tabular">{{ fmt.num(status.data.value.expiring.days_7) }} 名用户</dd>
             </Card>
           </Section>
-          <Card as="section" aria-labelledby="host-h" class="flex flex-col gap-2 px-4.5 py-4">
+          <Card as="section" aria-labelledby="host-h" class="flex flex-col gap-2 px-4 py-3.5">
             <div class="flex items-center justify-between gap-2">
               <h2 id="host-h" class="text-[15px] font-semibold">面板主机</h2>
               <Badge :tone="panelTone[status.data.value.panel_host.status]">{{ panelLabel[status.data.value.panel_host.status] }}</Badge>
@@ -129,8 +158,8 @@ function todoLink(kind: string, ref: string) {
     <template #action><RouterLink :to="{ name: 'audit' }" class="font-medium">审计日志</RouterLink></template>
     <LoadState :loading="audit.isPending.value" :error="audit.error.value" @retry="audit.refetch()">
       <Card as="ol" class="divide-y divide-line-soft">
-        <li v-for="a in audit.data.value?.items ?? []" :key="a.id" class="flex flex-wrap gap-x-5 gap-y-1 px-4.5 py-3">
-          <span class="w-24 text-muted tabular">{{ fmt.dateTime(a.at) }}</span>
+        <li v-for="a in audit.data.value?.items ?? []" :key="a.id" class="flex flex-wrap items-center gap-x-5 gap-y-1 px-4 py-2.5">
+          <span class="w-24 shrink-0 text-[13px] text-muted tabular">{{ fmt.dateTime(a.at) }}</span>
           <span class="min-w-0 flex-[1_1_280px]">{{ a.actor_claim || a.subject }}：{{ a.detail?.summary ?? a.action }}</span>
           <Badge :tone="results[a.result]?.tone ?? 'neutral'">{{ results[a.result]?.label ?? a.result }}</Badge>
         </li>

@@ -14,8 +14,10 @@ const labels = { online: '在线', offline: '离线', pending: '待接入', main
     <span
       aria-hidden="true"
       :class="[
-        'size-2 rounded-full',
+        'size-2 shrink-0 rounded-full',
         state === 'pending' ? 'border-2 border-current' : 'bg-current',
+        state === 'online' && 'shadow-[0_0_0_3px_color-mix(in_oklab,currentColor_20%,transparent)]',
+        state === 'offline' && 'animate-pulse',
       ]"
     />
     {{ label ?? labels[state] }}

@@ -129,14 +129,14 @@ function expiry(u: User) {
       <Button type="submit">搜索</Button>
     </form>
     <div class="flex flex-wrap items-center justify-between gap-2">
-      <div role="tablist" aria-label="按状态筛选" class="flex flex-wrap gap-1">
+      <div role="tablist" aria-label="按状态筛选" class="seg-tabs">
         <button
           v-for="f in filters"
           :key="f.value"
           role="tab"
           type="button"
           :aria-selected="filter === f.value"
-          :class="['rounded-md px-3 py-1.5 font-medium', filter === f.value ? 'bg-ink text-white' : 'text-muted hover:bg-card']"
+          class="seg-tab"
           @click="setQuery({ state: f.value, id: undefined })"
         >
           {{ f.label }}

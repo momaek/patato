@@ -9,5 +9,5 @@ const tones = {
 </script>
 
 <template>
-  <div :role="tone === 'bad' ? 'alert' : 'status'" :class="['rounded-lg border px-3.5 py-2.5 text-[13px]', tones[tone]]"><slot /></div>
+  <div :role="tone === 'bad' ? 'alert' : 'status'" :class="['rounded-control border px-3.5 py-2.5 text-[13px] leading-relaxed', tones[tone]]"><slot /></div>
 </template>

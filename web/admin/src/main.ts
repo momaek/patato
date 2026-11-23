@@ -5,6 +5,7 @@ import { isApiError } from '@patato/api'
 import App from './App.vue'
 import { router } from './router'
 import './main.css'
+import './theme'
 
 const queryClient = new QueryClient({
   defaultOptions: {

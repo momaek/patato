@@ -41,14 +41,14 @@ const current = computed(() => ({ revenue, traffic, nodes })[tab.value as 'reven
 <template>
   <PageHeader title="报表" lead="收入按支付时间统计，退款按退款时间统计；节点成本按月成本折算到所选天数。" />
   <div class="flex flex-wrap items-center justify-between gap-3">
-    <div role="tablist" aria-label="报表" class="flex flex-wrap gap-1">
+    <div role="tablist" aria-label="报表" class="seg-tabs">
       <button
         v-for="t in tabs"
         :key="t.value"
         role="tab"
         type="button"
         :aria-selected="tab === t.value"
-        :class="['rounded-md px-3 py-1.5 font-medium', tab === t.value ? 'bg-ink text-white' : 'text-muted hover:bg-card']"
+        class="seg-tab"
         @click="set({ tab: t.value })"
       >
         {{ t.label }}
