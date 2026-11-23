@@ -2,27 +2,80 @@
 
 Agentic 时代的代理面板：人只负责说话和审批，日常操作交给 AI Agent。
 
-- 与 [tolato](https://github.com/momaek/tolato) 搭配：tolato 管机器，Patato 管节点、套餐、用户和订阅。
-- API 优先、意图级接口、写操作可预演、按风险分级审批。
-- 节点侧兼容 Xboard / V2board 的 UniProxy 协议，V2bX / XrayR 无需改动即可接入。
-- 二期提供自研节点端 patato-node：WebSocket 推送、带序号的流量上报、经 tolato-agent 免密钥接入。
+- 与 [tolato](https://github.com/momaek/tolato) 搭配：tolato 管机器，Patato 管节点、线路、套餐、用户和订阅。
+- API 优先：所有写操作都可以预演（`--dry-run`），敏感操作需要人用 passkey 或 Telegram 批准。
+- 节点兼容 Xboard / V2board 的 UniProxy 协议，V2bX / XrayR 无需改动即可接入；也可以使用自研节点端 patato-node（内嵌 sing-box，WebSocket 推送，经 tolato-agent 免密钥接入）。
 
-设计文档：[docs/design.md](docs/design.md)
+## 功能
 
-界面设计稿：[docs/ui](docs/ui/README.md)
+- **节点与订阅**：模板化建节点，在线状态与心跳；订阅支持通用 base64、Clash / Mihomo、Sing-box、Surge、Quantumult X、Loon，按客户端和地区下发；可选分流规则模板。
+- **中转线路**：只需描述「这些节点走 广州 → 香港」，Patato 自动分配端口、下发和清理转发规则；可以随时改跳，第一跳可由多台机器共用一个入口域名；能看到每条线路的流量、每跳是否在线，故障时告警。
+- **访问统计**：可选开启，查看每个节点、每个用户访问最多的网站和 IP。
+- **售卖与运营**：套餐与调价、订单与支付（易支付、Stripe）、退款审批、工单、优惠券、邀请返佣、报表、风控、Webhook 与自动处置、审计日志。
+- **两个网页**：运营后台（Admin）和用户侧，支持浅色 / 深色主题。
+- **从 Xboard 迁移**：导入用户、套餐、节点、订单、邀请关系与余额。
 
-开发计划：[docs/plan.md](docs/plan.md)
+## 安装
 
-中转线路与落地访问监控计划：[docs/monitoring.md](docs/monitoring.md)，中转详细设计：[docs/relay.md](docs/relay.md)
+### 服务端
 
-服务端说明：[docs/server.md](docs/server.md)
-
-部署：一键部署（Docker Compose，自动签发证书、每日备份，再执行一次即升级）：
+准备一台 Linux 机器（amd64 或 arm64），把三个域名解析到它，放行 80、443 端口，然后执行：
 
 ```bash
 curl -fsSL https://github.com/momaek/patato/releases/latest/download/install.sh | sudo bash -s -- --domain example.com
 ```
 
-CLI：`curl -fsSL https://github.com/momaek/patato/releases/latest/download/install-cli.sh | sh`。部署、升级、发布流程见 [docs/deploy.md](docs/deploy.md)。两个前端内嵌在服务端镜像中；本地完整构建使用 `make build`（需要 Go 和 pnpm），开发时可用 Vite 热更新，见 [docs/web.md](docs/web.md)。
+`--domain example.com` 会使用 `api.example.com`、`admin.example.com`、`my.example.com`，也可以用 `--api-host`、`--admin-host`、`--portal-host` 分别指定。
 
-状态：MVP 与二期（支付与订单、工单、优惠券与邀请返佣、Admin 手动操作与报表、更多订阅格式、Webhook 与自动处置、多人审批）已完成，patato-node 可以经 tolato-agent 引导身份接入（需要 tolato 的配套改动；见 [docs/server.md](docs/server.md)、[docs/web.md](docs/web.md)、[docs/cli.md](docs/cli.md)）；已进行 [真机核心验收](docs/acceptance-2026-11-04.md)，核心功能可达，但稳定性未通过，尚不代表生产就绪；发布流程已就绪（推 tag 自动发布，尚未正式发过版本），迁移演练尚未完成。
+脚本会安装 Docker（如果还没有），在 `/opt/patato` 下启动数据库、服务端、Caddy（自动签发 HTTPS 证书）和每日备份。完成后会打印第一个运营者的邀请链接，打开它在 Admin 上注册 passkey 即可登录。
+
+Telegram、邮件、支付、tolato 等按需在 `/opt/patato/config.yaml` 里补上，然后重启：
+
+```bash
+cd /opt/patato && docker compose restart server
+```
+
+### 升级
+
+在同一台机器上再执行一次，不用带参数：
+
+```bash
+curl -fsSL https://github.com/momaek/patato/releases/latest/download/install.sh | sudo bash
+# 指定版本或回滚：... | sudo bash -s -- --version v0.2.0
+```
+
+升级前会自动备份数据库到 `/opt/patato/backups/`，`config.yaml` 和数据不会被改动。
+
+### CLI
+
+```bash
+curl -fsSL https://github.com/momaek/patato/releases/latest/download/install-cli.sh | sh
+patato auth login --url https://api.example.com
+```
+
+安装后同时有短别名 `pat`。登录时在 Admin 上核对短码并批准即可。Windows 从 [Releases](https://github.com/momaek/patato/releases) 下载 `patato-windows-*.exe`。
+
+### 接入节点机器
+
+patato-node 不需要单独安装。用 CLI 生成安装命令，在节点机器上执行（或交给 tolato 执行）：
+
+```bash
+patato machine install-cmd <机器名>
+```
+
+使用 V2bX / XrayR 的节点用 `patato node install-cmd <节点>` 获取对接命令。
+
+### 从 Xboard 迁移
+
+先预演，看过报告再正式导入：
+
+```bash
+cd /opt/patato
+docker compose exec server patato-server import-xboard -dsn '<user>:<pass>@tcp(<host>:3306)/<db>' -dry-run
+```
+
+确认无误后去掉 `-dry-run`。迁移后在 `config.yaml` 里填 `node.legacy_token`（Xboard 的 server_token），原有节点不改配置即可连上。
+
+## 状态
+
+核心功能已在真机上验证可用，但稳定性验收尚未通过，暂不建议用于生产环境；尚未正式发布版本。
