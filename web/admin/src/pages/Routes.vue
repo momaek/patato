@@ -24,17 +24,23 @@ const series = computed(() => {
 
 const op = ref<{ title: string; description?: string; confirm?: boolean; request: () => ChangeRequest }>()
 const opOpen = ref(false)
-const form = ref({ code: '', name: '', via: '', plan: '' })
+const form = ref({ code: '', name: '', via: '', peers: '', address: '', plan: '' })
+const splitHosts = (v: string) => v.split(/[,，\s]+/).filter(Boolean)
 function run(o: NonNullable<typeof op.value>) {
   op.value = o
   opOpen.value = true
 }
 function openCreate() {
-  form.value = { code: '', name: '', via: '', plan: '' }
+  form.value = { code: '', name: '', via: '', peers: '', address: '', plan: '' }
   run({
     title: '新建线路',
     description: '按客户端到落地的顺序列出中转机器（机器名与 tolato 一致）。线路本身不影响订阅。',
-    request: () => ({ method: 'post', path: '/api/v1/routes', body: { code: form.value.code.trim(), name: form.value.name.trim(), hops: form.value.via.split(/[,，\s]+/).filter(Boolean) } }),
+    request: () => {
+      const body: Record<string, unknown> = { code: form.value.code.trim(), name: form.value.name.trim(), hops: splitHosts(form.value.via) }
+      if (form.value.peers.trim()) body.entry_peers = splitHosts(form.value.peers)
+      if (form.value.address.trim()) body.entry_address = form.value.address.trim()
+      return { method: 'post', path: '/api/v1/routes', body }
+    },
   })
 }
 function openApply(r: RelayRoute) {
@@ -66,7 +72,13 @@ const pct = (v: number | null) => (v === null ? '—' : `${Math.round(v * 100)}%
             <template v-for="(h, i) in r.hops" :key="h.id">
               <span v-if="i" class="text-muted"> → </span>
               <span :class="h.state === 'offline' ? 'text-bad font-medium' : ''">{{ h.host }}</span>
+              <template v-if="i === 0">
+                <template v-for="p in r.entry_peers" :key="p.id">
+                  <span class="text-muted"> | </span><span :class="p.state === 'offline' ? 'text-bad font-medium' : ''">{{ p.host }}</span>
+                </template>
+              </template>
             </template>
+            <p v-if="r.entry_address" class="font-mono text-[13px] text-muted">{{ r.entry_address }}</p>
           </td>
           <td class="text-right tabular">{{ r.nodes }}</td>
           <td>
@@ -96,14 +108,19 @@ const pct = (v: number | null) => (v === null ? '—' : `${Math.round(v * 100)}%
         </Card>
       </Section>
 
-      <Section title="每跳状态">
+      <Section title="每跳状态" :meta="current.entry_peers.length ? `入口组 ${current.entry_address} → ${current.entry_ips.join(', ') || '还没解析'}` : undefined">
         <div class="flex flex-wrap gap-3">
-          <Card v-for="(h, i) in current.hops" :key="h.id" class="flex min-w-[200px] flex-col gap-1 p-4">
-            <span class="text-[13px] text-muted">第 {{ i + 1 }} 跳</span>
-            <span class="font-medium">{{ h.host }}</span>
-            <span class="font-mono text-[13px] text-muted">{{ h.address }}</span>
-            <Badge :tone="hopStates[h.state].tone" class="self-start">{{ hopStates[h.state].label }}</Badge>
-          </Card>
+          <template v-for="(h, i) in current.hops" :key="h.id">
+            <Card v-for="m in i === 0 ? [h, ...current.entry_peers] : [h]" :key="m.id" class="flex min-w-[200px] flex-col gap-1 p-4">
+              <span class="text-[13px] text-muted">第 {{ i + 1 }} 跳<template v-if="i === 0 && current.entry_peers.length"> · 入口组</template></span>
+              <span class="font-medium">{{ m.host }}</span>
+              <span class="font-mono text-[13px] text-muted">{{ m.address }}</span>
+              <div class="flex gap-1">
+                <Badge :tone="hopStates[m.state].tone">{{ hopStates[m.state].label }}</Badge>
+                <Badge v-if="m.active" tone="ok">当前解析</Badge>
+              </div>
+            </Card>
+          </template>
         </div>
       </Section>
 
@@ -122,7 +139,7 @@ const pct = (v: number | null) => (v === null ? '—' : `${Math.round(v * 100)}%
               </td>
               <td class="align-top font-mono text-[13px]">
                 <p v-for="f in e.forwards" :key="f.id" class="flex h-6 items-center whitespace-nowrap">
-                  {{ f.machine }}:{{ f.listen_port }}<span v-if="f.public_port !== f.listen_port" class="text-muted">（外网 {{ f.public_port }}）</span>
+                  <span v-if="f.mirror" class="text-muted">入口组&nbsp;</span>{{ f.machine }}:{{ f.listen_port }}<span v-if="f.public_port !== f.listen_port" class="text-muted">（外网 {{ f.public_port }}）</span>
                   → {{ f.target_host }}<span v-if="f.target_ip && f.target_ip !== f.target_host" class="text-muted">（{{ f.target_ip }}）</span>:{{ f.target_port }}
                 </p>
               </td>
@@ -157,6 +174,10 @@ const pct = (v: number | null) => (v === null ? '—' : `${Math.round(v * 100)}%
         <Field v-model="form.name" label="名称" hint="订阅里为「节点名 · 名称」" />
       </div>
       <Field v-model="form.via" label="经过的中转机器" hint="逗号分隔，按顺序，例如 gz-01, hk-01" />
+      <div class="grid grid-cols-2 gap-3">
+        <Field v-model="form.peers" label="入口组（可选）" hint="和第一跳共用入口域名的其他机器，逗号分隔" />
+        <Field v-model="form.address" label="入口地址" hint="订阅里用的域名；填了入口组时必填" />
+      </div>
     </template>
     <label v-else-if="op.title.startsWith('按套餐应用')" class="flex flex-col gap-1.5">
       <span class="font-medium">套餐</span>

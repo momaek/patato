@@ -152,9 +152,9 @@ func (q *Queries) CreateEntry(ctx context.Context, arg CreateEntryParams) (NodeE
 }
 
 const createForward = `-- name: CreateForward :one
-INSERT INTO forwards (entry_id, hop, machine_id, listen_port, public_port, target_host, target_port, mode, target_ip)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-RETURNING id, entry_id, hop, machine_id, listen_port, public_port, target_host, target_port, target_ip, mode, status, applied_mode, applied_at, error, reported_at, probe_ok, probe_ms, probe_at, probe_failures, created_at, updated_at
+INSERT INTO forwards (entry_id, hop, machine_id, listen_port, public_port, target_host, target_port, mode, target_ip, mirror)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+RETURNING id, entry_id, hop, machine_id, listen_port, public_port, target_host, target_port, target_ip, mode, status, applied_mode, applied_at, error, reported_at, probe_ok, probe_ms, probe_at, probe_failures, created_at, updated_at, mirror
 `
 
 type CreateForwardParams struct {
@@ -167,6 +167,7 @@ type CreateForwardParams struct {
 	TargetPort int32
 	Mode       string
 	TargetIp   string
+	Mirror     bool
 }
 
 func (q *Queries) CreateForward(ctx context.Context, arg CreateForwardParams) (Forward, error) {
@@ -180,6 +181,7 @@ func (q *Queries) CreateForward(ctx context.Context, arg CreateForwardParams) (F
 		arg.TargetPort,
 		arg.Mode,
 		arg.TargetIp,
+		arg.Mirror,
 	)
 	var i Forward
 	err := row.Scan(
@@ -204,22 +206,31 @@ func (q *Queries) CreateForward(ctx context.Context, arg CreateForwardParams) (F
 		&i.ProbeFailures,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Mirror,
 	)
 	return i, err
 }
 
 const createRoute = `-- name: CreateRoute :one
-INSERT INTO routes (code, name, hops) VALUES ($1, $2, $3) RETURNING id, code, name, hops, created_at, updated_at, version
+INSERT INTO routes (code, name, hops, entry_peers, entry_address) VALUES ($1, $2, $3, $4, $5) RETURNING id, code, name, hops, created_at, updated_at, version, entry_peers, entry_address, entry_ips, entry_resolved_at
 `
 
 type CreateRouteParams struct {
-	Code string
-	Name string
-	Hops []int64
+	Code         string
+	Name         string
+	Hops         []int64
+	EntryPeers   []int64
+	EntryAddress string
 }
 
 func (q *Queries) CreateRoute(ctx context.Context, arg CreateRouteParams) (Route, error) {
-	row := q.db.QueryRow(ctx, createRoute, arg.Code, arg.Name, arg.Hops)
+	row := q.db.QueryRow(ctx, createRoute,
+		arg.Code,
+		arg.Name,
+		arg.Hops,
+		arg.EntryPeers,
+		arg.EntryAddress,
+	)
 	var i Route
 	err := row.Scan(
 		&i.ID,
@@ -229,6 +240,10 @@ func (q *Queries) CreateRoute(ctx context.Context, arg CreateRouteParams) (Route
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Version,
+		&i.EntryPeers,
+		&i.EntryAddress,
+		&i.EntryIps,
+		&i.EntryResolvedAt,
 	)
 	return i, err
 }
@@ -441,7 +456,7 @@ func (q *Queries) GetMachine(ctx context.Context, id int64) (Machine, error) {
 }
 
 const getRoute = `-- name: GetRoute :one
-SELECT id, code, name, hops, created_at, updated_at, version FROM routes WHERE id = $1
+SELECT id, code, name, hops, created_at, updated_at, version, entry_peers, entry_address, entry_ips, entry_resolved_at FROM routes WHERE id = $1
 `
 
 func (q *Queries) GetRoute(ctx context.Context, id int64) (Route, error) {
@@ -455,12 +470,16 @@ func (q *Queries) GetRoute(ctx context.Context, id int64) (Route, error) {
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Version,
+		&i.EntryPeers,
+		&i.EntryAddress,
+		&i.EntryIps,
+		&i.EntryResolvedAt,
 	)
 	return i, err
 }
 
 const getRouteByCode = `-- name: GetRouteByCode :one
-SELECT id, code, name, hops, created_at, updated_at, version FROM routes WHERE code = $1
+SELECT id, code, name, hops, created_at, updated_at, version, entry_peers, entry_address, entry_ips, entry_resolved_at FROM routes WHERE code = $1
 `
 
 func (q *Queries) GetRouteByCode(ctx context.Context, code string) (Route, error) {
@@ -474,6 +493,10 @@ func (q *Queries) GetRouteByCode(ctx context.Context, code string) (Route, error
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Version,
+		&i.EntryPeers,
+		&i.EntryAddress,
+		&i.EntryIps,
+		&i.EntryResolvedAt,
 	)
 	return i, err
 }
@@ -555,9 +578,10 @@ func (q *Queries) ListEntriesOfNodes(ctx context.Context, nodeIds []int64) ([]No
 }
 
 const listEntryForwards = `-- name: ListEntryForwards :many
-SELECT id, entry_id, hop, machine_id, listen_port, public_port, target_host, target_port, target_ip, mode, status, applied_mode, applied_at, error, reported_at, probe_ok, probe_ms, probe_at, probe_failures, created_at, updated_at FROM forwards WHERE entry_id = $1 ORDER BY hop
+SELECT id, entry_id, hop, machine_id, listen_port, public_port, target_host, target_port, target_ip, mode, status, applied_mode, applied_at, error, reported_at, probe_ok, probe_ms, probe_at, probe_failures, created_at, updated_at, mirror FROM forwards WHERE entry_id = $1 AND NOT mirror ORDER BY hop
 `
 
+// 入口每一跳的转发，不含入口组成员上的镜像。
 func (q *Queries) ListEntryForwards(ctx context.Context, entryID int64) ([]Forward, error) {
 	rows, err := q.db.Query(ctx, listEntryForwards, entryID)
 	if err != nil {
@@ -589,6 +613,54 @@ func (q *Queries) ListEntryForwards(ctx context.Context, entryID int64) ([]Forwa
 			&i.ProbeFailures,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Mirror,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listEntryMirrors = `-- name: ListEntryMirrors :many
+SELECT id, entry_id, hop, machine_id, listen_port, public_port, target_host, target_port, target_ip, mode, status, applied_mode, applied_at, error, reported_at, probe_ok, probe_ms, probe_at, probe_failures, created_at, updated_at, mirror FROM forwards WHERE entry_id = $1 AND mirror ORDER BY machine_id
+`
+
+func (q *Queries) ListEntryMirrors(ctx context.Context, entryID int64) ([]Forward, error) {
+	rows, err := q.db.Query(ctx, listEntryMirrors, entryID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Forward{}
+	for rows.Next() {
+		var i Forward
+		if err := rows.Scan(
+			&i.ID,
+			&i.EntryID,
+			&i.Hop,
+			&i.MachineID,
+			&i.ListenPort,
+			&i.PublicPort,
+			&i.TargetHost,
+			&i.TargetPort,
+			&i.TargetIp,
+			&i.Mode,
+			&i.Status,
+			&i.AppliedMode,
+			&i.AppliedAt,
+			&i.Error,
+			&i.ReportedAt,
+			&i.ProbeOk,
+			&i.ProbeMs,
+			&i.ProbeAt,
+			&i.ProbeFailures,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Mirror,
 		); err != nil {
 			return nil, err
 		}
@@ -602,7 +674,7 @@ func (q *Queries) ListEntryForwards(ctx context.Context, entryID int64) ([]Forwa
 
 const listForwards = `-- name: ListForwards :many
 
-SELECT id, entry_id, hop, machine_id, listen_port, public_port, target_host, target_port, target_ip, mode, status, applied_mode, applied_at, error, reported_at, probe_ok, probe_ms, probe_at, probe_failures, created_at, updated_at FROM forwards ORDER BY id
+SELECT id, entry_id, hop, machine_id, listen_port, public_port, target_host, target_port, target_ip, mode, status, applied_mode, applied_at, error, reported_at, probe_ok, probe_ms, probe_at, probe_failures, created_at, updated_at, mirror FROM forwards ORDER BY id
 `
 
 // 转发 -------------------------------------------------------------------
@@ -637,6 +709,7 @@ func (q *Queries) ListForwards(ctx context.Context) ([]Forward, error) {
 			&i.ProbeFailures,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Mirror,
 		); err != nil {
 			return nil, err
 		}
@@ -649,7 +722,7 @@ func (q *Queries) ListForwards(ctx context.Context) ([]Forward, error) {
 }
 
 const listForwardsOfEntries = `-- name: ListForwardsOfEntries :many
-SELECT id, entry_id, hop, machine_id, listen_port, public_port, target_host, target_port, target_ip, mode, status, applied_mode, applied_at, error, reported_at, probe_ok, probe_ms, probe_at, probe_failures, created_at, updated_at FROM forwards WHERE entry_id = ANY($1::bigint[]) ORDER BY entry_id, hop
+SELECT id, entry_id, hop, machine_id, listen_port, public_port, target_host, target_port, target_ip, mode, status, applied_mode, applied_at, error, reported_at, probe_ok, probe_ms, probe_at, probe_failures, created_at, updated_at, mirror FROM forwards WHERE entry_id = ANY($1::bigint[]) ORDER BY entry_id, hop
 `
 
 func (q *Queries) ListForwardsOfEntries(ctx context.Context, entryIds []int64) ([]Forward, error) {
@@ -683,6 +756,7 @@ func (q *Queries) ListForwardsOfEntries(ctx context.Context, entryIds []int64) (
 			&i.ProbeFailures,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Mirror,
 		); err != nil {
 			return nil, err
 		}
@@ -695,7 +769,7 @@ func (q *Queries) ListForwardsOfEntries(ctx context.Context, entryIds []int64) (
 }
 
 const listMachineForwards = `-- name: ListMachineForwards :many
-SELECT id, entry_id, hop, machine_id, listen_port, public_port, target_host, target_port, target_ip, mode, status, applied_mode, applied_at, error, reported_at, probe_ok, probe_ms, probe_at, probe_failures, created_at, updated_at FROM forwards WHERE machine_id = $1 ORDER BY listen_port
+SELECT id, entry_id, hop, machine_id, listen_port, public_port, target_host, target_port, target_ip, mode, status, applied_mode, applied_at, error, reported_at, probe_ok, probe_ms, probe_at, probe_failures, created_at, updated_at, mirror FROM forwards WHERE machine_id = $1 ORDER BY listen_port
 `
 
 func (q *Queries) ListMachineForwards(ctx context.Context, machineID int64) ([]Forward, error) {
@@ -729,6 +803,7 @@ func (q *Queries) ListMachineForwards(ctx context.Context, machineID int64) ([]F
 			&i.ProbeFailures,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Mirror,
 		); err != nil {
 			return nil, err
 		}
@@ -791,7 +866,7 @@ func (q *Queries) ListMachinesByIDs(ctx context.Context, ids []int64) ([]Machine
 }
 
 const listManagedMachineForwards = `-- name: ListManagedMachineForwards :many
-SELECT f.id, f.entry_id, f.hop, f.machine_id, f.listen_port, f.public_port, f.target_host, f.target_port, f.target_ip, f.mode, f.status, f.applied_mode, f.applied_at, f.error, f.reported_at, f.probe_ok, f.probe_ms, f.probe_at, f.probe_failures, f.created_at, f.updated_at FROM forwards f JOIN node_entries e ON e.id = f.entry_id
+SELECT f.id, f.entry_id, f.hop, f.machine_id, f.listen_port, f.public_port, f.target_host, f.target_port, f.target_ip, f.mode, f.status, f.applied_mode, f.applied_at, f.error, f.reported_at, f.probe_ok, f.probe_ms, f.probe_at, f.probe_failures, f.created_at, f.updated_at, f.mirror FROM forwards f JOIN node_entries e ON e.id = f.entry_id
 WHERE f.machine_id = $1 AND f.mode <> 'manual' AND e.enabled
 ORDER BY f.listen_port
 `
@@ -828,6 +903,7 @@ func (q *Queries) ListManagedMachineForwards(ctx context.Context, machineID int6
 			&i.ProbeFailures,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Mirror,
 		); err != nil {
 			return nil, err
 		}
@@ -877,10 +953,10 @@ func (q *Queries) ListNodeEntries(ctx context.Context, nodeID int64) ([]NodeEntr
 }
 
 const listRelayMachines = `-- name: ListRelayMachines :many
-SELECT id, host, token_hash, enroll_hash, enroll_cipher, enroll_expires_at, hostname, agent_version, kernel, enrolled_at, last_seen_at, created_at, updated_at, version, public_address, port_ranges, nat, forward_mode, reserved_ports, listening_ports, tolato_ip, tolato_online, state, state_changed_at, relay_runtime FROM machines WHERE id IN (SELECT unnest(hops) FROM routes) ORDER BY id
+SELECT id, host, token_hash, enroll_hash, enroll_cipher, enroll_expires_at, hostname, agent_version, kernel, enrolled_at, last_seen_at, created_at, updated_at, version, public_address, port_ranges, nat, forward_mode, reserved_ports, listening_ports, tolato_ip, tolato_online, state, state_changed_at, relay_runtime FROM machines WHERE id IN (SELECT unnest(hops || entry_peers) FROM routes) ORDER BY id
 `
 
-// 出现在任意线路里的机器。
+// 出现在任意线路里的机器，含入口组成员。
 func (q *Queries) ListRelayMachines(ctx context.Context) ([]Machine, error) {
 	rows, err := q.db.Query(ctx, listRelayMachines)
 	if err != nil {
@@ -966,7 +1042,7 @@ func (q *Queries) ListRouteEntries(ctx context.Context, routeID *int64) ([]NodeE
 
 const listRoutes = `-- name: ListRoutes :many
 
-SELECT id, code, name, hops, created_at, updated_at, version FROM routes ORDER BY code
+SELECT id, code, name, hops, created_at, updated_at, version, entry_peers, entry_address, entry_ips, entry_resolved_at FROM routes ORDER BY code
 `
 
 // 线路 -------------------------------------------------------------------
@@ -987,6 +1063,10 @@ func (q *Queries) ListRoutes(ctx context.Context) ([]Route, error) {
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.Version,
+			&i.EntryPeers,
+			&i.EntryAddress,
+			&i.EntryIps,
+			&i.EntryResolvedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -999,7 +1079,7 @@ func (q *Queries) ListRoutes(ctx context.Context) ([]Route, error) {
 }
 
 const listRoutesWithMachine = `-- name: ListRoutesWithMachine :many
-SELECT id, code, name, hops, created_at, updated_at, version FROM routes WHERE $1::bigint = ANY(hops) ORDER BY id
+SELECT id, code, name, hops, created_at, updated_at, version, entry_peers, entry_address, entry_ips, entry_resolved_at FROM routes WHERE $1::bigint = ANY(hops || entry_peers) ORDER BY id
 `
 
 func (q *Queries) ListRoutesWithMachine(ctx context.Context, machineID int64) ([]Route, error) {
@@ -1019,6 +1099,10 @@ func (q *Queries) ListRoutesWithMachine(ctx context.Context, machineID int64) ([
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.Version,
+			&i.EntryPeers,
+			&i.EntryAddress,
+			&i.EntryIps,
+			&i.EntryResolvedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -1093,7 +1177,7 @@ const routeTrafficDaily = `-- name: RouteTrafficDaily :many
 SELECT t.route_id::bigint AS route_id, t.day, sum(t.up)::bigint AS up, sum(t.down)::bigint AS down
 FROM forward_traffic_daily t
 JOIN routes r ON r.id = t.route_id
-WHERE t.day >= $1::date AND t.machine_id = r.hops[1]
+WHERE t.day >= $1::date AND t.machine_id = ANY(r.hops[1:1] || r.entry_peers)
 GROUP BY t.route_id, t.day
 ORDER BY t.route_id, t.day
 `
@@ -1105,7 +1189,7 @@ type RouteTrafficDailyRow struct {
 	Down    int64
 }
 
-// 每条线路每天的流量（天表），取第一跳读数。
+// 每条线路每天的流量（天表），取第一跳（含入口组成员）读数。
 func (q *Queries) RouteTrafficDaily(ctx context.Context, since time.Time) ([]RouteTrafficDailyRow, error) {
 	rows, err := q.db.Query(ctx, routeTrafficDaily, since)
 	if err != nil {
@@ -1135,7 +1219,7 @@ const routeTrafficSince = `-- name: RouteTrafficSince :many
 SELECT t.route_id::bigint AS route_id, sum(t.up)::bigint AS up, sum(t.down)::bigint AS down
 FROM forward_traffic_hourly t
 JOIN routes r ON r.id = t.route_id
-WHERE t.hour >= $1::timestamptz AND t.machine_id = r.hops[1]
+WHERE t.hour >= $1::timestamptz AND t.machine_id = ANY(r.hops[1:1] || r.entry_peers)
 GROUP BY t.route_id
 `
 
@@ -1145,7 +1229,7 @@ type RouteTrafficSinceRow struct {
 	Down    int64
 }
 
-// 每条线路自某时刻起的流量（小时表）。同一条线路的多跳各算一次，取第一跳（入口机器）的读数作为线路流量。
+// 每条线路自某时刻起的流量（小时表）。同一条线路的多跳各算一次，取第一跳（入口机器及入口组成员）的读数作为线路流量。
 func (q *Queries) RouteTrafficSince(ctx context.Context, since time.Time) ([]RouteTrafficSinceRow, error) {
 	rows, err := q.db.Query(ctx, routeTrafficSince, since)
 	if err != nil {
@@ -1293,7 +1377,7 @@ func (q *Queries) SetForwardEndpoints(ctx context.Context, arg SetForwardEndpoin
 }
 
 const setForwardHop = `-- name: SetForwardHop :exec
-UPDATE forwards SET hop = $2, updated_at = now() WHERE id = $1
+UPDATE forwards SET hop = $2, updated_at = now() WHERE id = $1 AND NOT mirror
 `
 
 type SetForwardHopParams struct {
@@ -1498,8 +1582,58 @@ func (q *Queries) SetMachineTolato(ctx context.Context, arg SetMachineTolatoPara
 	return err
 }
 
+const setRouteEntryGroup = `-- name: SetRouteEntryGroup :one
+UPDATE routes SET entry_peers = $2, entry_address = $3,
+    entry_ips = CASE WHEN entry_address = $3 THEN entry_ips ELSE '{}' END,
+    entry_resolved_at = CASE WHEN entry_address = $3 THEN entry_resolved_at ELSE NULL END,
+    updated_at = now(), version = version + 1
+WHERE id = $1 RETURNING id, code, name, hops, created_at, updated_at, version, entry_peers, entry_address, entry_ips, entry_resolved_at
+`
+
+type SetRouteEntryGroupParams struct {
+	ID           int64
+	EntryPeers   []int64
+	EntryAddress string
+}
+
+// 入口组成员或入口地址变化；入口地址变了时清空上次的解析结果。
+func (q *Queries) SetRouteEntryGroup(ctx context.Context, arg SetRouteEntryGroupParams) (Route, error) {
+	row := q.db.QueryRow(ctx, setRouteEntryGroup, arg.ID, arg.EntryPeers, arg.EntryAddress)
+	var i Route
+	err := row.Scan(
+		&i.ID,
+		&i.Code,
+		&i.Name,
+		&i.Hops,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Version,
+		&i.EntryPeers,
+		&i.EntryAddress,
+		&i.EntryIps,
+		&i.EntryResolvedAt,
+	)
+	return i, err
+}
+
+const setRouteEntryIPs = `-- name: SetRouteEntryIPs :exec
+UPDATE routes SET entry_ips = $2, entry_resolved_at = now() WHERE id = $1 AND entry_address = $3
+`
+
+type SetRouteEntryIPsParams struct {
+	ID           int64
+	EntryIps     []string
+	EntryAddress string
+}
+
+// 入口地址的解析结果，由周期任务刷新；不改版本号。解析期间入口地址被改过时不写。
+func (q *Queries) SetRouteEntryIPs(ctx context.Context, arg SetRouteEntryIPsParams) error {
+	_, err := q.db.Exec(ctx, setRouteEntryIPs, arg.ID, arg.EntryIps, arg.EntryAddress)
+	return err
+}
+
 const updateRoute = `-- name: UpdateRoute :one
-UPDATE routes SET name = $2, hops = $3, updated_at = now(), version = version + 1 WHERE id = $1 RETURNING id, code, name, hops, created_at, updated_at, version
+UPDATE routes SET name = $2, hops = $3, updated_at = now(), version = version + 1 WHERE id = $1 RETURNING id, code, name, hops, created_at, updated_at, version, entry_peers, entry_address, entry_ips, entry_resolved_at
 `
 
 type UpdateRouteParams struct {
@@ -1519,6 +1653,10 @@ func (q *Queries) UpdateRoute(ctx context.Context, arg UpdateRouteParams) (Route
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Version,
+		&i.EntryPeers,
+		&i.EntryAddress,
+		&i.EntryIps,
+		&i.EntryResolvedAt,
 	)
 	return i, err
 }

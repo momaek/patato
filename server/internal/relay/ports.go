@@ -256,6 +256,124 @@ func Allocate(hops []Hop) ([]HopPorts, error) {
 	return out, nil
 }
 
+// AllocateGroup 为经过有入口组的线路的入口分配端口：第一跳和每个入口组成员必须对外用同一个端口
+// （订阅里只有一个入口地址和端口，域名解析到哪台都要能连上），其余跳与 Allocate 相同，优先同号。
+// 返回每跳的端口和每个成员的端口（与 peers 等长）。
+func AllocateGroup(hops []Hop, peers []Hop) ([]HopPorts, []HopPorts, error) {
+	if len(peers) == 0 {
+		ports, err := Allocate(hops)
+		return ports, nil, err
+	}
+	if len(hops) == 0 {
+		return nil, nil, nil
+	}
+	free := func(h Hop, p int) bool {
+		if h.Occupied.Why(p) != "" {
+			return false
+		}
+		for _, r := range Ranges(h.Machine) {
+			if r.Contains(p) {
+				return true
+			}
+		}
+		return false
+	}
+	peerFit := func(public int) []HopPorts {
+		out := make([]HopPorts, len(peers))
+		for i, h := range peers {
+			hp, ok := peerPort(h, public)
+			if !ok {
+				return nil
+			}
+			out[i] = hp
+		}
+		return out
+	}
+	take := func(h Hop, p int) HopPorts {
+		h.Occupied.Add(p, "本次计划已分配")
+		return HopPorts{MachineID: h.Machine.ID, Listen: p, Public: PublicPort(h.Machine, p)}
+	}
+	first := hops[0]
+	// 先找所有跳和成员都同号的端口，再退一步只要求第一跳和成员对得上
+	for _, sameAll := range []bool{true, false} {
+		for _, r := range Ranges(first.Machine) {
+			for p := r.From; p <= r.To; p++ {
+				if !free(first, p) {
+					continue
+				}
+				pp := peerFit(PublicPort(first.Machine, p))
+				if pp == nil {
+					continue
+				}
+				if sameAll {
+					all := true
+					for _, h := range hops[1:] {
+						if h.Machine.ID == first.Machine.ID || !free(h, p) {
+							all = false
+							break
+						}
+					}
+					if !all {
+						continue
+					}
+				}
+				out := make([]HopPorts, len(hops))
+				out[0] = take(first, p)
+				for i, h := range peers {
+					pp[i] = take(h, pp[i].Listen)
+				}
+				for i, h := range hops[1:] {
+					hp, err := AllocateOne(h, []int{p})
+					if err != nil {
+						return nil, nil, err
+					}
+					out[i+1] = hp
+				}
+				return out, pp, nil
+			}
+		}
+	}
+	return nil, nil, apierr.Conflict("port_exhausted", "第一跳 %s 和入口组成员 %s 上找不到同一个空闲的对外端口",
+		first.Machine.Host, strings.Join(hostsOf(peers), "、")).
+		WithHint("入口组成员的端口段要与第一跳重叠（NAT 机器按外网端口对齐）；用 patato machine set 调整端口段")
+}
+
+// PeerPort 在入口组成员上找对外端口 public 对应的本机端口，要求在端口段内且空闲；给已有入口补镜像转发时用。
+func PeerPort(h Hop, public int) (HopPorts, error) {
+	hp, ok := peerPort(h, public)
+	if !ok {
+		why := h.Occupied.Why(LocalPort(h.Machine, public))
+		if why == "" {
+			why = "不在端口段内"
+		}
+		return HopPorts{}, apierr.Conflict("port_taken", "入口组成员 %s 上的对外端口 %d 不可用（%s）", h.Machine.Host, public, why).
+			WithHint("入口组成员要用与第一跳相同的对外端口；先释放这个端口或调整 %s 的端口段", h.Machine.Host)
+	}
+	h.Occupied.Add(hp.Listen, "本次计划已分配")
+	return hp, nil
+}
+
+func peerPort(h Hop, public int) (HopPorts, bool) {
+	local := LocalPort(h.Machine, public)
+	if PublicPort(h.Machine, local) != public || h.Occupied.Why(local) != "" {
+		return HopPorts{}, false
+	}
+	for _, r := range Ranges(h.Machine) {
+		if r.Contains(local) {
+			return HopPorts{MachineID: h.Machine.ID, Listen: local, Public: public}, true
+		}
+	}
+	return HopPorts{}, false
+}
+
+func hostsOf(hs []Hop) []string {
+	out := make([]string, len(hs))
+	for i, h := range hs {
+		out[i] = h.Machine.Host
+	}
+	return out
+}
+
 // AllocateOne 在一台机器上分配一个端口：依次尝试 prefer 里的本机端口（在端口段内且空闲才用），都不行时取段内最小的空闲端口。
 // 给已有入口的线路插入一跳时用它，让新的一跳沿用相邻跳或订阅里的端口号。
 func AllocateOne(h Hop, prefer []int) (HopPorts, error) {

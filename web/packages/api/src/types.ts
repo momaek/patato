@@ -629,6 +629,10 @@ export interface RelayForward {
   probe_avg_ms_24h: number | null
   today_up: number
   today_down: number
+  /** 入口组成员上的镜像转发：与第一跳对外端口相同、转到同一个下一跳 */
+  mirror: boolean
+  /** 第一跳或镜像：入口地址当前解析到这台机器 */
+  active?: boolean
 }
 
 export interface NodeEntry {
@@ -652,11 +656,26 @@ export interface NodeEntry {
   version: number
 }
 
+export interface RelayHop {
+  id: number
+  host: string
+  address: string
+  state: 'online' | 'offline' | 'unknown'
+  /** 入口组：入口地址当前解析到这台机器（只在第一跳和成员上） */
+  active?: boolean
+}
+
 export interface RelayRoute {
   id: number
   code: string
   name: string
-  hops: { id: number; host: string; address: string; state: 'online' | 'offline' | 'unknown' }[]
+  hops: RelayHop[]
+  /** 入口组：和第一跳一起承担入口的机器，共用 entry_address */
+  entry_peers: RelayHop[]
+  entry_address: string
+  /** 服务端最近一次解析 entry_address 的结果 */
+  entry_ips: string[]
+  entry_resolved_at: string | null
   nodes: number
   entries: NodeEntry[]
   today_up: number

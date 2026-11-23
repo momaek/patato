@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -68,6 +69,14 @@ func (r resp) str(path string) string { return fmt.Sprint(dig(r.body, path)) }
 
 func dig(v any, path string) any {
 	for _, p := range strings.Split(path, ".") {
+		if a, ok := v.([]any); ok {
+			i, err := strconv.Atoi(p)
+			if err != nil || i < 0 || i >= len(a) {
+				return nil
+			}
+			v = a[i]
+			continue
+		}
 		m, ok := v.(map[string]any)
 		if !ok {
 			return nil

@@ -213,6 +213,9 @@ func (o *MachineSetNetwork) Plan(ctx context.Context, q *db.Queries, raw json.Ra
 				WithHint("先删除或迁移这台机器上的入口，再缩小端口段")
 		}
 	}
+	if err := checkGroupPortsAfter(ctx, q, probe, forwards); err != nil {
+		return nil, err
+	}
 	entries := map[int64]bool{}
 	firstHop := map[int64]bool{}
 	changedPublic := false
@@ -291,6 +294,9 @@ type routeParams struct {
 	Code string   `json:"code"`
 	Name string   `json:"name"`
 	Hops []string `json:"hops"`
+	// EntryPeers 是和第一跳一起承担入口的其他机器（入口组），EntryAddress 是它们共用的对外域名
+	EntryPeers   []string `json:"entry_peers"`
+	EntryAddress string   `json:"entry_address"`
 }
 
 // resolveHops 把机器名换成机器；还没登记的机器在执行时登记（create 为 true）。预演时用 ID 0 占位。
@@ -348,8 +354,22 @@ func (o *RouteCreate) Plan(ctx context.Context, q *db.Queries, raw json.RawMessa
 	if err != nil {
 		return nil, err
 	}
+	peers, err := resolvePeers(ctx, q, p.EntryPeers, hops, false)
+	if err != nil {
+		return nil, err
+	}
+	addr := strings.TrimSpace(p.EntryAddress)
+	if err := checkEntryAddress(addr, len(peers)); err != nil {
+		return nil, err
+	}
 	steps := []string{fmt.Sprintf("新建线路 %s（%s）：%s", p.Name, p.Code, strings.Join(hostNames(hops), " → "))}
-	for _, m := range hops {
+	if len(peers) > 0 {
+		steps = append(steps, fmt.Sprintf("入口组：%s，共用入口地址 %s；每个入口在这些机器上用同一个对外端口",
+			strings.Join(append([]string{hops[0].Host}, hostNames(peers)...), "、"), addr))
+	} else if addr != "" {
+		steps = append(steps, fmt.Sprintf("订阅里的入口地址用 %s", addr))
+	}
+	for _, m := range append(slices.Clone(hops), peers...) {
 		if m.ID == 0 {
 			steps = append(steps, fmt.Sprintf("登记机器 %s；用 patato machine install-cmd %s 接入 patato-node 后才能托管转发", m.Host, m.Host))
 		}
@@ -358,7 +378,8 @@ func (o *RouteCreate) Plan(ctx context.Context, q *db.Queries, raw json.RawMessa
 	return &change.Draft{
 		Summary: fmt.Sprintf("新建线路 %s", p.Name),
 		Steps:   steps,
-		Diff:    []change.DiffEntry{{Field: "线路", Before: nil, After: map[string]any{"code": p.Code, "name": p.Name, "hops": hostNames(hops)}}},
+		Diff: []change.DiffEntry{{Field: "线路", Before: nil, After: map[string]any{"code": p.Code, "name": p.Name, "hops": hostNames(hops),
+			"entry_peers": hostNames(peers), "entry_address": addr}}},
 	}, nil
 }
 
@@ -375,7 +396,20 @@ func (o *RouteCreate) Apply(ctx context.Context, q *db.Queries, raw json.RawMess
 	for i, m := range hops {
 		ids[i] = m.ID
 	}
-	r, err := q.CreateRoute(ctx, db.CreateRouteParams{Code: strings.ToLower(strings.TrimSpace(p.Code)), Name: strings.TrimSpace(p.Name), Hops: ids})
+	peers, err := resolvePeers(ctx, q, p.EntryPeers, hops, true)
+	if err != nil {
+		return nil, err
+	}
+	addr := strings.TrimSpace(p.EntryAddress)
+	if err := checkEntryAddress(addr, len(peers)); err != nil {
+		return nil, err
+	}
+	peerIDs := make([]int64, len(peers))
+	for i, m := range peers {
+		peerIDs[i] = m.ID
+	}
+	r, err := q.CreateRoute(ctx, db.CreateRouteParams{Code: strings.ToLower(strings.TrimSpace(p.Code)), Name: strings.TrimSpace(p.Name), Hops: ids,
+		EntryPeers: peerIDs, EntryAddress: addr})
 	if isUniqueViolation(err) {
 		return nil, apierr.Conflict("route_code_taken", "线路代号 %s 已被占用", p.Code)
 	}
@@ -394,6 +428,9 @@ type routeUpdateParams struct {
 	Route Ref      `json:"route"`
 	Name  *string  `json:"name"`
 	Hops  []string `json:"hops"`
+	// EntryPeers 给出完整的新入口组成员列表（空数组表示取消入口组），EntryAddress 修改入口地址
+	EntryPeers   []string `json:"entry_peers"`
+	EntryAddress *string  `json:"entry_address"`
 }
 
 func (o *RouteUpdate) Plan(ctx context.Context, q *db.Queries, raw json.RawMessage) (*change.Draft, error) {
@@ -422,6 +459,16 @@ func (o *RouteUpdate) Plan(ctx context.Context, q *db.Queries, raw json.RawMessa
 		res.Name = strings.TrimSpace(*p.Name)
 	}
 	var rehopSteps []string
+	if p.Hops != nil && (p.EntryPeers != nil || p.EntryAddress != nil) {
+		return nil, apierr.BadRequest("split_update", "改跳和改入口组要分两次").WithHint("先改跳，再改入口组成员或入口地址")
+	}
+	if p.EntryPeers != nil || p.EntryAddress != nil {
+		groupDraft, err := planRouteGroup(ctx, q, r, p, entries, res.Name, diff)
+		if err != nil {
+			return nil, err
+		}
+		return groupDraft, nil
+	}
 	if p.Hops != nil {
 		cur, err := q.ListMachinesByIDs(ctx, r.Hops)
 		if err != nil {
@@ -431,6 +478,22 @@ func (o *RouteUpdate) Plan(ctx context.Context, q *db.Queries, raw json.RawMessa
 		after, err := resolveHops(ctx, q, p.Hops, false)
 		if err != nil {
 			return nil, err
+		}
+		if len(r.EntryPeers) > 0 {
+			peers, err := routePeers(ctx, q, r)
+			if err != nil {
+				return nil, err
+			}
+			for _, m := range after {
+				if slices.Contains(hostNames(peers), m.Host) {
+					return nil, apierr.BadRequest("entry_peer_in_hops", "机器 %s 是入口组成员，不能同时是线路的一跳", m.Host).
+						WithHint("先用 --entry-peers 把它移出入口组")
+				}
+			}
+			if len(entries) > 0 && after[0].Host != before[0].Host {
+				return nil, apierr.Conflict("entry_group_first_hop", "线路 %s 有入口组，第一跳不能更换", r.Name).
+					WithHint("第一跳和入口组成员共用对外端口；要换第一跳，新建一条线路后迁移入口")
+			}
 		}
 		if !slices.Equal(hostNames(before), hostNames(after)) {
 			diff = append(diff, change.DiffEntry{Field: "hops", Before: hostNames(before), After: hostNames(after)})
@@ -493,6 +556,9 @@ func (o *RouteUpdate) Plan(ctx context.Context, q *db.Queries, raw json.RawMessa
 func (o *RouteUpdate) Apply(ctx context.Context, q *db.Queries, raw json.RawMessage) (any, error) {
 	var probe map[string]json.RawMessage
 	if json.Unmarshal(raw, &probe) == nil && probe["route_id"] != nil {
+		if probe["group"] != nil {
+			return o.applyGroup(ctx, q, raw)
+		}
 		return o.applyRehop(ctx, q, raw)
 	}
 	p, err := decode[routeUpdateParams](raw)
@@ -556,6 +622,108 @@ func (o *RouteUpdate) applyRehop(ctx context.Context, q *db.Queries, raw json.Ra
 		return nil, err
 	}
 	return map[string]any{"route_id": r.ID, "version": r.Version, "entries_updated": len(res.Entries)}, nil
+}
+
+// planRouteGroup 规划修改入口组成员或入口地址（可以同时改名称）。
+func planRouteGroup(ctx context.Context, q *db.Queries, r db.Route, p *routeUpdateParams, entries []db.NodeEntry, name string, diff []change.DiffEntry) (*change.Draft, error) {
+	cur, err := q.ListMachinesByIDs(ctx, r.Hops)
+	if err != nil {
+		return nil, err
+	}
+	hops := orderMachines(cur, r.Hops)
+	before, err := routePeers(ctx, q, r)
+	if err != nil {
+		return nil, err
+	}
+	peers := before
+	if p.EntryPeers != nil {
+		if peers, err = resolvePeers(ctx, q, p.EntryPeers, hops, false); err != nil {
+			return nil, err
+		}
+	}
+	addr := r.EntryAddress
+	if p.EntryAddress != nil {
+		addr = strings.TrimSpace(*p.EntryAddress)
+	}
+	if err := checkEntryAddress(addr, len(peers)); err != nil {
+		return nil, err
+	}
+	if !slices.Equal(hostNames(before), hostNames(peers)) {
+		diff = append(diff, change.DiffEntry{Field: "entry_peers", Before: hostNames(before), After: hostNames(peers)})
+	}
+	if addr != r.EntryAddress {
+		diff = append(diff, change.DiffEntry{Field: "entry_address", Before: r.EntryAddress, After: addr})
+	}
+	g, steps, subChanged, err := planGroupUpdate(ctx, q, r, peers, addr, entries)
+	if err != nil {
+		return nil, err
+	}
+	if len(diff) == 0 && len(g.Add) == 0 && len(g.Delete) == 0 {
+		return nil, apierr.BadRequest("nothing_to_change", "没有任何字段需要修改，镜像转发也都齐全")
+	}
+	names := hostNames(peers)
+	res := routeGroupResolved{RouteID: r.ID, Name: name, Group: g, PeerNames: names}
+	draft := &change.Draft{Summary: fmt.Sprintf("修改线路 %s", r.Name), Diff: diff, Targets: groupTargets(r, entries), Resolved: res}
+	draft.Steps = append([]string{fmt.Sprintf("更新线路 %s 的 %d 项设置", r.Name, len(diff))}, steps...)
+	if len(entries) > 0 {
+		ids := make([]int64, len(entries))
+		for i, e := range entries {
+			ids[i] = e.ID
+		}
+		users, err := q.CountUsersOfEntries(ctx, ids)
+		if err != nil {
+			return nil, err
+		}
+		draft.Impact = change.Impact{Users: users}
+		if len(subChanged) > 0 {
+			draft.Steps = append(draft.Steps, fmt.Sprintf("%d 个入口的订阅地址改变，%d 名用户需要刷新订阅", len(subChanged), users))
+			draft.Escalate = "修改有入口的线路的入口地址会改变订阅，升为敏感"
+		}
+		if len(g.Delete) > 0 {
+			draft.Escalate = "从有入口的线路的入口组里去掉机器，入口地址仍解析到它的客户端会断开，升为敏感"
+		}
+	}
+	return draft, nil
+}
+
+// routeGroupResolved 是修改入口组的执行参数。PeerNames 在执行时重新解析（还没登记的机器此时登记）。
+type routeGroupResolved struct {
+	RouteID   int64          `json:"route_id"`
+	Name      string         `json:"name"`
+	PeerNames []string       `json:"peer_names"`
+	Group     *groupResolved `json:"group"`
+}
+
+func (o *RouteUpdate) applyGroup(ctx context.Context, q *db.Queries, raw json.RawMessage) (any, error) {
+	res, err := decode[routeGroupResolved](raw)
+	if err != nil {
+		return nil, err
+	}
+	r, err := q.GetRoute(ctx, res.RouteID)
+	if err != nil {
+		return nil, err
+	}
+	cur, err := q.ListMachinesByIDs(ctx, r.Hops)
+	if err != nil {
+		return nil, err
+	}
+	peers, err := resolvePeers(ctx, q, res.PeerNames, orderMachines(cur, r.Hops), true)
+	if err != nil {
+		return nil, err
+	}
+	res.Group.Peers = make([]int64, len(peers))
+	for i, m := range peers {
+		res.Group.Peers[i] = m.ID
+	}
+	if res.Name != r.Name {
+		if r, err = q.UpdateRoute(ctx, db.UpdateRouteParams{ID: r.ID, Name: res.Name, Hops: r.Hops}); err != nil {
+			return nil, err
+		}
+	}
+	if r, err = applyGroupUpdate(ctx, q, r, res.Group); err != nil {
+		return nil, err
+	}
+	return map[string]any{"route_id": r.ID, "version": r.Version, "mirrors_added": len(res.Group.Add), "mirrors_deleted": len(res.Group.Delete)}, nil
 }
 
 func orderMachines(ms []db.Machine, ids []int64) []db.Machine {
@@ -631,6 +799,8 @@ type plannedForward struct {
 	TargetHost string `json:"target_host"`
 	TargetPort int    `json:"target_port"`
 	Mode       string `json:"mode"`
+	// Mirror 为 true 时是入口组成员上的镜像：与第一跳对外端口相同、转到同一个下一跳
+	Mirror bool `json:"mirror,omitempty"`
 }
 
 // plannedEntry 是预演时定下的一个入口。
@@ -701,7 +871,20 @@ func planRelayEntry(ctx context.Context, q *db.Queries, occ *occupancy, n db.Nod
 		}
 		hs[i] = relay.Hop{Machine: m, Occupied: oc}
 	}
-	ports, err := relay.Allocate(hs)
+	peers, err := routePeers(ctx, q, r)
+	if err != nil {
+		return pe, err
+	}
+	ps := make([]relay.Hop, len(peers))
+	for i, m := range peers {
+		oc, err := occ.of(ctx, q, m)
+		if err != nil {
+			return pe, err
+		}
+		ps[i] = relay.Hop{Machine: m, Occupied: oc}
+	}
+	// 有入口组时第一跳和每个成员对外用同一个端口
+	ports, peerPorts, err := relay.AllocateGroup(hs, ps)
 	if err != nil {
 		return pe, err
 	}
@@ -716,6 +899,7 @@ func planRelayEntry(ctx context.Context, q *db.Queries, occ *occupancy, n db.Nod
 			TargetHost: targets[i].Host, TargetPort: targets[i].Port, Mode: forwardModeOf(m),
 		})
 	}
+	pe.Forwards = append(pe.Forwards, planMirrors(peers, peerPorts, pe.Forwards[0])...)
 	return pe, nil
 }
 
@@ -756,7 +940,7 @@ func applyPlannedEntry(ctx context.Context, q *db.Queries, pe plannedEntry) (db.
 	for _, f := range pe.Forwards {
 		_, err := q.CreateForward(ctx, db.CreateForwardParams{
 			EntryID: e.ID, Hop: int32(f.Hop), MachineID: f.MachineID, ListenPort: int32(f.ListenPort), PublicPort: int32(f.PublicPort),
-			TargetHost: f.TargetHost, TargetPort: int32(f.TargetPort), Mode: f.Mode, TargetIp: relay.LiteralIP(f.TargetHost),
+			TargetHost: f.TargetHost, TargetPort: int32(f.TargetPort), Mode: f.Mode, TargetIp: relay.LiteralIP(f.TargetHost), Mirror: f.Mirror,
 		})
 		if isUniqueViolation(err) {
 			return e, apierr.Conflict("port_taken", "机器 %s 的端口 %d 在预演后被占用", f.Machine, f.ListenPort).WithHint("重新预演一次")
@@ -778,7 +962,11 @@ func describeForwards(fs []plannedForward) string {
 		if f.PublicPort != f.ListenPort {
 			port = fmt.Sprintf("%d（外网 %d）", f.ListenPort, f.PublicPort)
 		}
-		parts = append(parts, fmt.Sprintf("%s:%s → %s:%d", f.Machine, port, f.TargetHost, f.TargetPort))
+		label := ""
+		if f.Mirror {
+			label = "入口组 "
+		}
+		parts = append(parts, fmt.Sprintf("%s%s:%s → %s:%d", label, f.Machine, port, f.TargetHost, f.TargetPort))
 	}
 	return strings.Join(parts, "；")
 }
@@ -903,7 +1091,7 @@ func (o *EntryAdd) Plan(ctx context.Context, q *db.Queries, raw json.RawMessage)
 		if pe.Port > 0 {
 			port = pe.Port
 		}
-		first = fmt.Sprintf("%s:%d", firstNonEmpty(pe.Address, f.Machine), port)
+		first = fmt.Sprintf("%s:%d", firstNonEmpty(pe.Address, r.EntryAddress, f.Machine), port)
 	}
 	steps = append(steps, fmt.Sprintf("新增入口「%s」%s，%d 名用户的订阅里多一条", name, first, users))
 	return &change.Draft{
@@ -1244,6 +1432,11 @@ func (o *EntryDelete) Plan(ctx context.Context, q *db.Queries, raw json.RawMessa
 	if err != nil {
 		return nil, err
 	}
+	mirrors, err := q.ListEntryMirrors(ctx, e.ID)
+	if err != nil {
+		return nil, err
+	}
+	fs = append(fs, mirrors...)
 	name := relay.EntryName(n, e, routes)
 	steps := []string{fmt.Sprintf("删除入口「%s」，释放 %d 条转发占用的端口", name, len(fs))}
 	if managed := countManaged(fs); managed > 0 {

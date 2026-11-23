@@ -122,6 +122,61 @@ func (h *Handler) RefreshTargets(ctx context.Context) (int, error) {
 	return changed, nil
 }
 
+// RefreshEntryAddresses 解析有入口组的线路的入口地址，记下它当前指向的 IP（全部 A / AAAA 记录），
+// 用来判断域名指向入口组里的哪台机器。解析失败时不更新；结果超过 relay.EntryIPsTTL 没刷新就不再采信。返回结果变化的线路数，由周期任务调用。
+func (h *Handler) RefreshEntryAddresses(ctx context.Context) (int, error) {
+	routes, err := h.st.ListRoutes(ctx)
+	if err != nil {
+		return 0, err
+	}
+	changed := 0
+	for _, r := range routes {
+		if len(r.EntryPeers) == 0 || r.EntryAddress == "" {
+			continue
+		}
+		ips, err := lookupAll(ctx, h.resolver, r.EntryAddress)
+		if err != nil {
+			h.log.Warn("resolve route entry address", "route", r.Code, "host", r.EntryAddress, "err", err)
+			continue
+		}
+		if err := h.st.SetRouteEntryIPs(ctx, db.SetRouteEntryIPsParams{ID: r.ID, EntryIps: ips, EntryAddress: r.EntryAddress}); err != nil {
+			return changed, err
+		}
+		if !slices.Equal(ips, r.EntryIps) {
+			h.log.Info("route entry address now points elsewhere", "route", r.Code, "host", r.EntryAddress, "from", r.EntryIps, "to", ips)
+			changed++
+		}
+	}
+	return changed, nil
+}
+
+// lookupAll 返回地址的全部 IP，排序去重；本身是 IP 时原样返回。
+func lookupAll(ctx context.Context, r Resolver, host string) ([]string, error) {
+	if ip := net.ParseIP(host); ip != nil {
+		return []string{ip.String()}, nil
+	}
+	if r == nil {
+		r = net.DefaultResolver
+	}
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	ips, err := r.LookupIP(ctx, "ip", host)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]string, 0, len(ips))
+	for _, ip := range ips {
+		if s := ip.String(); !slices.Contains(out, s) {
+			out = append(out, s)
+		}
+	}
+	if len(out) == 0 {
+		return nil, fmt.Errorf("没有解析到地址")
+	}
+	slices.Sort(out)
+	return out, nil
+}
+
 // storeForwards 在上报事务里处理转发：流量差值进小时表，应用结果与探测结果写回转发。返回需要在事务外发出的事件。
 func storeForwards(ctx context.Context, q *db.Queries, m db.Machine, req nodeapi.ReportRequest) ([]events.Event, []string, error) {
 	if len(req.Forwards) == 0 {

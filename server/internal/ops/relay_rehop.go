@@ -141,7 +141,7 @@ func planRehop(ctx context.Context, q *db.Queries, r db.Route, before, after []d
 		if e.Port > 0 {
 			subPort = int(e.Port)
 		}
-		hostBefore := firstNonEmpty(e.Address, relay.Address(before[0]))
+		hostBefore := firstNonEmpty(e.Address, r.EntryAddress, relay.Address(before[0]))
 
 		ports := make([]relay.HopPorts, len(after))
 		kept := make([]bool, len(after))
@@ -210,7 +210,7 @@ func planRehop(ctx context.Context, q *db.Queries, r db.Route, before, after []d
 		if after[0].ID != before[0].ID && (e.Address != "" || e.Port > 0) {
 			re.ClearOverride, addr, port = true, "", 0
 		}
-		hostAfter := firstNonEmpty(addr, relay.Address(after[0]))
+		hostAfter := firstNonEmpty(addr, r.EntryAddress, relay.Address(after[0]))
 		portAfter := ports[0].Public
 		if port > 0 {
 			portAfter = port

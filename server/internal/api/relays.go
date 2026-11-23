@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -43,6 +44,10 @@ type forwardView struct {
 	ProbeAvgMS *int64   `json:"probe_avg_ms_24h"`
 	TodayUp    int64    `json:"today_up"`
 	TodayDown  int64    `json:"today_down"`
+	// Mirror 为 true 时是入口组成员上的镜像转发（与第一跳对外端口相同、转到同一个下一跳）
+	Mirror bool `json:"mirror"`
+	// Active 只对第一跳和镜像有意义：入口地址当前解析到这台机器
+	Active bool `json:"active,omitempty"`
 }
 
 type entryView struct {
@@ -67,17 +72,23 @@ type entryView struct {
 }
 
 type routeView struct {
-	ID        int64       `json:"id"`
-	Code      string      `json:"code"`
-	Name      string      `json:"name"`
-	Hops      []hopView   `json:"hops"`
-	Nodes     int         `json:"nodes"`
-	Entries   []entryView `json:"entries"`
-	TodayUp   int64       `json:"today_up"`
-	TodayDown int64       `json:"today_down"`
-	MonthUp   int64       `json:"month_up"`
-	MonthDown int64       `json:"month_down"`
-	Version   int64       `json:"version"`
+	ID   int64     `json:"id"`
+	Code string    `json:"code"`
+	Name string    `json:"name"`
+	Hops []hopView `json:"hops"`
+	// EntryPeers 是和第一跳一起承担入口的机器（入口组），EntryAddress 是它们共用的入口地址，
+	// EntryIPs 是服务端最近一次解析入口地址的结果；入口组成员和第一跳的 Active 表示域名当前指向它。
+	EntryPeers      []hopView   `json:"entry_peers"`
+	EntryAddress    string      `json:"entry_address"`
+	EntryIPs        []string    `json:"entry_ips"`
+	EntryResolvedAt *time.Time  `json:"entry_resolved_at"`
+	Nodes           int         `json:"nodes"`
+	Entries         []entryView `json:"entries"`
+	TodayUp         int64       `json:"today_up"`
+	TodayDown       int64       `json:"today_down"`
+	MonthUp         int64       `json:"month_up"`
+	MonthDown       int64       `json:"month_down"`
+	Version         int64       `json:"version"`
 }
 
 type hopView struct {
@@ -85,6 +96,7 @@ type hopView struct {
 	Host    string `json:"host"`
 	Address string `json:"address"`
 	State   string `json:"state"`
+	Active  bool   `json:"active,omitempty"`
 }
 
 // relayData 是构造视图需要的全部数据。
@@ -122,9 +134,11 @@ func (s *Server) loadRelay(c *gin.Context) (*relayData, error) {
 		d.traffic[r.ForwardID] = [2]int64{r.Up, r.Down}
 	}
 	ids := []int64{}
-	for _, fs := range w.Forwards {
-		for _, f := range fs {
-			ids = append(ids, f.ID)
+	for _, group := range []map[int64][]db.Forward{w.Forwards, w.Mirrors} {
+		for _, fs := range group {
+			for _, f := range fs {
+				ids = append(ids, f.ID)
+			}
 		}
 	}
 	if len(ids) > 0 {
@@ -155,7 +169,16 @@ func (d *relayData) entryView(n db.Node, e db.NodeEntry, implicit bool) entryVie
 			v.Route = &ref{ID: r.ID, Code: r.Code, Name: r.Name}
 		}
 	}
-	for _, f := range d.world.Forwards[e.ID] {
+	var active map[int64]bool
+	if e.RouteID != nil {
+		if r, ok := d.world.Routes[*e.RouteID]; ok {
+			active = map[int64]bool{}
+			for _, id := range d.world.ActiveMembers(r) {
+				active[id] = true
+			}
+		}
+	}
+	for _, f := range append(slices.Clone(d.world.Forwards[e.ID]), d.world.Mirrors[e.ID]...) {
 		m := d.world.Machines[f.MachineID]
 		fv := forwardView{ID: f.ID, Hop: f.Hop, Machine: m.Host, MachineState: m.State, ListenPort: f.ListenPort, PublicPort: f.PublicPort,
 			TargetHost: f.TargetHost, TargetIP: f.TargetIp, TargetPort: f.TargetPort, Mode: f.Mode, Status: f.Status,
@@ -171,8 +194,11 @@ func (d *relayData) entryView(n db.Node, e db.NodeEntry, implicit bool) entryVie
 		}
 		t := d.traffic[f.ID]
 		fv.TodayUp, fv.TodayDown = t[0], t[1]
+		fv.Mirror = f.Mirror
+		fv.Active = f.Hop == 0 && active[f.MachineID]
 		if f.Hop == 0 {
-			v.TodayUp, v.TodayDown = t[0], t[1]
+			// 入口流量是第一跳加上入口组成员上的读数
+			v.TodayUp, v.TodayDown = v.TodayUp+t[0], v.TodayDown+t[1]
 		}
 		v.Forwards = append(v.Forwards, fv)
 	}
@@ -224,10 +250,22 @@ func (s *Server) routeViews(c *gin.Context, only *db.Route) ([]routeView, error)
 		if only != nil && r.ID != only.ID {
 			continue
 		}
-		v := routeView{ID: r.ID, Code: r.Code, Name: r.Name, Hops: []hopView{}, Entries: []entryView{}, Version: r.Version}
-		for _, id := range r.Hops {
+		v := routeView{ID: r.ID, Code: r.Code, Name: r.Name, Hops: []hopView{}, Entries: []entryView{}, Version: r.Version,
+			EntryPeers: []hopView{}, EntryAddress: r.EntryAddress, EntryIPs: r.EntryIps, EntryResolvedAt: r.EntryResolvedAt}
+		if v.EntryIPs == nil {
+			v.EntryIPs = []string{}
+		}
+		active := map[int64]bool{}
+		for _, id := range d.world.ActiveMembers(r) {
+			active[id] = true
+		}
+		for i, id := range r.Hops {
 			m := d.world.Machines[id]
-			v.Hops = append(v.Hops, hopView{ID: m.ID, Host: m.Host, Address: relay.Address(m), State: m.State})
+			v.Hops = append(v.Hops, hopView{ID: m.ID, Host: m.Host, Address: relay.Address(m), State: m.State, Active: i == 0 && active[id]})
+		}
+		for _, id := range r.EntryPeers {
+			m := d.world.Machines[id]
+			v.EntryPeers = append(v.EntryPeers, hopView{ID: m.ID, Host: m.Host, Address: relay.Address(m), State: m.State, Active: active[id]})
 		}
 		nodes := map[int64]bool{}
 		for _, e := range d.entries {

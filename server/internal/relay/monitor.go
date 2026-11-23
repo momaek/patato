@@ -100,14 +100,19 @@ func (m *Monitor) CheckHops(ctx context.Context) error {
 		key := fmt.Sprintf("%s:%d", events.RouteHopOffline, mc.ID)
 		switch {
 		case state == "offline":
-			entries, users, err := m.affected(ctx, mc.ID)
+			entries, users, grouped, err := m.affected(ctx, mc.ID)
 			if err != nil {
 				return err
 			}
+			msg := fmt.Sprintf("中转机器 %s 掉线，影响 %d 个入口、%d 名用户；这些入口已从订阅中撤下", mc.Host, entries, users)
+			if grouped > 0 {
+				msg = fmt.Sprintf("中转机器 %s 掉线，经过它的 %d 个入口、%d 名用户受影响；其中 %d 个在入口组里，入口域名指向它时才撤下，"+
+					"把域名解析切到入口组里的其他机器即可恢复", mc.Host, entries, users, grouped)
+			}
 			m.ev.Emit(ctx, nil, events.Event{
 				Kind: events.RouteHopOffline, Severity: "critical", Subject: fmt.Sprintf("machine:%d", mc.ID),
-				Message:  fmt.Sprintf("中转机器 %s 掉线，影响 %d 个入口、%d 名用户；这些入口已从订阅中撤下", mc.Host, entries, users),
-				Payload:  map[string]any{"machine": mc.Host, "machine_id": mc.ID, "entries": entries, "users": users},
+				Message:  msg,
+				Payload:  map[string]any{"machine": mc.Host, "machine_id": mc.ID, "entries": entries, "users": users, "entry_group_entries": grouped},
 				DedupKey: key,
 			})
 		case state == "online" && prev == "offline":
@@ -119,28 +124,40 @@ func (m *Monitor) CheckHops(ctx context.Context) error {
 	return nil
 }
 
-// affected 统计经过一台机器的启用入口数和这些入口所在节点的用户数。
-func (m *Monitor) affected(ctx context.Context, machineID int64) (int, int64, error) {
+// affected 统计经过一台机器的启用入口数和这些入口所在节点的用户数；grouped 是其中这台机器在入口组里承担第一跳的入口数
+// （入口组的其他成员还能接住，入口不一定撤下）。
+func (m *Monitor) affected(ctx context.Context, machineID int64) (int, int64, int, error) {
 	fs, err := m.st.ListMachineForwards(ctx, machineID)
 	if err != nil {
-		return 0, 0, err
+		return 0, 0, 0, err
 	}
 	ids := map[int64]bool{}
+	firstHop := map[int64]bool{}
 	for _, f := range fs {
 		ids[f.EntryID] = true
+		if f.Hop == 0 {
+			firstHop[f.EntryID] = true
+		}
 	}
 	var enabled []int64
+	grouped := 0
 	for id := range ids {
 		e, err := m.st.GetEntry(ctx, id)
-		if err == nil && e.Enabled {
-			enabled = append(enabled, id)
+		if err != nil || !e.Enabled {
+			continue
+		}
+		enabled = append(enabled, id)
+		if firstHop[id] && e.RouteID != nil {
+			if r, err := m.st.GetRoute(ctx, *e.RouteID); err == nil && len(r.EntryPeers) > 0 {
+				grouped++
+			}
 		}
 	}
 	if len(enabled) == 0 {
-		return 0, 0, nil
+		return 0, 0, 0, nil
 	}
 	users, err := m.st.CountUsersOfEntries(ctx, enabled)
-	return len(enabled), users, err
+	return len(enabled), users, grouped, err
 }
 
 // refreshDirectory 从 tolato 刷新机器的 IP 和在线状态；IP 变化时重算以它为下一跳的转发（动态 IP 落地）。

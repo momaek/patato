@@ -207,6 +207,7 @@ type Forward struct {
 	ProbeFailures int32
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
+	Mirror        bool
 }
 
 type ForwardProbeHourly struct {
@@ -450,13 +451,17 @@ type PlanRevision struct {
 }
 
 type Route struct {
-	ID        int64
-	Code      string
-	Name      string
-	Hops      []int64
-	CreatedAt time.Time
-	UpdatedAt time.Time
-	Version   int64
+	ID              int64
+	Code            string
+	Name            string
+	Hops            []int64
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+	Version         int64
+	EntryPeers      []int64
+	EntryAddress    string
+	EntryIps        []string
+	EntryResolvedAt *time.Time
 }
 
 type RuleList struct {
