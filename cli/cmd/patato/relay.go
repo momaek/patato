@@ -247,7 +247,7 @@ func (a *app) routeCreate(args []string) error {
 }
 
 func (a *app) routeUpdate(args []string) error {
-	c := newCommand("route update", "patato route update <线路> [--name ...] [--via ...]\n\n改名称为常规操作；线路上已有入口时不能改跳。")
+	c := newCommand("route update", "patato route update <线路> [--name ...] [--via ...]\n\n改名称为常规操作。--via 给出完整的新跳列表，可以增加或删除跳：线路上已有入口时就地修改每个入口的转发，\n保留的跳端口和规则不变，新增的跳优先沿用订阅或相邻跳的端口，删掉的跳由上一跳直接转到下一跳；保留的机器不能调换顺序。\n有入口时为敏感操作，需要审批。")
 	nm := c.fs.String("name", "", "线路名称")
 	via := c.fs.String("via", "", "经过的中转机器，逗号分隔")
 	w := c.writeFlags()

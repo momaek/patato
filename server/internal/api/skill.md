@@ -41,7 +41,8 @@
 2. `patato route list`：没有对应线路时 `patato route create gz-hk --name 广州中转 --via gz-01,hk-01 --dry-run`，确认后执行。
 3. `patato route apply gz-hk --plan <套餐> --dry-run`：向用户说明每一跳要占用的端口、新增几个入口、影响多少用户；端口段用尽时返回 `port_exhausted`，按提示扩端口段，不要自己挑端口。
 4. 执行后用 `patato route show gz-hk` 确认各跳转发「已生效」、入口「可用」；失败时看错误（端口被占用、ip_forward 没开），ip_forward 需要用户同意后用 tolato 开启，Patato 不会改 sysctl。
-5. 链路发现与迁移：`patato route discover` 只读；它给出的采集命令可以经 tolato exec 执行。删除机器上手写的 socat / iptables 规则是一次性迁移操作，只能在用户逐台确认、旧端口 24 小时无新连接后执行，不要自行删除。
+5. 增删中转：`patato route update <线路> --via <完整的新跳列表> --dry-run`。线路上已有入口时就地改转发，保留的跳端口不变；向用户说明每个入口新增或删除的转发、订阅地址是否改变；有入口时为敏感操作，走审批。保留的机器不能调换顺序。
+6. 链路发现与迁移：`patato route discover` 只读；它给出的采集命令可以经 tolato exec 执行。删除机器上手写的 socat / iptables 规则是一次性迁移操作，只能在用户逐台确认、旧端口 24 小时无新连接后执行，不要自行删除。
 
 ## 标准流程：处理退款请求
 

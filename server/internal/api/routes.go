@@ -123,7 +123,7 @@ func (s *Server) routes() []route {
 		{"GET", "/api/v1/routes/{id}", accessAdmin, "read", "", "线路详情：入口、各跳转发与探测", s.routeGet},
 		{"GET", "/api/v1/routes/{id}/traffic", accessAdmin, "read", "", "线路每天的流量", s.routeTraffic},
 		{"POST", "/api/v1/routes", accessAdmin, "normal", "route.create", "新建线路（有序的中转机器列表）", s.mutate("route.create", nil)},
-		{"PATCH", "/api/v1/routes/{id}", accessAdmin, "normal", "route.update", "修改线路名称或跳（已有入口时不能改跳）", s.mutate("route.update", pathRef("route"))},
+		{"PATCH", "/api/v1/routes/{id}", accessAdmin, "normal", "route.update", "修改线路名称或跳（已有入口时就地增删跳，保留的跳不变）", s.mutate("route.update", pathRef("route"))},
 		{"DELETE", "/api/v1/routes/{id}", accessAdmin, "sensitive", "route.delete", "删除线路（没有入口时）", s.mutate("route.delete", pathRef("route"))},
 		{"POST", "/api/v1/routes/{id}:apply", accessAdmin, "normal", "route.apply", "让套餐或指定节点经这条线路各开一个入口", s.mutate("route.apply", pathRef("route"))},
 		{"GET", "/api/v1/nodes/{id}/entries", accessAdmin, "read", "", "节点的入口：链路、状态与今日流量", s.nodeEntryList},

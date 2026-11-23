@@ -81,6 +81,10 @@ INSERT INTO node_entries (node_id, route_id, suffix, name, address, port, enable
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 RETURNING *;
 
+-- name: SetEntryOverride :exec
+-- 入口覆盖的订阅地址和端口；线路第一跳变化后清空，订阅改用新第一跳。
+UPDATE node_entries SET address = $2, port = $3, updated_at = now(), version = version + 1 WHERE id = $1;
+
 -- name: SetEntryEnabled :exec
 UPDATE node_entries SET enabled = $2, updated_at = now(), version = version + 1 WHERE id = $1;
 
@@ -133,6 +137,10 @@ RETURNING *;
 -- name: SetForwardEndpoints :exec
 -- 机器对外地址、端口段或落地节点变化后重新计算的外网端口与下一跳。target_ip 随之更新（域名时清空，等待解析）。
 UPDATE forwards SET public_port = $2, target_host = $3, target_port = $4, target_ip = $5, updated_at = now() WHERE id = $1;
+
+-- name: SetForwardHop :exec
+-- 线路增删跳后保留的转发换到新的序号；端口、计数和 patato-node 上的规则不变。
+UPDATE forwards SET hop = $2, updated_at = now() WHERE id = $1;
 
 -- name: SetForwardTargetIP :exec
 UPDATE forwards SET target_ip = $2, updated_at = now() WHERE id = $1;

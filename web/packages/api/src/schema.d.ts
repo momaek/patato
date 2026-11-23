@@ -687,7 +687,7 @@ export interface paths {
         delete: operations["delete_routes_id"];
         options?: never;
         head?: never;
-        /** 修改线路名称或跳（已有入口时不能改跳） */
+        /** 修改线路名称或跳（已有入口时就地增删跳，保留的跳不变） */
         patch: operations["patch_routes_id"];
         trace?: never;
     };
