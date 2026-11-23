@@ -21,7 +21,7 @@ void props
       :aria-invalid="error ? true : undefined"
       :aria-describedby="error || hint ? id + '-d' : undefined"
       :class="[
-        'min-h-11 rounded-control border bg-card px-3 text-field outline-none transition-colors placeholder:text-muted/70 focus:border-accent focus:ring-2 focus:ring-accent/20',
+        'min-h-11 rounded-control border bg-card px-3 text-field text-ink outline-none transition-[border-color,box-shadow] duration-150 placeholder:text-muted focus:border-accent focus:ring-2 focus:ring-accent/20',
         error ? 'border-bad' : 'border-control',
       ]"
     />

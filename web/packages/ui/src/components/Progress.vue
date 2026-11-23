@@ -15,6 +15,6 @@ const tone = computed(() => (pct.value >= 100 ? 'bg-bad' : pct.value >= 85 ? 'bg
     :aria-valuetext="valueText"
     class="h-2 overflow-hidden rounded-full bg-line-soft"
   >
-    <div :class="['h-full rounded-full', tone]" :style="{ width: pct + '%' }" />
+    <div :class="['h-full rounded-full transition-[width] duration-300', tone]" :style="{ width: pct + '%' }" />
   </div>
 </template>

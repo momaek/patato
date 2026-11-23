@@ -26,14 +26,14 @@ const q = useQuery({
 
 <template>
   <PageHeader title="审批" lead="敏感变更要运营者用 passkey 批准后才会执行。Telegram 卡片和这里的审批是同一份。" />
-  <div role="tablist" aria-label="按状态筛选" class="flex flex-wrap gap-1">
+  <div role="tablist" aria-label="按状态筛选" class="seg-tabs">
     <button
       v-for="t in tabs"
       :key="t.value"
       role="tab"
       type="button"
       :aria-selected="status === t.value"
-      :class="['rounded-md px-3 py-1.5 font-medium', status === t.value ? 'bg-ink text-white' : 'text-muted hover:bg-card']"
+      class="seg-tab"
       @click="router.replace({ query: { status: t.value } })"
     >
       {{ t.label }}

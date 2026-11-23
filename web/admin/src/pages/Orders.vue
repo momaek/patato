@@ -82,14 +82,14 @@ const cancelRequest = () => ({ method: 'post' as const, path: '/api/v1/orders/{i
       <input id="order-q" v-model="search" type="search" placeholder="搜索订单号或邮箱" class="field-input min-w-0 flex-[1_1_260px]" />
       <Button type="submit">搜索</Button>
     </form>
-    <div role="tablist" aria-label="按状态筛选" class="flex flex-wrap gap-1">
+    <div role="tablist" aria-label="按状态筛选" class="seg-tabs">
       <button
         v-for="f in filters"
         :key="f.value"
         role="tab"
         type="button"
         :aria-selected="filter === f.value"
-        :class="['rounded-md px-3 py-1.5 font-medium', filter === f.value ? 'bg-ink text-white' : 'text-muted hover:bg-card']"
+        class="seg-tab"
         @click="setQuery({ status: f.value, id: undefined })"
       >
         {{ f.label }}

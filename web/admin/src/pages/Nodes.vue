@@ -40,17 +40,17 @@ function heartbeat(n: Node) {
     对 Agent 说「把刚上线的东京机器加到高级套餐」，或者在终端运行：
   </CliHint>
   <div class="flex flex-col gap-3">
-    <div role="tablist" aria-label="按状态筛选" class="flex flex-wrap gap-1">
+    <div role="tablist" aria-label="按状态筛选" class="seg-tabs">
       <button
         v-for="t in tabs"
         :key="t.value"
         role="tab"
         type="button"
         :aria-selected="state === t.value"
-        :class="['rounded-md px-3 py-1.5 font-medium', state === t.value ? 'bg-ink text-white' : 'text-muted hover:bg-card']"
+        class="seg-tab"
         @click="router.replace({ query: t.value ? { state: t.value } : {} })"
       >
-        {{ t.label }} <span class="tabular opacity-75">{{ t.n }}</span>
+        {{ t.label }} <span class="text-[12px] text-muted tabular">{{ t.n }}</span>
       </button>
     </div>
     <LoadState :loading="q.isPending.value" :error="q.error.value" :message="q.error.value ? errorText(q.error.value) : undefined" @retry="q.refetch()">

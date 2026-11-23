@@ -41,14 +41,14 @@ const tickets = computed(() => list.data.value?.pages.flatMap((p) => p.items) ??
   <CliHint title="让 Agent 先草拟" command="patato ticket list && patato ticket show <工单>">
     Agent 只能保存草稿（patato ticket draft），回答不了的会标为「等你处理」，不会直接回复用户。
   </CliHint>
-  <div role="tablist" aria-label="按状态筛选" class="flex flex-wrap gap-1">
+  <div role="tablist" aria-label="按状态筛选" class="seg-tabs">
     <button
       v-for="f in filters"
       :key="f.value"
       role="tab"
       type="button"
       :aria-selected="filter === f.value"
-      :class="['rounded-md px-3 py-1.5 font-medium', filter === f.value ? 'bg-ink text-white' : 'text-muted hover:bg-card']"
+      class="seg-tab"
       @click="router.replace({ query: { status: f.value } })"
     >
       {{ f.label }}

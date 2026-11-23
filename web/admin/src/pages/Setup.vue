@@ -5,6 +5,7 @@ import { errorText } from '@patato/api'
 import { Alert, Button, Card } from '@patato/ui'
 import { passkeyError, register, supported } from '../lib/passkey'
 import { useSession } from '../lib/session'
+import Logo from '../components/Logo.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -29,8 +30,9 @@ async function go() {
 </script>
 
 <template>
-  <div class="flex min-h-dvh items-center justify-center px-4">
-    <Card class="flex w-full max-w-[440px] flex-col gap-5 p-7">
+  <div class="flex min-h-dvh items-center justify-center bg-[radial-gradient(ellipse_at_top,var(--color-accent-soft),transparent_60%)] px-4">
+    <Card class="flex w-full max-w-[440px] flex-col gap-5 p-7 shadow-pop">
+      <div class="flex items-center gap-2.5"><Logo /></div>
       <div class="flex flex-col gap-1">
         <h1 class="text-2xl font-semibold">注册 passkey</h1>
         <p class="text-muted">这条邀请链接 24 小时内有效，只能用一次。注册后用这把 passkey 登录 Admin、批准敏感变更。</p>

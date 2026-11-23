@@ -23,7 +23,7 @@ const active = computed(() => (hover.value === null ? null : props.points[hover.
         <div
           v-for="(p, i) in points"
           :key="p.day"
-          class="relative flex h-full flex-1 cursor-default items-end"
+          class="relative flex h-full flex-1 cursor-default items-end rounded-t-[4px] outline-offset-0"
           @mouseenter="hover = i"
           @focus="hover = i"
           @blur="hover = null"
@@ -31,12 +31,12 @@ const active = computed(() => (hover.value === null ? null : props.points[hover.
           :aria-label="`${p.day}：${format(p.value)}`"
         >
           <div
-            :class="['w-full rounded-t-[4px] transition-opacity', hover === null || hover === i ? 'bg-accent' : 'bg-accent opacity-40']"
+            :class="['w-full rounded-t-[4px] bg-accent transition-opacity duration-150', hover === null || hover === i ? 'opacity-100' : 'opacity-35']"
             :style="{ height: p.value > 0 ? `max(2px, ${(p.value / max) * 100}%)` : '0' }"
           />
         </div>
       </div>
-      <div v-if="active" class="pointer-events-none absolute top-0 left-0 rounded-md border border-line bg-card px-2.5 py-1.5 text-[13px] shadow-sm">
+      <div v-if="active" class="pointer-events-none absolute top-0 left-0 rounded-md border border-line bg-raised px-2.5 py-1.5 text-[13px] shadow-pop">
         <span class="text-muted">{{ active.day }}</span> <span class="font-medium tabular">{{ format(active.value) }}</span>
       </div>
     </div>

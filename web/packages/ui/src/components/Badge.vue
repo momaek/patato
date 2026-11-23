@@ -8,10 +8,10 @@ const tones: Record<Tone, string> = {
   bad: 'bg-bad-soft text-bad',
   idle: 'bg-idle-soft text-idle',
   accent: 'bg-accent-soft text-accent-strong',
-  neutral: 'bg-bg text-muted',
+  neutral: 'bg-line-soft text-muted',
 }
 </script>
 
 <template>
-  <span :class="['inline-flex items-center rounded px-2 py-0.5 text-xs font-medium whitespace-nowrap', tones[tone]]"><slot /></span>
+  <span :class="['inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs leading-4 font-medium whitespace-nowrap ring-1 ring-current/15 ring-inset', tones[tone]]"><slot /></span>
 </template>

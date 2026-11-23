@@ -2,7 +2,56 @@
 @import "@patato/ui/styles.css";
 @source "../../packages/ui/src";
 
+/*
+ * Admin 主题。浅色用 @patato/ui 的默认 token；深色参考 ui-ux-pro-max「Dark tech + status green」，
+ * 由 <html data-theme> 决定：默认跟随系统，可在侧栏底部切换，见 src/theme.ts 和 index.html。
+ * 正文与次要文字对卡片底色的对比度都在 4.5:1 以上。
+ */
+@layer theme {
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --color-bg: #0b1120;
+    --color-card: #131b2c;
+    --color-raised: #222c40;
+    --color-ink: #f1f5f9;
+    --color-muted: #94a3b8;
+    --color-line: #253045;
+    --color-line-soft: #1b2436;
+    --color-control: #3a4659;
+    --color-accent: #22c55e;
+    --color-accent-strong: #4ade80;
+    --color-accent-soft: #11301e;
+    --color-on-accent: #052e16;
+    --color-ok: #4ade80;
+    --color-ok-soft: #11301e;
+    --color-warn: #fbbf24;
+    --color-warn-soft: #382a0d;
+    --color-bad: #f87171;
+    --color-bad-soft: #3a171b;
+    --color-idle: #94a3b8;
+    --color-idle-soft: #1e283a;
+    --color-scrim: rgb(2 6 23 / 0.7);
+    --shadow-card: 0 0 #0000;
+    --shadow-pop: 0 16px 48px rgb(0 0 0 / 0.5);
+  }
+}
+
+@layer base {
+  /* Tailwind v4 不再给按钮默认 pointer；可点击元素都要有 */
+  button:not(:disabled), [role="tab"], summary, select, input[type="checkbox"], input[type="radio"] {
+    cursor: pointer;
+  }
+}
+
 /* 下拉框、多行文本等原生表单控件的统一外观（单行输入框用 @patato/ui 的 Field） */
 @utility field-input {
-  @apply min-h-10 rounded-lg border border-control bg-card px-3 text-[14px] outline-none focus:border-accent focus:ring-2 focus:ring-accent/20;
+  @apply min-h-10 rounded-control border border-control bg-card px-3 text-[14px] text-ink outline-none transition-[border-color,box-shadow] duration-150 placeholder:text-muted focus:border-accent focus:ring-3 focus:ring-accent/20;
+}
+
+/* 分段筛选：<div role="tablist" class="seg-tabs"><button role="tab" class="seg-tab" :aria-selected> */
+@utility seg-tabs {
+  @apply inline-flex flex-wrap gap-0.5 self-start rounded-control border border-line bg-line-soft p-[3px];
+}
+@utility seg-tab {
+  @apply inline-flex min-h-8 items-center gap-1.5 rounded-[5px] px-3 font-medium whitespace-nowrap text-muted transition-colors duration-150 hover:text-ink aria-selected:bg-raised aria-selected:text-ink aria-selected:shadow-card;
 }
