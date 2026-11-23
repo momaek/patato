@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { api, errorText } from '@patato/api'
 import { Alert, Button, Card, Field } from '@patato/ui'
 import AppShell from '../components/AppShell.vue'
+import PageHeader from '../components/PageHeader.vue'
 import { useSubscription } from '../session'
 
 const { t } = useI18n()
@@ -38,15 +39,15 @@ async function submit() {
 
 <template>
   <AppShell :service-name="serviceName">
-    <Card as="section" class="flex flex-col gap-4 p-5">
-      <h1 class="text-xl font-semibold">{{ t('changePassword.title') }}</h1>
+    <PageHeader :title="t('changePassword.title')" :lead="t('changePassword.lead')" />
+    <Card as="section" class="flex flex-col gap-4 p-5 md:p-6">
       <Alert v-if="done" tone="ok">{{ t('changePassword.done') }}</Alert>
       <form class="flex flex-col gap-4" novalidate @submit.prevent="submit">
         <Field v-model="current" :label="t('changePassword.current')" type="password" autocomplete="current-password" />
         <Field v-model="next" :label="t('newPassword.password')" type="password" autocomplete="new-password" :hint="t('newPassword.hint')" :error="shortError" />
         <Field v-model="confirm" :label="t('newPassword.confirm')" type="password" autocomplete="new-password" :error="mismatch" />
         <Alert v-if="error">{{ error }}</Alert>
-        <Button type="submit" variant="primary" class="self-start" :loading="busy" :disabled="!current || !next">{{ t('changePassword.submit') }}</Button>
+        <Button type="submit" variant="primary" class="min-h-11 self-start max-sm:w-full" :loading="busy" :disabled="!current || !next">{{ t('changePassword.submit') }}</Button>
       </form>
     </Card>
   </AppShell>

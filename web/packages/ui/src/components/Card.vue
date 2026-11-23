@@ -4,5 +4,5 @@ defineProps<{ class?: string; as?: string }>()
 </script>
 
 <template>
-  <component :is="as ?? 'div'" :class="cn('rounded-[10px] border border-line bg-card', $props.class)"><slot /></component>
+  <component :is="as ?? 'div'" :class="cn('rounded-card border border-line bg-card shadow-card', $props.class)"><slot /></component>
 </template>

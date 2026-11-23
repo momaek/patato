@@ -10,6 +10,15 @@ export default {
     copied: '已复制',
     retry: '重试',
   },
+  theme: { switch: '切换深浅色（当前：{current}）', system: '跟随系统', light: '浅色', dark: '深色' },
+  auth: {
+    tagline: '一个账号，管好所有设备的订阅。',
+    points: {
+      usage: { title: '用量一目了然', text: '流量、到期时间和在线设备随时查看。' },
+      import: { title: '一键导入客户端', text: '点一下或扫码，订阅自动添加到 App。' },
+      secure: { title: '链接泄露可重置', text: '旧链接立即失效，账号和套餐不受影响。' },
+    },
+  },
   login: {
     title: '登录',
     lead: '原来的账号和密码可以直接登录，订阅链接不变。',
@@ -47,6 +56,7 @@ export default {
     current: '当前密码',
     submit: '保存',
     done: '密码已修改，其他设备上的网页登录已退出。',
+    lead: '修改后，其他设备上的网页登录会退出；订阅链接不受影响。',
   },
   home: {
     nav: '订阅',
@@ -66,7 +76,21 @@ export default {
     devicesUnlimited: '{online} 台在线，不限设备',
     import: '导入到客户端',
     importLead: '点一下打开对应的 App，订阅会自动添加。',
+    copyThenAdd: '{platforms} · 复制后添加',
+    copiedFor: '订阅链接已复制，在 {name} 里粘贴添加',
     link: '订阅链接',
+    linkLead: '其他客户端可以复制链接手动添加，或用手机扫码。',
+    myPlan: '我的套餐',
+    left: '剩余流量',
+    resetOn: '{date}重置',
+    noReset: '不自动重置',
+    usedPct: '已使用 {pct}%',
+    daysLeft: '{days} 天',
+    today: '今天到期',
+    neverSub: '无到期时间',
+    devicesOnline: '台在线',
+    devicesUnlimitedShort: '台在线 · 不限设备',
+    nodesCount: '{n} 个',
     showQr: '显示二维码',
     hideQr: '收起二维码',
     qrHint: '用手机客户端扫码导入',
@@ -107,7 +131,7 @@ export default {
     done: '这是新的订阅链接。在每台设备上重新导入一次，就能恢复使用。',
     backHome: '回到我的订阅',
   },
-  nav: { home: '订阅', buy: '续费 / 购买', orders: '订单', tickets: '工单', invite: '邀请', account: '修改密码' },
+  nav: { home: '订阅', buy: '续费 / 购买', buyShort: '购买', orders: '订单', tickets: '工单', invite: '邀请', account: '修改密码' },
   register: {
     title: '注册',
     lead: '注册后购买套餐即可使用。',
@@ -118,6 +142,8 @@ export default {
     hasAccount: '已有账号？去登录',
     closed: '暂未开放注册。迁移来的老账号可以直接登录。',
     toRegister: '没有账号？注册',
+    noAccount: '还没有账号？',
+    toRegisterShort: '注册',
   },
   buy: {
     title: '续费 / 购买',
@@ -141,6 +167,10 @@ export default {
     none: '暂时没有在售的套餐',
     kind: { new: '新购', renew: '续费', change: '更换套餐', reset_traffic: '流量重置' },
     from: '{price} 起',
+    fromSuffix: '起',
+    choosePlan: '选择套餐',
+    speed: '限速 {n} Mbps',
+    summary: '订单摘要',
   },
   orders: {
     title: '我的订单',
@@ -158,6 +188,8 @@ export default {
     refunded: '已退款 {amount}',
     back: '全部订单',
     tradeNo: '订单号',
+    detailAria: '订单详情',
+    goBuy: '去购买套餐',
   },
   tickets: {
     title: '工单',
@@ -168,6 +200,7 @@ export default {
     bodyHint: '写清楚用的是哪个客户端、哪个节点、什么时候开始的',
     submit: '提交',
     none: '还没有工单',
+    noneHint: '使用中遇到问题，点「提交工单」联系客服。',
     status: { open: '等待回复', replied: '已回复', closed: '已关闭' },
     you: '你',
     support: '客服',
@@ -195,5 +228,6 @@ export default {
   usage: {
     title: '最近 30 天用量',
     total: '共 {amount}',
+    aria: '最近 30 天每日用量柱状图，合计 {amount}',
   },
 }

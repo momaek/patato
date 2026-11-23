@@ -1,15 +1,98 @@
 @import "tailwindcss";
 @import "@patato/ui/styles.css";
+@import "@fontsource-variable/plus-jakarta-sans";
 @source "../../packages/ui/src";
+
+/*
+ * 用户侧主题（参考 ui-ux-pro-max：Minimalism 风格，信任蓝 + 「已连接」绿，深色用盾牌深蓝）。
+ * 只覆盖 @patato/ui 的 token，Admin 不受影响。正文与次要文字对卡片底色的对比度都在 4.5:1 以上。
+ * 深浅色由 <html data-theme> 决定：默认跟随系统，用户可在页头切换，见 src/theme.ts 和 index.html。
+ */
+@theme {
+  --color-bg: #f5f7fb;
+  --color-card: #ffffff;
+  --color-ink: #0f172a;
+  --color-muted: #475569;
+  --color-line: #e2e8f0;
+  --color-line-soft: #edf1f6;
+  --color-control: #cbd5e1;
+  --color-accent: #2563eb;
+  --color-accent-strong: #1d4ed8;
+  --color-accent-soft: #eaf1ff;
+  --color-on-accent: #ffffff;
+  --color-ok: #15803d;
+  --color-ok-soft: #e7f6ec;
+  --color-warn: #b45309;
+  --color-warn-soft: #fdf1e1;
+  --color-bad: #dc2626;
+  --color-bad-soft: #fdecec;
+  --color-idle: #475569;
+  --color-idle-soft: #eef2f7;
+  --color-scrim: rgb(15 23 42 / 0.45);
+
+  --radius-card: 16px;
+  --radius-control: 10px;
+  --shadow-card: 0 1px 2px rgb(15 23 42 / 0.04), 0 2px 8px rgb(15 23 42 / 0.04);
+  --text-field: 16px;
+
+  --font-sans: "Plus Jakarta Sans Variable", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", system-ui, sans-serif;
+}
+
+@layer theme {
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --color-bg: #0b1120;
+    --color-card: #131c2e;
+    --color-ink: #f1f5f9;
+    --color-muted: #9aa8bc;
+    --color-line: #233047;
+    --color-line-soft: #1b2539;
+    --color-control: #344360;
+    --color-accent: #60a5fa;
+    --color-accent-strong: #93c5fd;
+    --color-accent-soft: #172a4d;
+    --color-on-accent: #0b1120;
+    --color-ok: #4ade80;
+    --color-ok-soft: #10301f;
+    --color-warn: #fbbf24;
+    --color-warn-soft: #33260b;
+    --color-bad: #f87171;
+    --color-bad-soft: #3a1619;
+    --color-idle: #9aa8bc;
+    --color-idle-soft: #1e293b;
+    --color-scrim: rgb(2 6 23 / 0.65);
+    --shadow-card: 0 0 #0000;
+  }
+}
 
 @layer base {
   html {
     font-size: 15px;
     line-height: 1.6;
   }
+  h1, h2, h3 {
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+  }
+  button:not(:disabled), select, label:has(> input[type="radio"]), label:has(> input[type="checkbox"]) {
+    cursor: pointer;
+  }
 }
 
 /* 下拉框、多行文本等原生表单控件的统一外观（单行输入框用 @patato/ui 的 Field） */
 @utility field-input {
-  @apply min-h-10 rounded-lg border border-control bg-card px-3 text-[14px] outline-none focus:border-accent focus:ring-2 focus:ring-accent/20;
+  @apply min-h-11 rounded-control border border-control bg-card px-3 text-field outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/20;
+}
+
+/* 按钮样式的链接（RouterLink 不能直接套 Button 组件） */
+@utility btn-primary {
+  @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-control bg-accent px-4 font-medium whitespace-nowrap text-on-accent no-underline transition-colors duration-150 hover:bg-accent-strong hover:text-on-accent;
+}
+@utility btn-secondary {
+  @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-control border border-control bg-card px-4 font-medium whitespace-nowrap text-ink no-underline transition-colors duration-150 hover:bg-bg hover:text-ink;
+}
+
+/* 标题、列表前的图标底块 */
+@utility icon-tile {
+  @apply inline-flex size-10 shrink-0 items-center justify-center rounded-control bg-accent-soft text-accent;
 }

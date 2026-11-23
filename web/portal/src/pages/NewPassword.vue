@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { api, errorText } from '@patato/api'
 import { Alert, Button, Card, Field } from '@patato/ui'
+import { CircleCheck } from 'lucide-vue-next'
 import AuthShell from '../components/AuthShell.vue'
 
 const { t } = useI18n()
@@ -40,11 +41,12 @@ async function submit() {
 
 <template>
   <AuthShell>
-    <h1 class="text-2xl font-semibold">{{ done ? t('newPassword.doneTitle') : t('newPassword.title') }}</h1>
+    <h1 class="text-[28px] leading-tight font-bold tracking-tight">{{ done ? t('newPassword.doneTitle') : t('newPassword.title') }}</h1>
     <Alert v-if="!token">{{ t('newPassword.missingToken') }}</Alert>
-    <Card v-else-if="done" class="flex flex-col gap-3 p-4" role="status">
+    <Card v-else-if="done" class="flex flex-col gap-3 p-5" role="status">
+      <span class="icon-tile bg-ok-soft text-ok"><CircleCheck class="size-5" aria-hidden="true" /></span>
       <p class="text-muted">{{ t('newPassword.done') }}</p>
-      <RouterLink :to="{ name: 'login' }" class="font-medium">{{ t('newPassword.toLogin') }}</RouterLink>
+      <RouterLink :to="{ name: 'login' }" class="btn-primary self-start">{{ t('newPassword.toLogin') }}</RouterLink>
     </Card>
     <form v-else class="flex flex-col gap-4" novalidate @submit.prevent="submit">
       <Field v-model="password" :label="t('newPassword.password')" type="password" autocomplete="new-password" :hint="t('newPassword.hint')" :error="shortError" />

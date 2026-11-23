@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { api, errorText } from '@patato/api'
 import { Alert, Button, Card, Field } from '@patato/ui'
+import { MailCheck } from 'lucide-vue-next'
 import AuthShell from '../components/AuthShell.vue'
 import { supportContact } from '../session'
 
@@ -40,8 +41,8 @@ const help = computed(() => (supportContact ? t('forgot.help', { contact: suppor
 
 <template>
   <AuthShell back :help="help">
-    <div class="flex flex-col gap-1.5">
-      <h1 class="text-2xl font-semibold">{{ t('forgot.title') }}</h1>
+    <div class="flex flex-col gap-2">
+      <h1 class="text-[28px] leading-tight font-bold tracking-tight">{{ t('forgot.title') }}</h1>
       <p class="text-muted">{{ t('forgot.lead') }}</p>
     </div>
     <form class="flex flex-col gap-4" novalidate @submit.prevent="send">
@@ -49,7 +50,8 @@ const help = computed(() => (supportContact ? t('forgot.help', { contact: suppor
       <Alert v-if="error">{{ error }}</Alert>
       <Button v-if="!sentTo" type="submit" variant="primary" size="lg" block :loading="busy" :disabled="!email">{{ t('forgot.submit') }}</Button>
     </form>
-    <Card v-if="sentTo" class="flex flex-col gap-2 p-4" role="status">
+    <Card v-if="sentTo" class="flex flex-col gap-2 p-5" role="status">
+      <span class="icon-tile mb-1 bg-ok-soft text-ok"><MailCheck class="size-5" aria-hidden="true" /></span>
       <p class="font-semibold">{{ t('forgot.sentTitle') }}</p>
       <p class="text-muted">{{ t('forgot.sent', { email: sentTo }) }}</p>
       <p class="text-[13px] text-muted">{{ wait > 0 ? t('forgot.resend', { seconds: wait }) : t('forgot.resendNow') }}</p>

@@ -25,6 +25,16 @@
   --color-bad-soft: #fbe9e7;
   --color-idle: #4a5560;
   --color-idle-soft: #eceff1;
+  /* 强调色底上的文字；深色主题下强调色变浅，文字要跟着变深 */
+  --color-on-accent: #ffffff;
+  /* 弹窗遮罩，不随正文颜色变化 */
+  --color-scrim: rgb(24 32 29 / 0.3);
+
+  /* 圆角、卡片阴影、输入框字号。应用可以在自己的入口样式里覆盖（用户侧更圆、带浅阴影、输入框 16px 防 iOS 缩放） */
+  --radius-card: 10px;
+  --radius-control: 8px;
+  --shadow-card: 0 0 #0000;
+  --text-field: 15px;
 
   --font-sans: "IBM Plex Sans", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;

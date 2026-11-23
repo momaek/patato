@@ -6,6 +6,7 @@ import { useQueryClient } from '@tanstack/vue-query'
 import { toast } from 'vue-sonner'
 import { api, errorText, type MyRuleProfiles } from '@patato/api'
 import { Button, Card } from '@patato/ui'
+import { Split } from 'lucide-vue-next'
 import { useAuthed } from '../session'
 
 const { t } = useI18n()
@@ -34,10 +35,13 @@ async function save() {
 </script>
 
 <template>
-  <Card v-if="q.data.value && (q.data.value.items.length || q.data.value.effective)" as="section" aria-labelledby="rules-h" class="flex flex-col gap-3 p-4">
-    <div class="flex flex-col gap-0.5">
-      <h2 id="rules-h" class="font-semibold">{{ t('rules.title') }}</h2>
-      <p class="text-[13px] text-muted">{{ t('rules.lead') }}</p>
+  <Card v-if="q.data.value && (q.data.value.items.length || q.data.value.effective)" as="section" aria-labelledby="rules-h" class="flex flex-col gap-3 p-5">
+    <div class="flex items-start gap-3.5">
+      <span class="icon-tile"><Split class="size-5" aria-hidden="true" /></span>
+      <div class="flex min-w-0 flex-col gap-0.5">
+        <h2 id="rules-h" class="font-semibold">{{ t('rules.title') }}</h2>
+        <p class="text-[13px] text-muted">{{ t('rules.lead') }}</p>
+      </div>
     </div>
     <template v-if="q.data.value.items.length">
       <label class="flex flex-col gap-1.5">

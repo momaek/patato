@@ -5,6 +5,7 @@ import App from './App.vue'
 import { router } from './router'
 import { i18n } from './i18n'
 import './main.css'
+import './theme'
 
 const queryClient = new QueryClient({
   defaultOptions: {
