@@ -29,6 +29,7 @@ var version = "dev"
 
 func main() {
 	log := slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	config.ReleaseVersion = version
 	args := os.Args[1:]
 	cmd := "serve"
 	if len(args) > 0 && args[0] != "" && args[0][0] != '-' {

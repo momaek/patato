@@ -56,3 +56,15 @@ func TestPaymentDrivers(t *testing.T) {
 		})
 	}
 }
+
+func TestDefaultNodeBinaryURL(t *testing.T) {
+	for version, want := range map[string]string{
+		"v0.2.0": "https://github.com/momaek/patato/releases/download/v0.2.0/patato-node-linux-{arch}",
+		"dev":    "https://github.com/momaek/patato/releases/latest/download/patato-node-linux-{arch}",
+		"":       "https://github.com/momaek/patato/releases/latest/download/patato-node-linux-{arch}",
+	} {
+		if got := DefaultNodeBinaryURL(version); got != want {
+			t.Errorf("DefaultNodeBinaryURL(%q) = %q, want %q", version, got, want)
+		}
+	}
+}

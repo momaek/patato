@@ -204,6 +204,19 @@ type TolatoConfig struct {
 	AttestEnroll bool `yaml:"attest_enroll"`
 }
 
+// ReleaseVersion 是服务端自己的版本号，由入口在读取配置前设置（发布构建时经 -ldflags 写入）。
+var ReleaseVersion = "dev"
+
+// DefaultNodeBinaryURL 是 node.binary_url 的默认值：发布版本的服务端让节点下载同一 Release 的 patato-node，
+// 避免面板和节点版本不一致；开发构建（不是 v 开头的版本号）用最新 Release。
+func DefaultNodeBinaryURL(version string) string {
+	const repo = "https://github.com/momaek/patato/releases/"
+	if strings.HasPrefix(version, "v") && !strings.ContainsAny(version, "/ ") {
+		return repo + "download/" + version + "/patato-node-linux-{arch}"
+	}
+	return repo + "latest/download/patato-node-linux-{arch}"
+}
+
 // Load 读取配置文件；path 为空时只用默认值和环境变量。
 func Load(path string) (*Config, error) {
 	c := Default()
@@ -235,7 +248,7 @@ func Default() *Config {
 			PullInterval: 60,
 			OfflineAfter: Duration(5 * time.Minute),
 			DeviceTTL:    Duration(5 * time.Minute),
-			BinaryURL:    "https://github.com/momaek/patato/releases/latest/download/patato-node-linux-{arch}",
+			BinaryURL:    DefaultNodeBinaryURL(ReleaseVersion),
 		},
 		Risk:    RiskConfig{UserThreshold: 100, NodeThreshold: 5},
 		Change:  ChangeConfig{PlanTTL: Duration(30 * time.Minute), ApprovalTTL: Duration(30 * time.Minute)},

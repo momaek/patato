@@ -1,10 +1,13 @@
+# Patato 一键部署用的 Compose 文件。参数放在同目录的 .env（install.sh 会生成），没有 .env 时取下面的默认值。
+# - 想改这个文件里的东西，写在 docker-compose.override.yaml 里：install.sh 升级时会覆盖本文件（留 .bak 备份），不会动 override。
+# - 从源码构建镜像：docker compose -f docker-compose.yaml -f docker-compose.build.yaml up -d --build
 services:
   postgres:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
       POSTGRES_USER: patato
-      POSTGRES_PASSWORD: patato
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-patato}
       POSTGRES_DB: patato
     volumes:
       - ./pgdata:/var/lib/postgresql/data
@@ -15,10 +18,7 @@ services:
       retries: 10
 
   server:
-    image: ghcr.io/momaek/patato-server:${PATATO_VERSION:-latest}
-    build:
-      context: ..
-      dockerfile: server/Dockerfile
+    image: ${PATATO_IMAGE:-ghcr.io/momaek/patato-server}:${PATATO_VERSION:-latest}
     restart: unless-stopped
     depends_on:
       postgres:
@@ -29,16 +29,27 @@ services:
       - ./config.yaml:/app/config.yaml:ro
     expose:
       - "8080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/healthz >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 3s
+      start_period: 30s
+      retries: 3
 
-  # 反向代理与自动签发证书；前端已嵌入 server 镜像
+  # 反向代理与自动签发证书；前端已嵌入 server 镜像。域名来自 .env，见 Caddyfile。
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
     depends_on:
       - server
+    environment:
+      PATATO_API_HOST: ${PATATO_API_HOST:-api.example.com}
+      PATATO_ADMIN_HOST: ${PATATO_ADMIN_HOST:-admin.example.com}
+      PATATO_PORTAL_HOST: ${PATATO_PORTAL_HOST:-my.example.com}
     ports:
-      - "80:80"
-      - "443:443"
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+      - "${HTTPS_PORT:-443}:443/udp"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - ./caddy-data:/data
@@ -51,7 +62,7 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      PGPASSWORD: patato
+      PGPASSWORD: ${POSTGRES_PASSWORD:-patato}
     volumes:
       - ./backups:/backups
     entrypoint: ["/bin/sh", "-c"]

@@ -7,9 +7,12 @@
 ## 安装与登录
 
 ```bash
-make install-cli                      # 安装到 $(go env GOPATH)/bin，同时建 pat 别名
+curl -fsSL https://github.com/momaek/patato/releases/latest/download/install-cli.sh | sh   # 从 Release 安装，同时建 pat 别名
+# 或从源码：make install-cli（安装到 $(go env GOPATH)/bin）
 patato auth login --url https://api.example.com
 ```
+
+Windows 从 [Release](https://github.com/momaek/patato/releases) 下载 `patato-windows-amd64.exe` / `patato-windows-arm64.exe`。
 
 登录用设备授权：CLI 打印一个短码和 Admin 上的链接（默认自动打开浏览器），运营者用 passkey 登录 Admin、核对短码后批准，CLI 拿到 token 写进 `~/.config/patato/config.yaml`（权限 0600）。
 
