@@ -41,7 +41,7 @@ Admin 与用户侧是两个独立的前端应用（Vue 3 + shadcn-vue），只�
 
 2026-11 按 [ui-ux-pro-max](https://github.com/nextlevelbuilder/ui-ux-pro-max-skill) 的推荐重做了视觉层（`--design-system "admin dashboard network infrastructure operations console" --density 8`）：风格为 Minimalism & Swiss Style（高密度仪表盘），配色取「Dark tech + status green」。上面画布里的稿子是改版前的版式参考，颜色和字体以这里为准。
 
-- 主题：浅色 / 深色，默认跟随系统，Admin 侧栏底部可切换（`localStorage` 键 `patato.theme`，与用户侧共用）。生效的颜色写在 `<html data-theme>`，见 `web/admin/src/theme.ts` 与 `index.html` 内联脚本。
+- 主题：浅色 / 深色，默认跟随系统，Admin 侧栏底部可切换（`localStorage` 键 `patato.theme`，与用户侧共用）。生效的颜色写在 `<html data-theme>`，见 `web/packages/ui/src/lib/theme.ts` 与两个 app 的 `index.html` 内联脚本。
 - 颜色：组件只用语义 token（`bg-bg`、`bg-card`、`text-ink`、`text-muted`、`border-line`、`bg-accent` + `text-on-accent` …），不写原始色值。`web/packages/ui/src/styles.css` 里的默认值即 Admin 浅色；Admin 深色在 `web/admin/src/main.css`，用户侧的蓝色主题在 `web/portal/src/main.css` 覆盖。
   - 浅色：底 `#F6F8FA`，卡片 `#FFFFFF`，正文 `#0F172A`，次要 `#475569`，边线 `#E2E8F0`，强调 `#15803D`。
   - 深色：底 `#0B1120`，卡片 `#131B2C`，正文 `#F1F5F9`，次要 `#94A3B8`，边线 `#253045`，强调 `#22C55E`（按钮文字 `#052E16`）。

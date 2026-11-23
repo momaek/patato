@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="robots" content="noindex" />
     <script>
-      // 与 src/theme.ts 相同：在样式生效前定好深浅色，避免首屏闪白
+      // 与 @patato/ui 的 lib/theme.ts 相同：在样式生效前定好深浅色，避免首屏闪白
       try {
         var p = localStorage.getItem('patato.theme')
         var d = p === 'dark' || (p !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches)

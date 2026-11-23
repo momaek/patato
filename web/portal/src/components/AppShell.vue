@@ -5,9 +5,9 @@ import { computed, type Component } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { Gift, House, LifeBuoy, LogOut, Monitor, Moon, ReceiptText, ShoppingBag, Sun, UserRound } from 'lucide-vue-next'
+import { cycleTheme, themePref } from '@patato/ui'
 import Brand from './Brand.vue'
 import { useLogout, usePortalConfig } from '../session'
-import { cycleTheme, themePref } from '../theme'
 
 defineProps<{ serviceName: string; wide?: boolean }>()
 const { t } = useI18n()

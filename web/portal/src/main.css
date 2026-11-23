@@ -6,7 +6,7 @@
 /*
  * 用户侧主题（参考 ui-ux-pro-max：Minimalism 风格，信任蓝 + 「已连接」绿，深色用盾牌深蓝）。
  * 只覆盖 @patato/ui 的 token，Admin 不受影响。正文与次要文字对卡片底色的对比度都在 4.5:1 以上。
- * 深浅色由 <html data-theme> 决定：默认跟随系统，用户可在页头切换，见 src/theme.ts 和 index.html。
+ * 深浅色由 <html data-theme> 决定：默认跟随系统，用户可在页头切换，见 @patato/ui 的 lib/theme.ts 和 index.html。
  */
 @theme {
   --color-bg: #f5f7fb;

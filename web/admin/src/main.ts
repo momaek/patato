@@ -2,10 +2,12 @@ import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import { QueryClient, VueQueryPlugin } from '@tanstack/vue-query'
 import { isApiError } from '@patato/api'
+import { initTheme } from '@patato/ui'
 import App from './App.vue'
 import { router } from './router'
 import './main.css'
-import './theme'
+
+initTheme()
 
 const queryClient = new QueryClient({
   defaultOptions: {
