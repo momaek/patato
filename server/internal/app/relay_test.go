@@ -422,6 +422,63 @@ func TestRelayManualAndAdopt(t *testing.T) {
 	}
 }
 
+// TestRelayEntryAddressOverride 经线路的入口可以覆盖订阅里的第一跳地址和端口（第一跳前面还有一层运营者自管的转发，
+// 例如入口机整段 DNAT 到中转）：转发仍按分配的端口生成，预演、入口列表与订阅都用覆盖后的地址和端口。
+func TestRelayEntryAddressOverride(t *testing.T) {
+	env := newRelayEnv(t)
+	h := env.h
+	ctx := context.Background()
+	expect(t, h.api("PATCH", "/api/v1/machines/hk-01/network", map[string]any{"port_ranges": []map[string]any{{"local": "21001-21001"}}}), 200)
+	expect(t, h.api("POST", "/api/v1/routes", map[string]any{"code": "hk", "name": "香港中转", "hops": []string{"hk-01"}}), 200)
+
+	// 端口不合法时拒绝
+	expect(t, h.api("POST", "/api/v1/nodes/la-01/entries", map[string]any{"route": "hk", "port": 70000, "dry_run": true}), 400)
+
+	r := h.api("POST", "/api/v1/nodes/la-01/entries", map[string]any{
+		"route": "hk", "name": "洛杉矶 香港中转", "address": "entry.example.com", "port": 61001, "dry_run": true,
+	})
+	expect(t, r, 200)
+	if !strings.Contains(r.raw2(), "hk-01:21001") || !strings.Contains(r.raw2(), "entry.example.com:61001") {
+		t.Fatalf("plan must allocate the hop port and show the overridden entry address: %s", r.raw)
+	}
+	r = h.api("POST", "/api/v1/changes/"+r.str("change_id")+":apply", nil)
+	expect(t, r, 200)
+	entryID := int64(r.body["result"].(map[string]any)["entry_id"].(float64))
+	e, err := h.a.Store.GetEntry(ctx, entryID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if e.RouteID == nil || e.Address != "entry.example.com" || e.Port != 61001 {
+		t.Fatalf("entry must keep the overridden address and port: %+v", e)
+	}
+	fs, _ := h.a.Store.ListEntryForwards(ctx, entryID)
+	if len(fs) != 1 || fs[0].ListenPort != 21001 || fs[0].Mode != "nft" {
+		t.Fatalf("forward must still use the allocated port: %+v", fs)
+	}
+
+	// 转发生效后，订阅用覆盖后的地址和端口，而不是中转机器
+	h.a.Native.SetResolver(fakeIPResolver{"la.example.com": "203.0.113.9"})
+	s := env.sync(env.hkTok, "")
+	if s.Forwards == nil || len(s.Forwards.Items) != 1 {
+		t.Fatalf("hk sync: %+v", s.Forwards)
+	}
+	now := time.Now()
+	expect(t, env.machineDo(env.hkTok, nodeapi.PathReport, nodeapi.ReportRequest{Spool: "s1", Seq: 1, At: now,
+		Forwards: []nodeapi.ForwardReport{{ID: fs[0].ID, Applied: true, Mode: "nft", At: now}}}), 200)
+	sub := env.sub(env.subTokens[0], "clash-verge/v1.7")
+	if !strings.Contains(sub, "洛杉矶 香港中转") || !strings.Contains(sub, "entry.example.com") || !strings.Contains(sub, "61001") {
+		t.Fatalf("subscription must use the overridden entry address and port:\n%s", sub)
+	}
+	if strings.Contains(sub, "hk-01") || strings.Contains(sub, "21001") {
+		t.Fatalf("subscription must not expose the hop machine or its port:\n%s", sub)
+	}
+	r = h.api("GET", "/api/v1/nodes/la-01/entries", nil)
+	expect(t, r, 200)
+	if !strings.Contains(r.raw2(), `"host":"entry.example.com","port":61001`) {
+		t.Fatalf("entries view must show the overridden endpoint: %s", r.raw)
+	}
+}
+
 // TestNodeUpdatePortsSeparately 修改对外端口不覆盖监听端口；中转入口最后一跳跟着对外端口走。
 func TestNodeUpdatePortsSeparately(t *testing.T) {
 	env := newRelayEnv(t)

@@ -456,13 +456,14 @@ func (a *app) entryAdd(args []string) error {
 	c := newCommand("node entry add", `patato node entry add <节点> [--route <线路>] [--suffix ...] [--name ...] [--address <地址> --port <端口>]
   [--manual --forward <机器>:<端口>=<下一跳>:<端口>...]
 
-经线路的入口由服务端在各跳分配端口并生成转发；只给 --address/--port 是自定义入口（例如 IPLC），状态只跟随节点；
+经线路的入口由服务端在各跳分配端口并生成转发，同时给 --address/--port 时订阅里改用这个地址和端口
+（第一跳前面还有一层自管转发时，例如入口机整段 DNAT 到中转）；只给 --address/--port 是自定义入口（例如 IPLC），状态只跟随节点；
 --manual 登记运营者手写的转发（不下发、不计流量），--forward 按线路顺序每跳一个。`)
 	route := c.fs.String("route", "", "线路")
 	suffix := c.fs.String("suffix", "", "入口名后缀，订阅里为「节点名 · 后缀」，默认线路名")
 	nm := c.fs.String("name", "", "订阅里的完整名称")
-	address := c.fs.String("address", "", "入口地址")
-	port := c.fs.Int("port", 0, "入口端口")
+	address := c.fs.String("address", "", "入口地址；经线路时覆盖订阅里的第一跳地址")
+	port := c.fs.Int("port", 0, "入口端口；经线路时覆盖订阅里的第一跳外网端口")
 	sort := c.fs.Int("sort", 0, "排序")
 	manual := c.fs.Bool("manual", false, "登记手写转发")
 	var forwards multi

@@ -776,6 +776,12 @@ func (o *EntryAdd) Plan(ctx context.Context, q *db.Queries, raw json.RawMessage)
 		if err != nil {
 			return nil, err
 		}
+		// 中转入口也可以覆盖订阅里的第一跳地址和端口：第一跳前面还有一层运营者自管的转发时（例如入口机整段 DNAT 到中转），
+		// 客户端连的是那一层，而不是第一跳机器。
+		if p.Port < 0 || p.Port > 65535 {
+			return nil, apierr.BadRequest("invalid_port", "端口 %d 不合法", p.Port)
+		}
+		pe.Address, pe.Port = strings.TrimSpace(p.Address), p.Port
 	case p.Address != "" || p.Port > 0:
 		if p.Port < 0 || p.Port > 65535 {
 			return nil, apierr.BadRequest("invalid_port", "端口 %d 不合法", p.Port)
@@ -820,7 +826,11 @@ func (o *EntryAdd) Plan(ctx context.Context, q *db.Queries, raw json.RawMessage)
 	first := ""
 	if len(pe.Forwards) > 0 {
 		f := pe.Forwards[0]
-		first = fmt.Sprintf("%s:%d", firstNonEmpty(pe.Address, f.Machine), f.PublicPort)
+		port := f.PublicPort
+		if pe.Port > 0 {
+			port = pe.Port
+		}
+		first = fmt.Sprintf("%s:%d", firstNonEmpty(pe.Address, f.Machine), port)
 	}
 	steps = append(steps, fmt.Sprintf("新增入口「%s」%s，%d 名用户的订阅里多一条", name, first, users))
 	return &change.Draft{

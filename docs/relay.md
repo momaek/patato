@@ -74,6 +74,7 @@ patato route apply gz-hk --plan <套餐>
 
 # 单个节点的入口
 patato node entry add <节点> --route gz-hk
+patato node entry add <节点> --route hk --address entry.example.com --port 61001   # 第一跳前面还有一层自管转发（如入口机整段 DNAT）：订阅用这个地址和端口
 patato node entry disable <节点> <入口>
 patato node entry adopt <节点> <入口> --route gz-hk --forward gz-01:60001=hk:60001 --forward hk-01:60001=落地:443   # 链路发现确认后登记手写转发
 
