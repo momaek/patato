@@ -7,6 +7,9 @@ import tailwindcss from '@tailwindcss/vite'
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   return {
+    // 相对路径构建：服务端在 index.html 里注入 <base href>，Admin 可以挂在独立域名的根下，
+    // 也可以挂在用户侧域名的隐藏路径下（admin_url: https://example.com/a8f3k2c9）
+    base: './',
     plugins: [vue(), tailwindcss()],
     server: {
       port: 5173,

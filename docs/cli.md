@@ -10,12 +10,15 @@
 curl -fsSL https://github.com/momaek/patato/releases/latest/download/install-cli.sh | sh   # 从 Release 安装，同时建 pat 别名
 # 或从源码：make install-cli（安装到 $(go env GOPATH)/bin）
 patato auth login --url https://api.example.com
+# 单域名部署（Admin 挂在隐藏路径下）：
+patato auth login --url https://panel.example.com --admin-url https://panel.example.com/<Admin 路径>
 ```
 
 Windows 从 [Release](https://github.com/momaek/patato/releases) 下载 `patato-windows-amd64.exe` / `patato-windows-arm64.exe`。
 
 登录用设备授权：CLI 打印一个短码和 Admin 上的链接（默认自动打开浏览器），运营者用 passkey 登录 Admin、核对短码后批准，CLI 拿到 token 写进 `~/.config/patato/config.yaml`（权限 0600）。
 
+- `--admin-url`（或环境变量 `PATATO_ADMIN_URL`）：Admin 挂在隐藏路径下时，服务端不会把 Admin 地址告诉未登录的 CLI，只给相对路径；带上它才能直接打开授权页，否则 CLI 打印路径，由你在 Admin 地址后补上。
 - `--scope read`：只能查询；`--scope write`（默认）：还能预演和执行变更，敏感变更仍需审批。
 - 多个部署用 profile 区分：`patato profile list | use | remove`，单次用 `--profile <名字>`。
 - `patato auth logout` 先在服务端吊销 token，再删掉本地的；token 只能吊销自己。

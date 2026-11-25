@@ -80,11 +80,16 @@ async function logout() {
   await session.logout()
   router.replace({ name: 'login' })
 }
+
+// 页面带 <base href>，"#main" 会被解析成 base 首页的锚点，所以直接聚焦
+function focusMain() {
+  document.getElementById('main')?.focus()
+}
 </script>
 
 <template>
   <div class="flex min-h-dvh flex-col lg:flex-row">
-    <a href="#main" class="sr-only z-50 rounded-md bg-card px-3 py-2 focus:not-sr-only focus:fixed focus:top-2 focus:left-2">跳到主要内容</a>
+    <a href="#main" @click.prevent="focusMain" class="sr-only z-50 rounded-md bg-card px-3 py-2 focus:not-sr-only focus:fixed focus:top-2 focus:left-2">跳到主要内容</a>
 
     <!-- 窄屏顶栏 -->
     <header class="sticky top-0 z-30 flex items-center justify-between gap-2 border-b border-line bg-card/90 px-4 py-2.5 backdrop-blur lg:hidden">
@@ -172,7 +177,7 @@ async function logout() {
       </div>
     </nav>
 
-    <main id="main" class="mx-auto flex w-full max-w-[1440px] min-w-0 flex-1 flex-col gap-7 px-4 pt-6 pb-14 sm:px-6 lg:px-9 lg:pt-8">
+    <main id="main" tabindex="-1" class="mx-auto flex w-full max-w-[1440px] min-w-0 flex-1 flex-col gap-7 px-4 pt-6 pb-14 sm:px-6 lg:px-9 lg:pt-8">
       <RouterView />
     </main>
   </div>

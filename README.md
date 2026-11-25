@@ -36,18 +36,21 @@ Go 编写，Docker 一键部署；兼容 Xboard / V2board 的 UniProxy 节点协
 | 节点端 | V2bX / XrayR | 兼容 V2bX / XrayR，另有自研 patato-node（sing-box 内核，WebSocket 推送） |
 | 中转 | 需自己配转发 | 描述线路即可，自动分配端口、下发规则、监控每一跳 |
 | 迁移 | — | 内置 Xboard 导入，token、UUID、密码哈希原样保留 |
+| 部署 | 一个域名，后台挂在隐藏路径 | 同样只需一个域名，Admin 挂在随机路径；Docker 一键部署，自动 HTTPS 与每日备份 |
 
 ## 安装
 
 ### 服务端
 
-准备一台 Linux 机器（amd64 或 arm64），把三个域名解析到它，放行 80、443 端口，然后执行：
+准备一台 Linux 机器（amd64 或 arm64），把一个域名解析到它，放行 80、443 端口，然后执行：
 
 ```bash
-curl -fsSL https://github.com/momaek/patato/releases/latest/download/install.sh | sudo bash -s -- --domain example.com
+curl -fsSL https://github.com/momaek/patato/releases/latest/download/install.sh | sudo bash -s -- --host panel.example.com
 ```
 
-`--domain example.com` 会使用 `api.example.com`、`admin.example.com`、`my.example.com`，也可以用 `--api-host`、`--admin-host`、`--portal-host` 分别指定。
+API、订阅和用户侧都在 `https://panel.example.com`，Admin 挂在一段随机路径下（例如 `https://panel.example.com/4d2d9ed0b64d`），安装结束时会打印出来，请妥善保存、不要公开。想自己定路径用 `--admin-path`。
+
+也可以用三个子域名：`--domain example.com` 会使用 `api.example.com`、`admin.example.com`、`my.example.com`，或用 `--api-host`、`--admin-host`、`--portal-host` 分别指定。
 
 脚本会安装 Docker（如果还没有），在 `/opt/patato` 下启动数据库、服务端、Caddy（自动签发 HTTPS 证书）和每日备份。完成后会打印第一个运营者的邀请链接，打开它在 Admin 上注册 passkey 即可登录。
 
@@ -72,7 +75,7 @@ curl -fsSL https://github.com/momaek/patato/releases/latest/download/install.sh 
 
 ```bash
 curl -fsSL https://github.com/momaek/patato/releases/latest/download/install-cli.sh | sh
-patato auth login --url https://api.example.com
+patato auth login --url https://panel.example.com --admin-url https://panel.example.com/<Admin 路径>
 ```
 
 安装后同时有短别名 `pat`。登录时在 Admin 上核对短码并批准即可。Windows 从 [Releases](https://github.com/momaek/patato/releases) 下载 `patato-windows-*.exe`。
@@ -123,7 +126,9 @@ docker compose exec server patato-server import-xboard -dsn '<user>:<pass>@tcp(<
 One-command install (Docker Compose, automatic HTTPS, daily backups):
 
 ```bash
-curl -fsSL https://github.com/momaek/patato/releases/latest/download/install.sh | sudo bash -s -- --domain example.com
+curl -fsSL https://github.com/momaek/patato/releases/latest/download/install.sh | sudo bash -s -- --host panel.example.com
 ```
+
+Only one domain is needed: the API, subscriptions and the user portal live on it, and the admin panel sits under a random secret path printed at the end of the install (like Xboard). Use `--domain example.com` for separate `api.` / `admin.` / `my.` subdomains instead.
 
 Status: core features verified on real machines; stability acceptance not yet passed, not recommended for production yet.

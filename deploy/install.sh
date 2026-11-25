@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
 # Patato 一键部署 / 升级（Docker Compose）。
 #
-# 首次安装（三个域名先解析到这台机器）：
-#   curl -fsSL https://github.com/momaek/patato/releases/latest/download/install.sh | sudo bash -s -- --domain example.com
+# 首次安装，只用一个域名（先解析到这台机器）：
+#   curl -fsSL https://github.com/momaek/patato/releases/latest/download/install.sh | sudo bash -s -- --host panel.example.com
+#   API、订阅、用户侧都在 https://panel.example.com，Admin 在随机路径 https://panel.example.com/<随机串>
+#
+# 或者用三个子域名：
+#   ... | sudo bash -s -- --domain example.com
 #   等价于 --api-host api.example.com --admin-host admin.example.com --portal-host my.example.com
 #
 # 升级到最新版本（或 --version v0.2.0 指定版本）：在同一台机器上再执行一次，不用带域名
@@ -17,6 +21,8 @@ REPO="${PATATO_REPO:-momaek/patato}"
 DIR="/opt/patato"
 VERSION=""
 DOMAIN=""
+HOST=""
+ADMIN_PATH=""
 API_HOST=""
 ADMIN_HOST=""
 PORTAL_HOST=""
@@ -33,6 +39,8 @@ usage() {
 	cat <<'EOF'
 用法：install.sh [选项]
 
+  --host <域名>            只用一个域名：API、订阅、用户侧都在它下面，Admin 挂在随机路径下
+  --admin-path <路径>      配合 --host 指定 Admin 路径（默认随机生成，例如 a8f3k2c9e1b0）
   --domain <域名>          用 api.<域名>、admin.<域名>、my.<域名> 三个子域名
   --api-host <主机名>      API、订阅和节点接入的域名（默认 api.<域名>）
   --admin-host <主机名>    Admin 的域名（默认 admin.<域名>）
@@ -64,6 +72,8 @@ need_arg() { [[ $# -ge 2 && -n "$2" ]] || die "$1 需要一个值"; }
 
 while [[ $# -gt 0 ]]; do
 	case "$1" in
+	--host) need_arg "$@"; HOST="$2"; shift 2 ;;
+	--admin-path) need_arg "$@"; ADMIN_PATH="$2"; shift 2 ;;
 	--domain) need_arg "$@"; DOMAIN="$2"; shift 2 ;;
 	--api-host) need_arg "$@"; API_HOST="$2"; shift 2 ;;
 	--admin-host) need_arg "$@"; ADMIN_HOST="$2"; shift 2 ;;
@@ -120,6 +130,12 @@ env_set() {
 config_host() {
 	[[ -f "$1" ]] || return 0
 	sed -n "s/^$2:[[:space:]]*[\"']\{0,1\}https\{0,1\}:\/\/\([^:/\"']*\).*/\1/p" "$1" | head -n1
+}
+
+# config_path <config.yaml> <键>：取出 admin_url 这类配置里的路径（不含开头的 /）
+config_path() {
+	[[ -f "$1" ]] || return 0
+	sed -n "s/^$2:[[:space:]]*[\"']\{0,1\}https\{0,1\}:\/\/[^/\"']*\/\([^/\"']*\).*/\1/p" "$1" | head -n1
 }
 
 fetch() { # fetch <URL> <目标文件>
@@ -193,6 +209,13 @@ fi
 [[ -z "$VERSION" ]] && VERSION="latest"
 
 # 域名：参数 > .env > 已有 config.yaml
+if [[ -n "$HOST" ]]; then
+	[[ -z "$DOMAIN$API_HOST$ADMIN_HOST$PORTAL_HOST" ]] || die "--host 不能和 --domain、--api-host、--admin-host、--portal-host 一起用"
+	valid_host "$HOST" || die "--host 不是合法的域名：$HOST"
+	API_HOST="$HOST" ADMIN_HOST="$HOST" PORTAL_HOST="$HOST"
+elif [[ -n "$ADMIN_PATH" ]]; then
+	die "--admin-path 只能配合 --host 使用"
+fi
 if [[ -n "$DOMAIN" ]]; then
 	valid_host "$DOMAIN" || die "--domain 不是合法的域名：$DOMAIN"
 	API_HOST="${API_HOST:-api.$DOMAIN}"
@@ -213,7 +236,24 @@ for h in "$API_HOST" "$ADMIN_HOST" "$PORTAL_HOST"; do
 	valid_host "$h" || die "不是合法的主机名：${h}（只写域名，不带 https:// 和路径）"
 	[[ "$h" == example.com || "$h" == *.example.com ]] && die "请把 $h 换成你自己的域名"
 done
-[[ "$ADMIN_HOST" != "$PORTAL_HOST" ]] || die "Admin 和用户侧必须使用不同的域名"
+# Admin 和用户侧同一个域名时，Admin 挂在一段随机路径下（只在首次生成配置时用到；之后以 config.yaml 为准）
+SINGLE_HOST=0
+if [[ "$ADMIN_HOST" == "$PORTAL_HOST" ]]; then
+	SINGLE_HOST=1
+	ADMIN_PATH="${ADMIN_PATH#/}"
+	ADMIN_PATH="${ADMIN_PATH%/}"
+	ADMIN_PATH="${ADMIN_PATH:-$(config_path "$CONFIG" admin_url)}"
+	if [[ -z "$ADMIN_PATH" ]]; then
+		((FIRST_INSTALL)) || die "Admin 和用户侧是同一个域名，但 config.yaml 的 admin_url 没有路径；请在 admin_url 后面加一段随机路径"
+		ADMIN_PATH="$(rand_hex 6)"
+	fi
+	[[ "$ADMIN_PATH" =~ ^[A-Za-z0-9_-]+$ ]] || die "--admin-path 只能包含字母、数字、- 和 _：$ADMIN_PATH"
+	# 与服务端 config.reservedAdminPaths 一致：不能占用 API 和用户侧页面的路径
+	case "$(printf '%s' "$ADMIN_PATH" | tr '[:upper:]' '[:lower:]')" in
+	api | assets | healthz | metrics | login | forgot-password | reset-password | password | reset-link | register | buy | orders | tickets | invite)
+		die "--admin-path 不能用 ${ADMIN_PATH}，它和 API 或用户侧页面冲突；换一个随机的" ;;
+	esac
+fi
 
 HTTP_PORT="${HTTP_PORT:-$(env_get "$ENV_FILE" HTTP_PORT)}"
 HTTPS_PORT="${HTTPS_PORT:-$(env_get "$ENV_FILE" HTTPS_PORT)}"
@@ -275,12 +315,14 @@ url_for() {
 if ((FIRST_INSTALL)); then
 	# passkey 的依赖方 ID 必须是 Admin 域名本身或它的上级域名
 	rp_id="$ADMIN_HOST"
+	admin_url="$(url_for "$ADMIN_HOST")"
+	((SINGLE_HOST)) && admin_url="$admin_url/$ADMIN_PATH"
 	[[ -n "$DOMAIN" && ("$ADMIN_HOST" == "$DOMAIN" || "$ADMIN_HOST" == *".$DOMAIN") ]] && rp_id="$DOMAIN"
 	sed \
 		-e "s|^database_url:.*|database_url: \"postgres://patato:${PG_PASSWORD}@postgres:5432/patato?sslmode=disable\"|" \
 		-e "s|^secret_key:.*|secret_key: \"$(rand_hex 32)\"|" \
 		-e "s|^public_url:.*|public_url: \"$(url_for "$API_HOST")\"|" \
-		-e "s|^admin_url:.*|admin_url: \"$(url_for "$ADMIN_HOST")\"|" \
+		-e "s|^admin_url:.*|admin_url: \"${admin_url}\"|" \
 		-e "s|^portal_url:.*|portal_url: \"$(url_for "$PORTAL_HOST")\"|" \
 		-e "s|^  rp_id:.*|  rp_id: \"${rp_id}\"|" \
 		"$DIR/config.example.yaml" >"$CONFIG.tmp"
@@ -335,14 +377,26 @@ if ((FIRST_INSTALL)); then
 	compose exec -T server patato-server operator invite -name "$OPERATOR" || warn "生成运营者邀请失败，可以稍后执行：cd $DIR && docker compose exec server patato-server operator invite -name $OPERATOR"
 fi
 
+admin_url="$(url_for "$ADMIN_HOST")"
+((SINGLE_HOST)) && admin_url="$admin_url/$ADMIN_PATH"
+if ((SINGLE_HOST)); then
+	hosts_note="域名 ${PORTAL_HOST} 需要解析到这台机器"
+	[[ "$API_HOST" != "$PORTAL_HOST" ]] && hosts_note="域名 ${API_HOST}、${PORTAL_HOST} 需要解析到这台机器"
+	admin_note="  Admin 地址请妥善保存，不要公开；忘了可以查看 ${CONFIG} 里的 admin_url。
+"
+else
+	hosts_note="三个域名需要解析到这台机器"
+	admin_note=""
+fi
+
 cat <<EOF
 
   API：     $(url_for "$API_HOST")
-  Admin：   $(url_for "$ADMIN_HOST")
+  Admin：   ${admin_url}
   用户侧：  $(url_for "$PORTAL_HOST")
-
+${admin_note}
   安装目录：${DIR}（配置 config.yaml，数据 pgdata/，每日备份 backups/）
-  三个域名需要解析到这台机器，并放行 ${HTTP_PORT}、${HTTPS_PORT} 端口，Caddy 才能签发证书。
+  ${hosts_note}，并放行 ${HTTP_PORT}、${HTTPS_PORT} 端口，Caddy 才能签发证书。
   改配置后重启：cd $DIR && docker compose restart server
   升级：再执行一次本脚本（可加 --version 指定版本）
   CLI：curl -fsSL https://github.com/${REPO}/releases/latest/download/install-cli.sh | sh
