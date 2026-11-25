@@ -1,6 +1,14 @@
 # Patato
 
-Agentic 时代的代理面板：人只负责说话和审批，日常操作交给 AI Agent。
+[![License](https://img.shields.io/github/license/momaek/patato)](LICENSE)
+[![Go](https://img.shields.io/github/go-mod/go-version/momaek/patato)](go.mod)
+[![Stars](https://img.shields.io/github/stars/momaek/patato?style=social)](https://github.com/momaek/patato/stargazers)
+
+**Agentic 时代的机场面板 / 代理面板，可作为 Xboard、V2board 的替代品。** 人只负责说话和审批，节点、中转线路、套餐、用户和订阅这些日常操作交给 AI Agent。
+
+Go 编写，Docker 一键部署；兼容 Xboard / V2board 的 UniProxy 节点协议，V2bX、XrayR 不改代码即可接入；支持从 Xboard 一键迁移，老用户订阅链接不变。
+
+[English](#english) · [功能](#功能) · [和 Xboard 的区别](#和-xboard--v2board-的区别) · [安装](#安装) · [从 Xboard 迁移](#从-xboard-迁移)
 
 - 与 [tolato](https://github.com/momaek/tolato) 搭配：tolato 管机器，Patato 管节点、线路、套餐、用户和订阅。
 - API 优先：所有写操作都可以预演（`--dry-run`），敏感操作需要人用 passkey 或 Telegram 批准。
@@ -14,6 +22,20 @@ Agentic 时代的代理面板：人只负责说话和审批，日常操作交给
 - **售卖与运营**：套餐与调价、订单与支付（易支付、Stripe）、退款审批、工单、优惠券、邀请返佣、报表、风控、Webhook 与自动处置、审计日志。
 - **两个网页**：运营后台（Admin）和用户侧，支持浅色 / 深色主题。
 - **从 Xboard 迁移**：导入用户、套餐、节点、订单、邀请关系与余额。
+
+**支持的协议**：VLESS（含 Reality）、VMess、Trojan、Shadowsocks、Hysteria / Hysteria2、TUIC、AnyTLS。
+
+## 和 Xboard / V2board 的区别
+
+| | Xboard / V2board | Patato |
+| --- | --- | --- |
+| 技术栈 | PHP（Laravel） | Go，单个服务端镜像，内嵌两个前端 |
+| 日常运维 | 人在后台点表单 | AI Agent 通过 API / CLI 操作，人只审批 |
+| 写操作安全 | 直接生效 | 先预演出计划，敏感操作需 passkey 或 Telegram 批准，全量审计 |
+| 节点密钥 | 全站共享一个 server token | 每个节点单独签发，泄露一台不影响其他 |
+| 节点端 | V2bX / XrayR | 兼容 V2bX / XrayR，另有自研 patato-node（sing-box 内核，WebSocket 推送） |
+| 中转 | 需自己配转发 | 描述线路即可，自动分配端口、下发规则、监控每一跳 |
+| 迁移 | — | 内置 Xboard 导入，token、UUID、密码哈希原样保留 |
 
 ## 安装
 
@@ -79,3 +101,29 @@ docker compose exec server patato-server import-xboard -dsn '<user>:<pass>@tcp(<
 ## 状态
 
 核心功能已在真机上验证可用，但稳定性验收尚未通过，暂不建议用于生产环境；尚未正式发布版本。
+
+## License
+
+[Apache-2.0](LICENSE)
+
+---
+
+## English
+
+**Patato is an agent-first proxy panel (airport panel) — a modern alternative to Xboard and V2board, written in Go.** Humans only chat and approve; AI agents handle nodes, relay routes, plans, users and subscriptions through the API and CLI.
+
+- **Xboard / V2board compatible**: implements the UniProxy node API, so V2bX and XrayR connect without code changes. Built-in Xboard importer keeps user tokens, UUIDs and password hashes, so existing subscription links keep working.
+- **Safe by design**: every write can be dry-run as a plan first; sensitive changes require passkey or Telegram approval; full audit log. Per-node API keys instead of one shared server token.
+- **Protocols**: VLESS (incl. Reality), VMess, Trojan, Shadowsocks, Hysteria / Hysteria2, TUIC, AnyTLS.
+- **Subscriptions**: base64 (v2rayN / Shadowrocket), Clash / Mihomo, sing-box, Surge, Quantumult X, Loon.
+- **Relay routes**: describe "these nodes go Guangzhou → Hong Kong" and Patato allocates ports, pushes forwarding rules and monitors every hop.
+- **Billing and ops**: plans, orders, EPay and Stripe, refunds, tickets, coupons, referral commission, reports, webhooks.
+- **Own node agent (optional)**: patato-node with embedded sing-box, WebSocket push, zero-key onboarding via [tolato](https://github.com/momaek/tolato).
+
+One-command install (Docker Compose, automatic HTTPS, daily backups):
+
+```bash
+curl -fsSL https://github.com/momaek/patato/releases/latest/download/install.sh | sudo bash -s -- --domain example.com
+```
+
+Status: core features verified on real machines; stability acceptance not yet passed, not recommended for production yet.
