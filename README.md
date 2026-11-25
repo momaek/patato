@@ -52,6 +52,16 @@ API、订阅和用户侧都在 `https://panel.example.com`，Admin 挂在一段�
 
 也可以用三个子域名：`--domain example.com` 会使用 `api.example.com`、`admin.example.com`、`my.example.com`，或用 `--api-host`、`--admin-host`、`--portal-host` 分别指定。
 
+#### 一个域名还是独立 Admin 域名？
+
+| | 一个域名（`--host`） | 独立 Admin 域名（`--domain` 等） |
+| --- | --- | --- |
+| 需要准备 | 1 个域名 | 2–3 个域名 |
+| Admin 的位置 | 用户侧域名下的随机路径，知道路径的人能找到登录页 | 单独的域名，用户侧完全看不到后台 |
+| passkey 绑定的域名（`webauthn.rp_id`） | 这个域名本身 | 用 `--domain example.com` 时是 `example.com`；分别指定 `--admin-host` 时是 Admin 域名本身 |
+
+**先选好再上线。** passkey 绑定在 `webauthn.rp_id` 上，只能在这个域名和它的子域名下使用，与路径无关。之后如果把 Admin 换到不在 `rp_id` 之下的域名（例如从 `admin.a.com` 改成 `panel.b.com/xxx`），已注册的 passkey 会全部失效，只能改 `rp_id` 后用 `patato-server operator invite` 重新邀请运营者、重新注册。在 `rp_id` 之下换子域名或改路径则不受影响；只升级版本、不改地址时也不受影响。
+
 脚本会安装 Docker（如果还没有），在 `/opt/patato` 下启动数据库、服务端、Caddy（自动签发 HTTPS 证书）和每日备份。完成后会打印第一个运营者的邀请链接，打开它在 Admin 上注册 passkey 即可登录。
 
 Telegram、邮件、支付、tolato 等按需在 `/opt/patato/config.yaml` 里补上，然后重启：
@@ -69,12 +79,14 @@ curl -fsSL https://github.com/momaek/patato/releases/latest/download/install.sh 
 # 指定版本或回滚：... | sudo bash -s -- --version v0.2.0
 ```
 
-升级前会自动备份数据库到 `/opt/patato/backups/`，`config.yaml` 和数据不会被改动。
+升级前会自动备份数据库到 `/opt/patato/backups/`，`config.yaml` 和数据不会被改动，域名、Admin 路径和已注册的 passkey 都保持不变。
 
 ### CLI
 
 ```bash
 curl -fsSL https://github.com/momaek/patato/releases/latest/download/install-cli.sh | sh
+patato auth login --url https://api.example.com
+# 一个域名的部署：服务端不会把隐藏的 Admin 路径告诉未登录的 CLI，需要自己带上
 patato auth login --url https://panel.example.com --admin-url https://panel.example.com/<Admin 路径>
 ```
 
@@ -103,7 +115,7 @@ docker compose exec server patato-server import-xboard -dsn '<user>:<pass>@tcp(<
 
 ## 状态
 
-核心功能已在真机上验证可用，但稳定性验收尚未通过，暂不建议用于生产环境；尚未正式发布版本。
+已发布 [v0.1.0](https://github.com/momaek/patato/releases)。核心功能已在真机上验证可用，但稳定性验收尚未通过，暂不建议用于生产环境。
 
 ## License
 
@@ -131,4 +143,6 @@ curl -fsSL https://github.com/momaek/patato/releases/latest/download/install.sh 
 
 Only one domain is needed: the API, subscriptions and the user portal live on it, and the admin panel sits under a random secret path printed at the end of the install (like Xboard). Use `--domain example.com` for separate `api.` / `admin.` / `my.` subdomains instead.
 
-Status: core features verified on real machines; stability acceptance not yet passed, not recommended for production yet.
+Choose before going live: passkeys are bound to `webauthn.rp_id` (the domain, not the path). Moving the admin panel to a domain outside the current `rp_id` invalidates every registered passkey; upgrades that keep the same addresses do not.
+
+Status: [v0.1.0](https://github.com/momaek/patato/releases) released. Core features verified on real machines; stability acceptance not yet passed, not recommended for production yet.
