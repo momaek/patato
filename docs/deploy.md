@@ -2,7 +2,15 @@
 
 ## 一键部署（Docker Compose）
 
-准备一台 Linux 机器（amd64 或 arm64），把三个域名解析到它，放行 80、443 端口：
+准备一台 Linux 机器（amd64 或 arm64），把域名解析到它，放行 80、443 端口。只用一个域名：
+
+```bash
+curl -fsSL https://github.com/momaek/patato/releases/latest/download/install.sh | sudo bash -s -- --host panel.example.com
+```
+
+API、订阅、节点接入和用户侧都在 `https://panel.example.com`；Admin 挂在一段随机路径下（`admin_url: https://panel.example.com/<随机串>`），安装结束时打印。这个路径相当于第一道门槛，请不要公开；忘了可以看 `config.yaml` 的 `admin_url`。`--admin-path <路径>` 可以自己指定（字母、数字、`-`、`_`，不能与 `api`、`login`、`orders` 等 API 或用户侧页面重名）。
+
+也可以用三个子域名：
 
 ```bash
 curl -fsSL https://github.com/momaek/patato/releases/latest/download/install.sh | sudo bash -s -- --domain example.com
@@ -20,7 +28,7 @@ Telegram、SMTP、支付、tolato 等按需在 `/opt/patato/config.yaml` 里补�
 
 | 文件 / 目录 | 说明 |
 | --- | --- |
-| `.env` | 版本、镜像、三个域名、端口、数据库密码；Compose 和 Caddy 都从这里取值 |
+| `.env` | 版本、镜像、域名（单域名时三个值相同）、端口、数据库密码；Compose 和 Caddy 都从这里取值 |
 | `config.yaml` | 服务端配置，只在首次安装时生成，之后由你维护 |
 | `docker-compose.override.yaml` | 想改 Compose 时写在这里（升级不会动它） |
 | `pgdata/`、`backups/`、`caddy-data/` | 数据库、备份（每日一份保留 14 天，升级前额外一份）、证书 |

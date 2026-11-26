@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { useSession } from './lib/session'
 
 export const router = createRouter({
+  // 不传 base：vue-router 读服务端注入的 <base href>，Admin 挂在子路径下时路由也落在它下面
   history: createWebHistory(),
   routes: [
     { path: '/login', name: 'login', component: () => import('./pages/Login.vue'), meta: { public: true } },

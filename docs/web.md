@@ -54,7 +54,11 @@ docker compose -f deploy/docker-compose.yaml build server
 docker compose -f deploy/docker-compose.yaml up -d
 ```
 
-配置 `admin_url`、`portal_url` 为不同的域名（本地也可以是不同端口），不支持子路径。Caddy 将三个域名的请求原样反代到服务端，保留 Host；后端根据 Host 提供对应应用，未知域名不返回前端。两个前端的 `/api/*` 仍由同一服务处理，会话 cookie 留在各自的域名下，Origin 和 passkey 校验沿用原来的配置。
+`admin_url`、`portal_url` 可以是不同的域名（本地也可以是不同端口），也可以是同一个域名：这时 `admin_url` 必须带一段路径（`https://panel.example.com/a8f3k2c9e1b0`），Admin 挂在它下面，其余页面都归用户侧，不暴露 Admin 的存在。Caddy 将请求原样反代到服务端，保留 Host 和路径；后端按 Host 和路径前缀提供对应应用，未知域名不返回前端。
+
+Admin 以相对路径构建（Vite `base: './'`），服务端返回 `index.html` 时注入 `<base href="<前缀>/">`，静态资源和 vue-router 的 history 据此落在前缀下；访问不带结尾斜杠的前缀会 301 到带斜杠的地址。用户侧使用绝对路径。两个前端的 `/api/*` 仍由同一服务处理；单域名时两个会话 cookie（`patato_admin`、`patato_portal`）同在一个域名下但互不通用。Origin、CORS 和 passkey 校验用 `admin_url` 的 origin（去掉路径）。
+
+`POST /api/v1/auth/cli/grants` 不需要登录，Admin 挂在路径下时它只返回 `verification_path`（相对 Admin 的路径），不返回完整的 `verification_url`，避免泄露 Admin 地址；CLI 用 `--admin-url` 补全。
 
 服务端支持 SPA 页面直接访问与刷新，带哈希的 `/assets/*` 缓存一年，首页不缓存；缺失资源返回 404，不回退到首页。`X-Frame-Options: DENY` 等安全响应头由服务端设置，审批页不能被嵌进别的页面。
 

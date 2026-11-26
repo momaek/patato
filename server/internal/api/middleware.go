@@ -86,7 +86,7 @@ func (s *Server) adminAuth(c *gin.Context) {
 		fail(c, apierr.ErrUnauthorized)
 		return
 	}
-	if !s.sameOrigin(c, s.d.Cfg.AdminURL) {
+	if !s.sameOrigin(c, s.d.Cfg.AdminOrigin()) {
 		fail(c, apierr.Forbidden("bad_origin", "请求来源不对"))
 		return
 	}

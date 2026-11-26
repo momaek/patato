@@ -20,7 +20,7 @@ make lint
 
 ## 首次部署
 
-1. 一键部署：`curl -fsSL https://github.com/momaek/patato/releases/latest/download/install.sh | sudo bash -s -- --domain example.com`，详见 [部署与发布](deploy.md)。脚本生成 `config.yaml`（含 `admin_url`、`portal_url`、`webauthn.rp_id`），两个前端随服务端镜像内嵌，Caddy 只负责 HTTPS 和反向代理。源码部署在 `deploy/` 下执行 `docker compose -f docker-compose.yaml -f docker-compose.build.yaml up -d --build`；本机构建完整二进制使用 `make build`（需要 pnpm）。
+1. 一键部署：`curl -fsSL https://github.com/momaek/patato/releases/latest/download/install.sh | sudo bash -s -- --host panel.example.com`（单域名，Admin 挂在随机路径；或 `--domain example.com` 用三个子域名），详见 [部署与发布](deploy.md)。脚本生成 `config.yaml`（含 `admin_url`、`portal_url`、`webauthn.rp_id`），两个前端随服务端镜像内嵌，Caddy 只负责 HTTPS 和反向代理。源码部署在 `deploy/` 下执行 `docker compose -f docker-compose.yaml -f docker-compose.build.yaml up -d --build`；本机构建完整二进制使用 `make build`（需要 pnpm）。
 2. 一键部署会打印第一个运营者的邀请链接；手工部署时执行 `patato-server operator invite -name <名字>`（Compose 下为 `docker compose exec server patato-server operator invite -name <名字>`），在 Admin 上用它注册 passkey。
 3. CLI 登录：`patato auth login` 发起设备授权（`POST /api/v1/auth/cli/grants`），运营者在 Admin 上核对短码并批准，CLI 换取 token。
 4. 配置 Telegram 后，运营者在 Admin 上生成绑定码（`POST /api/v1/auth/telegram:bind`），给机器人发送 `/bind <码>`，之后可以直接在 Telegram 里批准或拒绝。

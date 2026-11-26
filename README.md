@@ -36,18 +36,31 @@ Go 编写，Docker 一键部署；兼容 Xboard / V2board 的 UniProxy 节点协
 | 节点端 | V2bX / XrayR | 兼容 V2bX / XrayR，另有自研 patato-node（sing-box 内核，WebSocket 推送） |
 | 中转 | 需自己配转发 | 描述线路即可，自动分配端口、下发规则、监控每一跳 |
 | 迁移 | — | 内置 Xboard 导入，token、UUID、密码哈希原样保留 |
+| 部署 | 一个域名，后台挂在隐藏路径 | 同样只需一个域名，Admin 挂在随机路径；Docker 一键部署，自动 HTTPS 与每日备份 |
 
 ## 安装
 
 ### 服务端
 
-准备一台 Linux 机器（amd64 或 arm64），把三个域名解析到它，放行 80、443 端口，然后执行：
+准备一台 Linux 机器（amd64 或 arm64），把一个域名解析到它，放行 80、443 端口，然后执行：
 
 ```bash
-curl -fsSL https://github.com/momaek/patato/releases/latest/download/install.sh | sudo bash -s -- --domain example.com
+curl -fsSL https://github.com/momaek/patato/releases/latest/download/install.sh | sudo bash -s -- --host panel.example.com
 ```
 
-`--domain example.com` 会使用 `api.example.com`、`admin.example.com`、`my.example.com`，也可以用 `--api-host`、`--admin-host`、`--portal-host` 分别指定。
+API、订阅和用户侧都在 `https://panel.example.com`，Admin 挂在一段随机路径下（例如 `https://panel.example.com/4d2d9ed0b64d`），安装结束时会打印出来，请妥善保存、不要公开。想自己定路径用 `--admin-path`。
+
+也可以用三个子域名：`--domain example.com` 会使用 `api.example.com`、`admin.example.com`、`my.example.com`，或用 `--api-host`、`--admin-host`、`--portal-host` 分别指定。
+
+#### 一个域名还是独立 Admin 域名？
+
+| | 一个域名（`--host`） | 独立 Admin 域名（`--domain` 等） |
+| --- | --- | --- |
+| 需要准备 | 1 个域名 | 2–3 个域名 |
+| Admin 的位置 | 用户侧域名下的随机路径，知道路径的人能找到登录页 | 单独的域名，用户侧完全看不到后台 |
+| passkey 绑定的域名（`webauthn.rp_id`） | 这个域名本身 | 用 `--domain example.com` 时是 `example.com`；分别指定 `--admin-host` 时是 Admin 域名本身 |
+
+**先选好再上线。** passkey 绑定在 `webauthn.rp_id` 上，只能在这个域名和它的子域名下使用，与路径无关。之后如果把 Admin 换到不在 `rp_id` 之下的域名（例如从 `admin.a.com` 改成 `panel.b.com/xxx`），已注册的 passkey 会全部失效，只能改 `rp_id` 后用 `patato-server operator invite` 重新邀请运营者、重新注册。在 `rp_id` 之下换子域名或改路径则不受影响；只升级版本、不改地址时也不受影响。
 
 脚本会安装 Docker（如果还没有），在 `/opt/patato` 下启动数据库、服务端、Caddy（自动签发 HTTPS 证书）和每日备份。完成后会打印第一个运营者的邀请链接，打开它在 Admin 上注册 passkey 即可登录。
 
@@ -66,13 +79,15 @@ curl -fsSL https://github.com/momaek/patato/releases/latest/download/install.sh 
 # 指定版本或回滚：... | sudo bash -s -- --version v0.2.0
 ```
 
-升级前会自动备份数据库到 `/opt/patato/backups/`，`config.yaml` 和数据不会被改动。
+升级前会自动备份数据库到 `/opt/patato/backups/`，`config.yaml` 和数据不会被改动，域名、Admin 路径和已注册的 passkey 都保持不变。
 
 ### CLI
 
 ```bash
 curl -fsSL https://github.com/momaek/patato/releases/latest/download/install-cli.sh | sh
 patato auth login --url https://api.example.com
+# 一个域名的部署：服务端不会把隐藏的 Admin 路径告诉未登录的 CLI，需要自己带上
+patato auth login --url https://panel.example.com --admin-url https://panel.example.com/<Admin 路径>
 ```
 
 安装后同时有短别名 `pat`。登录时在 Admin 上核对短码并批准即可。Windows 从 [Releases](https://github.com/momaek/patato/releases) 下载 `patato-windows-*.exe`。
@@ -100,7 +115,7 @@ docker compose exec server patato-server import-xboard -dsn '<user>:<pass>@tcp(<
 
 ## 状态
 
-核心功能已在真机上验证可用，但稳定性验收尚未通过，暂不建议用于生产环境；尚未正式发布版本。
+已发布 [v0.1.0](https://github.com/momaek/patato/releases)。核心功能已在真机上验证可用，但稳定性验收尚未通过，暂不建议用于生产环境。
 
 ## License
 
@@ -123,7 +138,11 @@ docker compose exec server patato-server import-xboard -dsn '<user>:<pass>@tcp(<
 One-command install (Docker Compose, automatic HTTPS, daily backups):
 
 ```bash
-curl -fsSL https://github.com/momaek/patato/releases/latest/download/install.sh | sudo bash -s -- --domain example.com
+curl -fsSL https://github.com/momaek/patato/releases/latest/download/install.sh | sudo bash -s -- --host panel.example.com
 ```
 
-Status: core features verified on real machines; stability acceptance not yet passed, not recommended for production yet.
+Only one domain is needed: the API, subscriptions and the user portal live on it, and the admin panel sits under a random secret path printed at the end of the install (like Xboard). Use `--domain example.com` for separate `api.` / `admin.` / `my.` subdomains instead.
+
+Choose before going live: passkeys are bound to `webauthn.rp_id` (the domain, not the path). Moving the admin panel to a domain outside the current `rp_id` invalidates every registered passkey; upgrades that keep the same addresses do not.
+
+Status: [v0.1.0](https://github.com/momaek/patato/releases) released. Core features verified on real machines; stability acceptance not yet passed, not recommended for production yet.

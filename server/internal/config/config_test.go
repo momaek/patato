@@ -14,11 +14,22 @@ func TestFrontendOrigins(t *testing.T) {
 		{"https://admin.test", "https://my.test", ""},
 		{"http://localhost:5173", "http://localhost:5174", ""},
 		{"", "", ""},
-		{"https://same.test", "https://SAME.test", "different hosts or ports"},
-		{"http://same.test", "https://same.test", "different hosts or ports"},
-		{"https://site.test/admin", "", "without a path"},
-		{"admin.test", "", "http(s) origin"},
-		{"https://admin.test?x=1", "", "without a path"},
+		{"https://same.test", "https://SAME.test", "share a host"},
+		{"http://same.test", "https://same.test", "share a host"},
+		{"https://same.test/", "https://same.test", "share a host"},
+		// 单域名：Admin 挂在随机路径下
+		{"https://same.test/a8f3k2c9", "https://same.test", ""},
+		{"https://same.test/a8f3k2c9/", "https://same.test", ""},
+		{"https://admin.test/x_y-Z9", "https://my.test", ""},
+		{"https://same.test/a/b", "https://same.test", "single segment"},
+		{"https://same.test/a%20b", "https://same.test", "single segment"},
+		{"https://same.test/a.b", "https://same.test", "single segment"},
+		{"https://same.test/api", "https://same.test", "reserved"},
+		{"https://same.test/Orders", "https://same.test", "reserved"},
+		{"https://same.test/assets", "https://same.test", "reserved"},
+		{"https://admin.test", "https://my.test/portal", "without a path"},
+		{"admin.test", "", "http(s) URL"},
+		{"https://admin.test?x=1", "", "without query"},
 	} {
 		c := Default()
 		c.DatabaseURL, c.PublicURL, c.SecretKey = "postgres://test", "https://api.test", strings.Repeat("k", 32)
@@ -65,6 +76,21 @@ func TestDefaultNodeBinaryURL(t *testing.T) {
 	} {
 		if got := DefaultNodeBinaryURL(version); got != want {
 			t.Errorf("DefaultNodeBinaryURL(%q) = %q, want %q", version, got, want)
+		}
+	}
+}
+
+func TestAdminOriginAndPath(t *testing.T) {
+	for _, tc := range []struct{ url, origin, path string }{
+		{"https://admin.test", "https://admin.test", ""},
+		{"https://same.test/a8f3k2c9", "https://same.test", "/a8f3k2c9"},
+		{"http://localhost:5173/x", "http://localhost:5173", "/x"},
+	} {
+		c := Default()
+		c.AdminURL = tc.url
+		c.fillDerived()
+		if c.AdminOrigin() != tc.origin || c.AdminPath() != tc.path || c.WebAuthn.Origins[0] != tc.origin {
+			t.Errorf("%s: origin=%q path=%q webauthn=%v", tc.url, c.AdminOrigin(), c.AdminPath(), c.WebAuthn.Origins)
 		}
 	}
 }

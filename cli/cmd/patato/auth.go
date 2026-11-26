@@ -34,12 +34,22 @@ func (a *app) auth(args []string) error {
 }
 
 type grant struct {
-	GrantID         string    `json:"grant_id"`
-	Secret          string    `json:"secret"`
-	UserCode        string    `json:"user_code"`
-	VerificationURL string    `json:"verification_url"`
-	ExpiresAt       time.Time `json:"expires_at"`
-	Interval        int       `json:"interval"`
+	GrantID         string `json:"grant_id"`
+	Secret          string `json:"secret"`
+	UserCode        string `json:"user_code"`
+	VerificationURL string `json:"verification_url"`
+	// VerificationPath 是相对 Admin 地址的路径；Admin 挂在隐藏路径下时服务端只返回它。
+	VerificationPath string    `json:"verification_path"`
+	ExpiresAt        time.Time `json:"expires_at"`
+	Interval         int       `json:"interval"`
+}
+
+// verificationLink 优先用 --admin-url 拼出授权链接，其次用服务端给的完整链接。
+func verificationLink(g grant, adminURL string) string {
+	if adminURL = strings.TrimRight(strings.TrimSpace(adminURL), "/"); adminURL != "" && g.VerificationPath != "" {
+		return adminURL + g.VerificationPath
+	}
+	return g.VerificationURL
 }
 
 func (a *app) authLogin(args []string) error {
@@ -47,6 +57,7 @@ func (a *app) authLogin(args []string) error {
 	rawURL := c.fs.String("url", os.Getenv("PATATO_URL"), "Patato API 地址，例如 https://api.example.com")
 	scope := c.fs.String("scope", "write", "权限：read 只能查询；write 还能预演和执行变更（敏感变更仍需审批）")
 	noBrowser := c.fs.Bool("no-browser", false, "不自动打开浏览器，只打印链接")
+	adminURL := c.fs.String("admin-url", os.Getenv("PATATO_ADMIN_URL"), "Admin 地址；Admin 挂在隐藏路径下时用来拼出授权链接，例如 https://example.com/a8f3k2c9")
 	if err := c.parse(args); err != nil {
 		return err
 	}
@@ -74,12 +85,19 @@ func (a *app) authLogin(args []string) error {
 	if _, err := anon.Do(a.ctx, "POST", epGrants, nil, map[string]any{"client_name": clientName(), "scope": *scope}, &g); err != nil {
 		return err
 	}
-	if g.VerificationURL == "" {
+	link := verificationLink(g, *adminURL)
+	switch {
+	case link != "":
+		fmt.Fprintf(os.Stderr, "在浏览器里打开下面的链接，确认短码是 %s 后批准：\n\n  %s\n\n", g.UserCode, link)
+	case g.VerificationPath != "":
+		// Admin 挂在隐藏路径下，服务端不会把地址告诉未登录的调用方
+		fmt.Fprintf(os.Stderr, "在浏览器里打开「<Admin 地址>%s」，确认短码是 %s 后批准。\n下次可以加 --admin-url <Admin 地址> 直接打开。\n\n",
+			g.VerificationPath, g.UserCode)
+	default:
 		return fmt.Errorf("服务端没有配置 admin_url，无法生成授权链接；在服务端配置里填写 admin_url")
 	}
-	fmt.Fprintf(os.Stderr, "在浏览器里打开下面的链接，确认短码是 %s 后批准：\n\n  %s\n\n", g.UserCode, g.VerificationURL)
-	if !*noBrowser {
-		if err := openBrowser(g.VerificationURL); err != nil {
+	if link != "" && !*noBrowser {
+		if err := openBrowser(link); err != nil {
 			fmt.Fprintf(os.Stderr, "没能自动打开浏览器（%v），请手动打开上面的链接。\n", err)
 		}
 	}

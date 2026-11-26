@@ -354,12 +354,14 @@ func (s *Service) updateCredential(ctx context.Context, cred *webauthn.Credentia
 // ---- CLI 设备授权 -------------------------------------------------------
 
 type CLIGrant struct {
-	ID              string    `json:"grant_id"`
-	Secret          string    `json:"secret"`
-	UserCode        string    `json:"user_code"`
-	VerificationURL string    `json:"verification_url"`
-	ExpiresAt       time.Time `json:"expires_at"`
-	Interval        int       `json:"interval"`
+	ID              string `json:"grant_id"`
+	Secret          string `json:"secret"`
+	UserCode        string `json:"user_code"`
+	VerificationURL string `json:"verification_url"`
+	// VerificationPath 是相对 Admin 地址的授权页路径；Admin 使用隐藏路径时 VerificationURL 为空。
+	VerificationPath string    `json:"verification_path"`
+	ExpiresAt        time.Time `json:"expires_at"`
+	Interval         int       `json:"interval"`
 }
 
 // CreateCLIGrant 由 CLI 发起：返回一个短码，运营者在 Admin 上核对短码后批准。
@@ -369,8 +371,11 @@ func (s *Service) CreateCLIGrant(ctx context.Context, clientName, scope string) 
 	}
 	g := &CLIGrant{ID: secret.ID("clg"), Secret: secret.Token("cgs"), UserCode: secret.UserCode(),
 		ExpiresAt: s.now().Add(10 * time.Minute), Interval: 3}
-	if s.cfg.AdminURL != "" {
-		g.VerificationURL = s.cfg.AdminURL + "/cli-auth?code=" + g.UserCode
+	// 这个接口不需要登录：Admin 挂在隐藏路径下时不能把完整地址告诉调用方，
+	// 只给相对 Admin 的路径，由运营者的 CLI（--admin-url）补全，或在 Admin 上手动打开。
+	g.VerificationPath = "/cli-auth?code=" + g.UserCode
+	if s.cfg.AdminURL != "" && s.cfg.AdminPath() == "" {
+		g.VerificationURL = s.cfg.AdminURL + g.VerificationPath
 	}
 	err := s.st.CreateCLIGrant(ctx, db.CreateCLIGrantParams{
 		ID: g.ID, SecretHash: secret.Hash(g.Secret), UserCode: g.UserCode, Scope: scope,

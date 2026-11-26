@@ -130,7 +130,7 @@ func internalPath(p string) string {
 
 func (s *Server) cors(c *gin.Context) {
 	origin := c.GetHeader("Origin")
-	if origin != "" && (origin == s.d.Cfg.AdminURL || origin == s.d.Cfg.PortalURL) {
+	if origin != "" && (origin == s.d.Cfg.AdminOrigin() || origin == s.d.Cfg.PortalURL) {
 		h := c.Writer.Header()
 		h.Set("Access-Control-Allow-Origin", origin)
 		h.Set("Access-Control-Allow-Credentials", "true")

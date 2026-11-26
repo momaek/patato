@@ -35,7 +35,9 @@ type Config struct {
 
 	// PublicURL 是 API 对外地址，节点、CLI、订阅链接都用它。
 	PublicURL string `yaml:"public_url"`
-	// AdminURL 与 PortalURL 用于前端 Host 分发、CORS、passkey 来源校验和邮件里的链接。
+	// AdminURL 与 PortalURL 用于前端分发、CORS、passkey 来源校验和邮件里的链接。
+	// AdminURL 可以带一段路径（如 https://example.com/a8f3k2c9），与用户侧共用一个域名；
+	// PortalURL 只能是 origin。
 	AdminURL  string `yaml:"admin_url"`
 	PortalURL string `yaml:"portal_url"`
 	// SubscribeURL 是订阅链接的域名，默认等于 PublicURL。
@@ -303,8 +305,45 @@ func (c *Config) fillDerived() {
 	}
 	c.SubscribePath = strings.TrimRight(c.SubscribePath, "/")
 	if len(c.WebAuthn.Origins) == 0 && c.AdminURL != "" {
-		c.WebAuthn.Origins = []string{c.AdminURL}
+		c.WebAuthn.Origins = []string{c.AdminOrigin()}
 	}
+}
+
+// AdminOrigin 是 AdminURL 去掉路径后的 origin，用于 CORS、Origin 和 passkey 校验。
+func (c *Config) AdminOrigin() string { return Origin(c.AdminURL) }
+
+// AdminPath 是 AdminURL 的路径前缀，例如 "/a8f3k2c9"；独立域名时为空。
+func (c *Config) AdminPath() string {
+	u, err := url.Parse(c.AdminURL)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimRight(u.Path, "/")
+}
+
+// Origin 返回 URL 的 scheme://host[:port]，解析失败时原样返回。
+func Origin(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil || u.Host == "" {
+		return raw
+	}
+	return u.Scheme + "://" + u.Host
+}
+
+func validPathSegment(s string) bool {
+	for _, r := range s {
+		if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '-' || r == '_') {
+			return false
+		}
+	}
+	return s != ""
+}
+
+// reservedAdminPaths 是 Admin 路径前缀不能占用的服务端路径和用户侧页面。
+var reservedAdminPaths = []string{
+	"api", "assets", "healthz", "metrics", "skill.md", "favicon.svg",
+	"login", "forgot-password", "reset-password", "password", "reset-link", "register",
+	"buy", "orders", "tickets", "invite",
 }
 
 // Location 返回配置的时区，无效时退回 UTC。
@@ -331,21 +370,41 @@ func (c *Config) Validate() error {
 		errs = append(errs, errors.New("public_url is required"))
 	}
 	hosts := make(map[string]string)
-	for _, frontend := range []struct{ name, value string }{{"admin_url", c.AdminURL}, {"portal_url", c.PortalURL}} {
+	for _, frontend := range []struct {
+		name, value string
+		path        bool
+	}{{"admin_url", c.AdminURL, true}, {"portal_url", c.PortalURL, false}} {
 		if frontend.value == "" {
 			continue
 		}
 		u, err := url.Parse(frontend.value)
 		if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") ||
-			(u.Path != "" && u.Path != "/") || u.RawQuery != "" || u.Fragment != "" || u.User != nil {
+			u.RawQuery != "" || u.Fragment != "" || u.User != nil || u.RawPath != "" {
+			errs = append(errs, fmt.Errorf("%s must be an http(s) URL without query, fragment or credentials", frontend.name))
+			continue
+		}
+		p := strings.Trim(u.Path, "/")
+		if !frontend.path && p != "" {
 			errs = append(errs, fmt.Errorf("%s must be an http(s) origin without a path", frontend.name))
 			continue
 		}
-		host := strings.ToLower(u.Host)
-		if previous := hosts[host]; previous != "" {
-			errs = append(errs, fmt.Errorf("%s and %s must use different hosts or ports", previous, frontend.name))
+		if p != "" {
+			if strings.Contains(p, "/") || !validPathSegment(p) {
+				errs = append(errs, fmt.Errorf("admin_url path must be a single segment of letters, digits, - or _, e.g. https://example.com/a8f3k2c9"))
+				continue
+			}
+			for _, r := range reservedAdminPaths {
+				if strings.EqualFold(p, r) {
+					errs = append(errs, fmt.Errorf("admin_url path /%s is reserved; pick a random one, e.g. /a8f3k2c9", p))
+				}
+			}
 		}
-		hosts[host] = frontend.name
+		// 服务端按 Host 分发前端，与 scheme 无关
+		hosts[frontend.name] = strings.ToLower(u.Host)
+	}
+	// 两个前端同一个 Host 时，Admin 必须挂在路径下
+	if a, p := hosts["admin_url"], hosts["portal_url"]; a != "" && a == p && c.AdminPath() == "" {
+		errs = append(errs, fmt.Errorf("admin_url and portal_url share a host; give admin_url a path such as %s/a8f3k2c9, or use different hosts", c.PortalURL))
 	}
 	if c.Risk.UserThreshold <= 0 || c.Risk.NodeThreshold <= 0 {
 		errs = append(errs, errors.New("risk thresholds must be positive"))

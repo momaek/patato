@@ -83,3 +83,47 @@ func TestHostRoutingAndSPA(t *testing.T) {
 		t.Fatal("development builds must leave frontend hosting to Vite")
 	}
 }
+
+// 单域名：Admin 挂在用户侧域名的隐藏路径下，其余页面都归用户侧。
+func TestAdminUnderPath(t *testing.T) {
+	app := func(title string) fs.FS {
+		return fstest.MapFS{
+			"index.html":        {Data: []byte("<!doctype html><html><head><title>" + title + "</title></head></html>")},
+			"assets/app-123.js": {Data: []byte("console.log('" + title + "')")},
+			"favicon.svg":       {Data: []byte("<svg>" + title + "</svg>")},
+		}
+	}
+	h := New("https://site.test/a8f3k2c9", "https://site.test", app("Admin"), app("Portal"))
+	for _, tc := range []struct {
+		path     string
+		status   int
+		body     string
+		location string
+	}{
+		{"/a8f3k2c9/", 200, `<head><base href="/a8f3k2c9/" /><title>Admin`, ""},
+		{"/a8f3k2c9/approvals/ap_1?via=cli", 200, "<title>Admin", ""},
+		{"/a8f3k2c9/assets/app-123.js", 200, "Admin", ""},
+		{"/a8f3k2c9/favicon.svg", 200, "<svg>Admin", ""},
+		{"/a8f3k2c9/assets/missing.js", 404, "404", ""},
+		{"/a8f3k2c9", 301, "", "/a8f3k2c9/"},
+		{"/a8f3k2c9?next=/x", 301, "", "/a8f3k2c9/?next=/x"},
+		// 前缀必须按整段匹配，前缀相同的其他路径归用户侧
+		{"/a8f3k2c9x", 200, "<title>Portal", ""},
+		{"/", 200, `<base href="/" /><title>Portal`, ""},
+		{"/login", 200, "<title>Portal", ""},
+		{"/assets/app-123.js", 200, "Portal", ""},
+		{"/favicon.svg", 200, "<svg>Portal", ""},
+		{"/admin", 200, "<title>Portal", ""},
+	} {
+		w := httptest.NewRecorder()
+		if !h.Serve(w, httptest.NewRequest("GET", "https://site.test"+tc.path, nil)) {
+			t.Fatalf("%s: not handled", tc.path)
+		}
+		if w.Code != tc.status || !strings.Contains(w.Body.String(), tc.body) || w.Header().Get("Location") != tc.location {
+			t.Errorf("%s: %d %q location=%q", tc.path, w.Code, w.Body.String(), w.Header().Get("Location"))
+		}
+	}
+	if h.Serve(httptest.NewRecorder(), httptest.NewRequest("GET", "https://site.test/api/v1/x", nil)) {
+		t.Fatal("API must stay with the server")
+	}
+}

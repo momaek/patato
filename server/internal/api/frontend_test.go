@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http/httptest"
+	"net/url"
 	"regexp"
 	"strings"
 	"testing"
@@ -25,7 +26,8 @@ func TestEmbeddedFrontends(t *testing.T) {
 		UniProxy:  uniproxy.New(nil, uniproxy.Config{}, nil, log),
 		Subscribe: subscribe.New(nil, subscribe.Config{}, nil, log),
 	})
-	assetPattern := regexp.MustCompile(`(?:src|href)="(/assets/[^"]+)"`)
+	// Admin 以相对路径构建（./assets/...），由注入的 <base href="/"> 解析到根下
+	assetPattern := regexp.MustCompile(`(?:src|href)="\.?(/assets/[^"]+)"`)
 	for _, tc := range []struct{ host, path, title string }{
 		{"admin.test", "/", "Patato Admin"},
 		{"admin.test", "/approvals/ap_123?via=cli", "Patato Admin"},
@@ -71,5 +73,58 @@ func TestEmbeddedFrontends(t *testing.T) {
 		if tc.method == "HEAD" && w.Body.Len() != 0 {
 			t.Error("HEAD returned a body")
 		}
+	}
+}
+
+// 单域名部署：Admin 挂在隐藏路径下。用实际构建产物确认 <base> 注入后相对资源都能取到。
+func TestEmbeddedAdminUnderPath(t *testing.T) {
+	cfg := config.Default()
+	cfg.AdminURL, cfg.PortalURL = "https://site.test/a8f3k2c9", "https://site.test"
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	s := New(Deps{
+		Cfg: cfg, Log: log,
+		UniProxy:  uniproxy.New(nil, uniproxy.Config{}, nil, log),
+		Subscribe: subscribe.New(nil, subscribe.Config{}, nil, log),
+	})
+	get := func(p string) *httptest.ResponseRecorder {
+		w := httptest.NewRecorder()
+		s.ServeHTTP(w, httptest.NewRequest("GET", "https://site.test"+p, nil))
+		return w
+	}
+	for _, tc := range []struct{ path, base, title string }{
+		{"/a8f3k2c9/", "/a8f3k2c9/", "Patato Admin"},
+		{"/a8f3k2c9/approvals/ap_123", "/a8f3k2c9/", "Patato Admin"},
+		{"/", "/", "我的订阅"},
+		{"/orders", "/", "我的订阅"},
+	} {
+		w := get(tc.path)
+		body := w.Body.String()
+		if w.Code != 200 || !strings.Contains(body, "<title>"+tc.title+"</title>") || !strings.Contains(body, `<base href="`+tc.base+`" />`) {
+			t.Fatalf("%s: %d %s", tc.path, w.Code, body)
+		}
+		refs := regexp.MustCompile(`(?:src|href)="([^"#]+)"`).FindAllStringSubmatch(body, -1)
+		if len(refs) == 0 {
+			t.Fatal("no references in index.html")
+		}
+		for _, ref := range refs {
+			// 按浏览器规则相对 <base> 解析
+			u, err := url.Parse("https://site.test" + tc.base)
+			if err != nil {
+				t.Fatal(err)
+			}
+			target, err := u.Parse(ref[1])
+			if err != nil {
+				t.Fatal(err)
+			}
+			if target.Path == tc.base {
+				continue // <base href> 自身
+			}
+			if a := get(target.Path); a.Code != 200 || a.Body.Len() == 0 || strings.Contains(a.Header().Get("Content-Type"), "text/html") {
+				t.Fatalf("%s -> %s: %d %v", ref[1], target.Path, a.Code, a.Header())
+			}
+		}
+	}
+	if w := get("/a8f3k2c9"); w.Code != 301 || w.Header().Get("Location") != "/a8f3k2c9/" {
+		t.Fatalf("redirect: %d %v", w.Code, w.Header())
 	}
 }
